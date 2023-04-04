@@ -1,17 +1,6 @@
 <%- include("_header") -%>
 
 <h1>Login page</h1>
-<%= message.success %>
-<% if (message.success) { %>
-  <div class="alert alert-success">
-      <%= message.success %>
-  </div>
-<% } %>
-<% if (message.error) { %>
-  <div class="alert alert-danger">
-      <%= message.error %>
-  </div>
-<% } %>
 
 <form method="POST" action="/login">
     <%- include("_loginEditor") -%>
