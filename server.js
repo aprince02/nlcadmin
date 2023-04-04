@@ -75,7 +75,7 @@ app.post("/edit/:id", requireLogin, (req, res) => {
 // GET /create
 app.get("/create", requireLogin, (req, res) => {
     const loggedInName = req.session.name;
-    res.render("create", { claimant: {}, bank_account: {} , loggedInName: loggedInName });
+    res.render("create", { member: {}, bank_account: {} , loggedInName: loggedInName });
   });
 
 // POST /create
