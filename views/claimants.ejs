@@ -1,6 +1,6 @@
 <%- include("_loggedInHeader") -%>
 
-<h1>Claimants</h1>
+<h1>Members</h1>
 
 <div class="table-responsive-sm">
   <table class="table table-hover">
@@ -9,25 +9,21 @@
         <th>ID</th>
         <th>First Name</th>
         <th>Surname</th>
-        <th>Date of Birth</th>
-        <th>Claim Status</th>
         <th class="d-print-none">
           <a class="btn btn-sm btn-success" href="/create">Add</a>
         </th>
       </tr>
     </thead>
     <tbody>
-      <% for (const claimant of model) { %>
+      <% for (const member of model) { %>
         <tr>
-          <td ><a href="/edit/<%= claimant.id %>"><%= claimant.id %></a></td>
-          <td><a href="/edit/<%= claimant.id %>"><%= claimant.first_name %></a></td>
-          <td><a href="/edit/<%= claimant.id %>"><%= claimant.surname %></a></td>
-          <td><%= claimant.date_of_birth %></td>
-          <td><%= claimant.claim_status %></td>
+          <td ><a href="/edit/<%= member.id %>"><%= member.id %></a></td>
+          <td><a href="/edit/<%= member.id %>"><%= member.first_name %></a></td>
+          <td><a href="/edit/<%= member.id %>"><%= member.surname %></a></td>
           <td class="d-print-none">
-            <a class="btn btn-sm btn-info" href="/payments/<%= claimant.id %>">View Payments</a>
-            <a class="btn btn-sm btn-warning" href="/edit/<%= claimant.id %>">Edit</a>
-            <a class="btn btn-sm btn-danger" href="/delete/<%= claimant.id %>">Delete</a>
+            <a class="btn btn-sm btn-info" href="/payments/<%= member.id %>">View Payments</a>
+            <a class="btn btn-sm btn-warning" href="/edit/<%= member.id %>">Edit</a>
+            <a class="btn btn-sm btn-danger" href="/delete/<%= member.id %>">Delete</a>
           </td>
         </tr>
       <% } %>

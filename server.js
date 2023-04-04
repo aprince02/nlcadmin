@@ -2,6 +2,8 @@ var express = require("express")
 var app = express()
 var db = require("./database.js")
 const bodyParser = require('body-parser');
+const csv = require('csv-parser');
+const fs = require('fs');
 const session = require('express-session');
 const flash = require('connect-flash');
 const bcrypt = require('bcrypt');
@@ -33,7 +35,7 @@ app.get("/", (req, res) =>  {
 
 // GET /claimants
 app.get("/claimants", requireLogin, (req, res) => {
-    const sql = "SELECT * FROM claimant ORDER BY id ASC"
+    const sql = "SELECT * FROM members ORDER BY id ASC"
     const loggedInName = req.session.name;
     db.all(sql, [], (err, rows) => {
         if (err) {
@@ -47,12 +49,12 @@ app.get("/claimants", requireLogin, (req, res) => {
 app.get("/edit/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
-    const claimant_sql = "SELECT * FROM claimant WHERE id = ?";
+    const claimant_sql = "SELECT * FROM members WHERE id = ?";
     db.get(claimant_sql, id, (err, row) => {
         if (err) {
             console.log(err.message);
         } else {
-            res.render("edit", { claimant: row, loggedInName: loggedInName });
+            res.render("edit", { member: row, loggedInName: loggedInName });
         }});
     });
 
