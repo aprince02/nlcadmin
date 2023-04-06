@@ -82,23 +82,25 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                 db.run(insert_members, ["Test", "TestSurname", "MALE", "test@test.com", "07737188124", "test address 1", "test address 2", "test city", "test postcode", "1999-01-01", "YES", "2022-01-01", "YES", "Native Church Name", "Child 1 2022-01-01, Child 2 2022-01-01", "Name One", "07737188124", "Name Two", "07737188124", "Developer"])
             }
         });
-        db.run(`CREATE TABLE payments (
+        db.run(`CREATE TABLE donations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            claimant_id INTEGER,
+            member_id INTEGER,
             amount text,
             date date,
-            payment_status text
+            fund text,
+            method text,
+            gift_aid_status text
         )`,
         (err) => {
             if (err) {
                 // Table already created
-                console.log('payments table already created')
+                console.log('donations table already created')
             }else{
                 // Table just created, creating some rows
-                var insert_claimants = 'INSERT INTO payments (claimant_id, amount, date, payment_status) VALUES (?,?,?,?)'
-                db.run(insert_claimants, ["1", "12.79", "2022-01-01", "SUCCESS"])
-                db.run(insert_claimants, ["2", "10.40", "2022-01-01", "SUCCESS"])
-                db.run(insert_claimants, ["3", "102.30", "2023-01-01", "SUCCESS"])
+                var insert_claimants = 'INSERT INTO donations (member_id, amount, date, fund, method, gift_aid_status) VALUES (?,?,?,?, ?,?)'
+                db.run(insert_claimants, ["1", "12.79", "2022-01-01", "Tithe", "Cash", "Unclaimed"])
+                db.run(insert_claimants, ["2", "10.40", "2022-01-01", "Van Gift", "Cash", "Claimed"])
+                db.run(insert_claimants, ["3", "102.30", "2023-01-01", "Church Building", "Bank", "Unclaimed"])
             }
         }
         

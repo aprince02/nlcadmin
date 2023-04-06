@@ -117,48 +117,66 @@ app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
         }});
     });
 
-// GET /payments/id
-app.get("/payments/:id", requireLogin, (req, res) => {
-    const id = req.params.id;
+// GET /payments
+app.get("/all-donations", requireLogin, (req, res) => {
     const loggedInName = req.session.name;
-    const sql = "SELECT * FROM payments WHERE claimant_id = ?";
-    db.all(sql, id, (err, rows) => {
+    const sql = "SELECT * FROM donations";
+    db.all(sql, [], (err, rows) => {
         if (err) {
           return console.error(err.message);
         } else {
-            res.render("payments", {model: rows, id: id, loggedInName: loggedInName });
+            res.render("all-donations", {model: rows, loggedInName: loggedInName });
         }});
     });
 
 // GET /add-payment/id
-app.get("/add-payment/:id", requireLogin, (req, res) => {
-    const id = req.params.id;
+app.get("/select-giver", requireLogin, (req, res) => {
+    const sql = "SELECT * FROM members ORDER BY id ASC"
     const loggedInName = req.session.name;
-    const payments_sql = "SELECT * FROM payments WHERE id = ?";
-    
-    db.get(payments_sql, id, (err, row) => {
+    db.all(sql, [], (err, rows) => {
         if (err) {
-            return console.error(err.message);
+            console.log(err.message);
         } else {
-            res.render("add-payment", { claimant: row, id: id, loggedInName: loggedInName });
+            res.render("select-giver", {model: rows, loggedInName: loggedInName});
         }});
     });
-    
-// POST /add-payment/id
-app.post("/add-payment/:id", requireLogin, (req, res) => {
-    const payment_sql = "INSERT INTO payments (claimant_id, amount, date, payment_status) VALUES (?, ?, ?, ?)";
-    const pending_status = "PENDING";
+
+// GET /add-payment/id
+app.get("/add-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
-    const payment = [id, req.body.amount, formatted_date(), pending_status];
+    const loggedInName = req.session.name;
+    res.render("add-donation", { id: id, loggedInName: loggedInName });
+    });
+
+// POST /add-payment/id
+app.post("/add-donation/:id", requireLogin, (req, res) => {
+    const id = req.params.id;
+    const payment_sql = "INSERT INTO donations (member_id, amount, date, fund, method, gift_aid_status) VALUES (?,?,?,?, ?,?)";
+    const status = "Unclaimed";
+    const payment = [id, req.body.amount, formatted_date(), req.body.fund, req.body.method, status];
     
     db.run(payment_sql, payment, err => {
         if (err) {
             return console.error(err.message);
         } else {
-            req.flash('success', 'Payment added successfully.');
-            res.redirect("/claimants"); 
+            req.flash('success', 'Donation added successfully.');
+            res.redirect("/select-giver"); 
         }});
     });
+
+// GET /payments/id
+app.get("/donations/:id", requireLogin, (req, res) => {
+    const id = req.params.id;
+    const loggedInName = req.session.name;
+    const sql = "SELECT * FROM donations WHERE member_id = ?";
+    db.all(sql, id, (err, rows) => {
+        if (err) {
+          return console.error(err.message);
+        } else {
+            res.render("donations", {model: rows, id: id, loggedInName: loggedInName });
+        }});
+    });
+
 
 // GET /register
 app.get("/register", (req, res) =>  {

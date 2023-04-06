@@ -1,0 +1,58 @@
+<%- include("_loggedInHeader") -%>
+
+<h1>Add New Donation</h1>
+
+<form action="/add-donation/<%= id %>" method="post">
+  <div class="form-horizontal">
+    <br>
+    <br>
+
+    <div class="form-group row">
+        <label class="col-form-label col-sm-2" for="amount">Amount</label>
+        <div class="col-sm-5">
+          <input class="form-control" name="amount" style="max-width: fit-content;" placeholder="Enter amount e.g: 12.79"/>
+        </div>
+    </div>
+
+    <div class="form-group row">
+      <label class="col-form-label col-sm-2" for="date">Date of Donation</label>
+      <div class="col-sm-5">
+        <input type="date" style="max-width: fit-content;" class="form-control" cols="20" name="date" maxlength="32000" />
+      </div>
+    </div>
+
+    <div class="form-group row">
+      <label class="col-form-label col-sm-2" for="fund">Fund</label>
+      <div class="col-sm-5">
+        <select required class="form-control" style="max-width: fit-content;" name="fund" id="fund">
+          <option value="Tithe " selected>Tithe</option>
+          <option value="Van Gift">Van Gift</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group row">
+      <label class="col-form-label col-sm-2" for="method">Method</label>
+      <div class="col-sm-5">
+        <select required class="form-control" style="max-width: fit-content;" name="method" id="method">
+          <option value="Bank " selected>Bank</option>
+          <option value="Cash">Cash</option>
+        </select>
+      </div>
+    </div>
+  
+    
+
+    <br>
+    <br>
+    <div class="form-group row">
+      <label class="col-form-label col-sm-2"></label>
+      <div class="col-sm-10">
+        <input type="submit" value="Add Donation" class="btn btn-default btn-success" />
+        <a class="btn btn-outline-dark cancel" href="/claimants">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<%- include("_loggedInFooter") -%>

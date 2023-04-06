@@ -1,6 +1,6 @@
 <%- include("_loggedInHeader") -%>
 
-<h1>Members</h1>
+<h1>Select Giver</h1>
 
 <div class="table-responsive-sm">
   <table class="table table-hover">
@@ -17,13 +17,11 @@
     <tbody>
       <% for (const member of model) { %>
         <tr>
-          <td ><a href="/edit/<%= member.id %>"><%= member.id %></a></td>
-          <td><a href="/edit/<%= member.id %>"><%= member.first_name %></a></td>
-          <td><a href="/edit/<%= member.id %>"><%= member.surname %></a></td>
+          <td ><%= member.id %></td>
+          <td><%= member.first_name %></td>
+          <td><%= member.surname %></td>
           <td class="d-print-none">
-            <a class="btn btn-sm btn-info" href="/donations/<%= member.id %>">View Giving</a>
-            <a class="btn btn-sm btn-warning" href="/edit/<%= member.id %>">Edit</a>
-            <a class="btn btn-sm btn-danger" href="/delete/<%= member.id %>">Delete</a>
+            <a class="btn btn-sm btn-info" href="/add-donation/<%= member.id %>">Add Donation</a>
           </td>
         </tr>
       <% } %>

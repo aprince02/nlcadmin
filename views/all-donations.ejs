@@ -1,0 +1,36 @@
+<%- include("_loggedInHeader") -%>
+
+<h1>All Donations</h1>
+
+<div class="table-responsive-sm">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Amount</th>
+          <th>Date</th>
+          <th>Fund</th>
+          <th>Method</th>
+          <th>Gift Aid Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const payments of model) { %>
+          <tr>
+            <td ><%= payments.id %></td>
+            <td>£<%= payments.amount %></td>
+            <td><%= payments.date %></td>
+            <td><%= payments.fund %></td>
+            <td><%= payments.method %></td>
+            <td><%= payments.gift_aid_status %></td>
+
+          </tr>
+        <% } %>
+        <a class="btn btn-default btn-success" href="/select-giver">Add</a>
+        <a class="btn btn-outline-dark cancel" href="/claimants">Return</a>
+      </tbody>
+    </table>
+    
+  </div>
+  
+  <%- include("_loggedInFooter") -%>
