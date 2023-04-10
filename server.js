@@ -120,12 +120,12 @@ app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
 // GET /payments
 app.get("/all-donations", requireLogin, (req, res) => {
     const loggedInName = req.session.name;
-    const sql = "SELECT * FROM donations";
-    db.all(sql, [], (err, rows) => {
+    const donations_sql = "SELECT * FROM donations ORDER BY date DESC";
+    db.all(donations_sql, [], (err, row) => {
         if (err) {
           return console.error(err.message);
         } else {
-            res.render("all-donations", {model: rows, loggedInName: loggedInName });
+            res.render("all-donations", {model: row, loggedInName: loggedInName });
         }});
     });
 
@@ -141,19 +141,38 @@ app.get("/select-giver", requireLogin, (req, res) => {
         }});
     });
 
-// GET /add-payment/id
+// GET /add-donation/id
 app.get("/add-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
+    const sql = "SELECT * FROM members WHERE id = ?"
     const loggedInName = req.session.name;
-    res.render("add-donation", { id: id, loggedInName: loggedInName });
+    db.get(sql, id, (err, row) => {
+        if (err) {
+            console.log(err.message);
+        } else {
+            res.render("add-donation", { row: row, loggedInName: loggedInName});
+        }});
+    });
+
+// GET /edit-donation/id
+app.get("/edit-donation/:id", requireLogin, (req, res) => {
+    const id = req.params.id;
+    const sql = "SELECT * FROM donations WHERE id = ?"
+    const loggedInName = req.session.name;
+    db.get(sql, id, (err, row) => {
+        if (err) {
+            console.log(err.message);
+        } else {
+            res.render("edit-donation", { row: row, loggedInName: loggedInName});
+        }});
     });
 
 // POST /add-payment/id
 app.post("/add-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
-    const payment_sql = "INSERT INTO donations (member_id, amount, date, fund, method, gift_aid_status) VALUES (?,?,?,?, ?,?)";
+    const payment_sql = "INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status) VALUES (?,?,?,?,?,?,?,?)";
     const status = "Unclaimed";
-    const payment = [id, req.body.amount, formatted_date(), req.body.fund, req.body.method, status];
+    const payment = [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, req.body.method, status];
     
     db.run(payment_sql, payment, err => {
         if (err) {
@@ -168,7 +187,7 @@ app.post("/add-donation/:id", requireLogin, (req, res) => {
 app.get("/donations/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
-    const sql = "SELECT * FROM donations WHERE member_id = ?";
+    const sql = "SELECT * FROM donations WHERE member_id = ? ORDER by date DESC";
     db.all(sql, id, (err, rows) => {
         if (err) {
           return console.error(err.message);

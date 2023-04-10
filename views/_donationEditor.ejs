@@ -1,0 +1,51 @@
+<div class="form-group row">
+  <label class="col-form-label col-sm-2" for="first_name">First Name</label>
+  <div class="col-sm-5">
+    <input  class="form-control" name="first_name" style="max-width: fit-content;" value="<%= row.first_name %>"/>
+  </div>
+</div>
+
+<div class="form-group row">
+  <label class="col-form-label col-sm-2" for="surname">Surname</label>
+  <div class="col-sm-5">
+    <input  class="form-control" name="surname" style="max-width: fit-content;" value="<%= row.surname %>"/>
+  </div>
+</div>
+
+
+
+<div class="form-group row">
+    <label class="col-form-label col-sm-2" for="amount">Amount</label>
+    <div class="col-sm-5">
+      <input class="form-control" name="amount" style="max-width: fit-content;" placeholder="Enter amount e.g: 12.79" value="<%= row.amount %>"/>
+    </div>
+</div>
+
+<div class="form-group row">
+  <label class="col-form-label col-sm-2" for="date">Date of Donation</label>
+  <div class="col-sm-5">
+    <input type="date" style="max-width: fit-content;" class="form-control" cols="20" name="date" maxlength="32000" value="<%= row.date %>" />
+  </div>
+</div>
+
+<div class="form-group row">
+  <label class="col-form-label col-sm-2" for="fund">Fund</label>
+  <div class="col-sm-5">
+    <select required class="form-control" style="max-width: fit-content;" name="fund" id="fund">
+      <option selected value="<%= row.fund %>"><%= row.fund %></option>
+      <option value="Tithe">Tithe</option>
+      <option value="Van Gift">Van Gift</option>
+    </select>
+  </div>
+</div>
+
+<div class="form-group row">
+  <label class="col-form-label col-sm-2" for="method">Method</label>
+  <div class="col-sm-5">
+    <select required class="form-control" style="max-width: fit-content;" name="method" id="method">
+      <option selected value="<%= row.method %>"><%= row.method %></option>
+      <option value="Bank">Bank</option>
+      <option value="Cash">Cash</option>
+    </select>
+  </div>
+</div>
