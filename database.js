@@ -70,7 +70,8 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
             date date,
             fund text,
             method text,
-            gift_aid_status text
+            gift_aid_status text,
+            notes text
         )`,
         (err) => {
             if (err) {
@@ -78,14 +79,36 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                 console.log('donations table already created')
             }else{
                 // Table just created, creating some rows
-                var insert_claimants = 'INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status) VALUES (?,?,?,?,?,?, ?,?)'
-                db.run(insert_claimants, ["1", 'test', 'testsurname', "12.79", "2022-01-01", "Tithe", "Cash", "Unclaimed"])
-                db.run(insert_claimants, ["2", 'test', 'testsurname', "10.40", "2022-01-01", "Van Gift", "Cash", "Claimed"])
-                db.run(insert_claimants, ["3", 'test', 'testsurname', "102.30", "2023-01-01", "Church Building", "Bank", "Unclaimed"])
+                var insert_claimants = 'INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES (?,?,?,?,?,?,?,?,?)'
+                db.run(insert_claimants, ["1", 'test', 'testsurname', "12.79", "2022-01-01", "Tithe", "Cash", "Unclaimed", ""])
+                db.run(insert_claimants, ["2", 'test', 'testsurname', "10.40", "2022-01-01", "Van Gift", "Cash", "Claimed", "van"])
+                db.run(insert_claimants, ["3", 'test', 'testsurname', "102.30", "2023-01-01", "Church Building", "Bank", "Unclaimed", ""])
             }
-        }
-        
-        )
+        });
+        db.run(`CREATE TABLE transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date date,
+            transaction_type text,
+            type text,
+            description text,
+            paid_out text,
+            paid_in text,
+            balance text,
+            notes text
+        )`,
+        (err) => {
+            if (err) {
+                // Table already created
+                console.log('transactions table already created')
+            }else{
+                // Table just created, creating some rows
+                var insert_claimants = 'INSERT INTO transactions (date, transaction_type, type, description, paid_out, paid_in, balance, notes) VALUES (?,?,?,?,?,?,?,?)'
+                db.run(insert_claimants, ["2023-02-10","BP", "Tithe", "PRINCE MATHEW Tithe", "", "100.00", "31100", "February"])
+                db.run(insert_claimants, ["2023-02-01","BP", "Provisions", "PRINCE MATHEW Food Purchase", "50.50", "", "31000", "Sunday Food"])
+                db.run(insert_claimants, ["2023-01-01","BP", "Offering", "PRINCE MATHEW Offering", "", "50.50", "30949.50", ""])
+
+            }
+        })
     }
 });
 

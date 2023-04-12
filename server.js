@@ -45,6 +45,18 @@ app.get("/claimants", requireLogin, (req, res) => {
         }});
     });
 
+// GET /yearly-transactions
+app.get("/yearly-transactions", requireLogin, (req, res) => {
+    const sql = "SELECT * FROM transactions ORDER BY date DESC"
+    const loggedInName = req.session.name;
+    db.all(sql, [], (err, rows) => {
+        if (err) {
+            console.log(err.message);
+        } else {
+            res.render("yearly-transactions", {row: rows, loggedInName: loggedInName});
+        }});
+    });
+
 // GET /edit/id
 app.get("/edit/:id", requireLogin, (req, res) => {
     const id = req.params.id;
@@ -61,13 +73,13 @@ app.get("/edit/:id", requireLogin, (req, res) => {
 // POST /edit/id
 app.post("/edit/:id", requireLogin, (req, res) => {
     const id = req.params.id;
-    const claimant = [req.body.first_name, req.body.surname, req.body.date_of_birth, req.body.sort_code, req.body.account_number, id];
-    const sql = "UPDATE claimant SET first_name = ?, surname = ?, date_of_birth = ?, sort_code = ?, account_number = ? WHERE (id = ?)";
+    const claimant = [req.body.first_name, req.body.surname, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, id];
+    const sql = "UPDATE members SET first_name = ?, surname = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?  WHERE (id = ?)";
     db.run(sql, claimant, err => {
         if (err) {
             console.log(err.message);
         } else {
-            req.flash('success', 'Claimant details updated successfully.');
+            req.flash('success', 'Member details updated successfully.');
             res.redirect("/claimants");
         }});
     });
@@ -86,8 +98,24 @@ app.post("/create", requireLogin, (req, res) => {
         if (err) {
             console.log(err.message);
         } else {
-            req.flash('success', 'New claimant added successfully.');
+            req.flash('success', 'New member added successfully.');
             res.redirect("/claimants");
+        }}); 
+    });
+
+// POST /save-transactions
+app.post("/save-transaction/:id", requireLogin, (req, res) => {
+    const id = req.params.id;
+    console.log(id)
+    console.log(req.body.type)
+    const claimant_sql = "UPDATE transactions SET type = ? WHERE (id = ?)";
+    const claimant = [req.body.type, id];
+    db.run(claimant_sql, claimant, err => {
+        if (err) {
+            console.log(err.message);
+        } else {
+            req.flash('success', 'Type saved successfully.');
+            res.redirect("/yearly-transactions");
         }}); 
     });
 
@@ -95,29 +123,29 @@ app.post("/create", requireLogin, (req, res) => {
 app.get("/delete/:id", requireLogin, checkUserRole, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
-    const sql = "SELECT * FROM claimant WHERE id = ?";
+    const sql = "SELECT * FROM members WHERE id = ?";
     db.get(sql, id, (err, row) => {
         if (err) {
             console.log(err.message);
         } else {
-            res.render("delete", { claimant: row, loggedInName: loggedInName });
+            res.render("delete", { member: row, loggedInName: loggedInName });
         }});
     });
 
 // POST /delete/id
 app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
     const id = req.params.id;
-    const sql = "DELETE FROM claimant WHERE id = ?";
+    const sql = "DELETE FROM members WHERE id = ?";
     db.run(sql, id, err => {
         if (err) {
             console.log(err.message);
         } else {
-            req.flash('success', 'Claimant deleted successfully.');
+            req.flash('success', 'Member deleted successfully.');
             res.redirect("/claimants");
         }});
     });
 
-// GET /payments
+// GET /all-donations
 app.get("/all-donations", requireLogin, (req, res) => {
     const loggedInName = req.session.name;
     const donations_sql = "SELECT * FROM donations ORDER BY date DESC";
@@ -137,7 +165,7 @@ app.get("/select-giver", requireLogin, (req, res) => {
         if (err) {
             console.log(err.message);
         } else {
-            res.render("select-giver", {model: rows, loggedInName: loggedInName});
+            res.render("select-giver", {row: rows, loggedInName: loggedInName});
         }});
     });
 

@@ -1,0 +1,67 @@
+<%- include("_loggedInHeader") -%>
+
+<h1>2023 Transactions</h1>
+
+<div class="table-responsive-sm">
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Transaction Type</th>
+        <th>Description</th>
+        <th>Paid Out</th>
+        <th>Paid In</th>
+        <th>Balance</th>
+        <th>Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% for (const each of row) { %>
+        <tr>
+          <td ><%= each.date %></td>
+          <td ><%= each.transaction_type %></td>
+          
+          <td ><%= each.description %></td>
+          <td ><%= each.paid_out %></td>
+          <td ><%= each.paid_in %></td>
+          <td ><%= each.balance %></td>
+          <form action="/save-transaction/<%= each.id %>" method="post">
+          <td>
+            <select required class="form-control" style="max-width: fit-content;" name="type" id="type">
+            <option selected value="<%= each.type %>"><%= each.type %></option>
+            <option value="Tithe">Tithe</option>
+            <option value="Offering">Offering</option>
+            <option value="Gift Aid Claim">Gift Aid Claim</option>
+            <option value="Ladies Fund">Ladies Fund</option>
+            <option value="Other Income">Other Income</option>
+            <option value="Anniversary">Anniversary</option>
+            <option value="VBS">VBS</option>
+            <option value="Church Building">Church Building</option>
+            <option value="Vehicle">Vehicle</option>
+            <option value="Building Rent">Building Rent</option>
+            <option value="Guest Pastor">Guest Pastor</option>
+            <option value="Support & Charity">Support & Charity</option>
+            <option value="Audio/Visual/Licenses">Audio/Visual/Licenses</option>
+            <option value="Books & Stationary">Books & Stationary</option>
+            <option value="Gifts">Gifts</option>
+            <option value="Provisions">Provisions</option>
+            <option value="Evangelism">Evangelism</option>
+            <option value="AoG">AoG</option> 
+          </td>
+          <td>
+            <div class="form-horizontal">
+              <div class="form-group row">
+                <div class="col-sm-10">
+                  <input type="submit" value="Save" class="btn btn-default btn-success" />
+                </div>
+              </div>
+            </div>
+          </td>
+        </form>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<%- include("_loggedInFooter") -%>
