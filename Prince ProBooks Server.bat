@@ -1,2 +1,2 @@
-cd C:\Users\Abraham\Documents\GitHub\nlcadmin
+cd C:\Users\Abraham\Desktop\nlcadmin
 npm run start
