@@ -98,6 +98,20 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                 console.log('transactions table created')
             }
         })
+        db.run(`CREATE TABLE last_update (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp text,
+            user text
+        )`,
+        (err) => {
+            if (err) {
+                // Table already created
+                console.log('last_update table already exists')
+            }else{
+                // Table just created
+                console.log('last_update table created')
+            }
+        })
     }
 });
 

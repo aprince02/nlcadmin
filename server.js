@@ -7,6 +7,7 @@ const fs = require('fs');
 const session = require('express-session');
 const flash = require('connect-flash');
 const bcrypt = require('bcrypt');
+const { timeStamp } = require("console");
 const saltRounds = 10;
 
 app.set("view engine", "ejs");
@@ -285,8 +286,17 @@ app.post("/login", (req, res) =>  {
 
 // GET /logout
 app.get('/logout', (req, res) => {
-    req.session.destroy();
-    res.redirect('/');
+    const sql = "INSERT INTO last_update (timestamp, user) VALUES (datetime('now'), ?)";
+    const loggedInName = req.session.name;
+    const data = [loggedInName];
+    db.run(sql, data, err => {
+        if (err) {
+            return console.error(err.message);
+        } else {
+            req.session.destroy();
+            res.redirect('/');
+        }});
+    
 });
 
 // Default response for any other request
