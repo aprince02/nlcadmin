@@ -38,11 +38,15 @@ app.get("/", (req, res) =>  {
 app.get("/claimants", requireLogin, (req, res) => {
     const sql = "SELECT * FROM members ORDER BY id ASC"
     const loggedInName = req.session.name;
+    const loggedTimestamp = req.session.timestamp;
+    const username = req.session.user;
+    console.log(loggedTimestamp)
+    console.log(username)
     db.all(sql, [], (err, rows) => {
         if (err) {
             console.log(err.message);
         } else {
-            res.render("claimants", {model: rows, loggedInName: loggedInName});
+            res.render("claimants", {model: rows, loggedInName: loggedInName, loggedTimestamp: loggedTimestamp, username: username});
         }});
     });
 
@@ -220,9 +224,23 @@ app.get("/donations/:id", requireLogin, (req, res) => {
     db.all(sql, id, (err, rows) => {
         if (err) {
           return console.error(err.message);
+        }else if (!rows) {
+            res.redirect("no-donations")
         } else {
-            res.render("donations", {model: rows, id: id, loggedInName: loggedInName });
-        }});
+            const firstName = rows[0].first_name;
+            const surname = rows[0].surname;
+
+            res.render("donations", {model: rows, id: id, loggedInName: loggedInName, firstName: firstName, surname: surname });
+        }
+    });
+    });
+
+// GET /payments/id
+app.get("/no-donations/:id", requireLogin, (req, res) => {
+    const id = req.params.id;
+    const loggedInName = req.session.name;
+    res.render("no-donations", { id: id, loggedInName: loggedInName });
+
     });
 
 
@@ -276,6 +294,18 @@ app.post("/login", (req, res) =>  {
             req.session.email = email;
             req.session.name = row.name;
             req.session.role = row.role;
+            db.get("SELECT * FROM last_update ORDER BY id DESC LIMIT 1", (err, row) => {
+                if (err) {
+                    throw err;
+                }else {
+                    req.session.timestamp = row.timestamp;
+                    req.session.user = row.user;
+                    console.log(req.session.timestamp)
+                    console.log(req.session.user)
+                }
+            });
+
+
             res.redirect('claimants');
         } else {
             req.flash('error', 'Invalid email or password.');
