@@ -11,7 +11,6 @@
         <th>Description</th>
         <th>Paid Out</th>
         <th>Paid In</th>
-        <th>Balance</th>
         <th>Type</th>
       </tr>
     </thead>
@@ -24,7 +23,6 @@
           <td ><%= each.description %></td>
           <td ><%= each.paid_out %></td>
           <td ><%= each.paid_in %></td>
-          <td ><%= each.balance %></td>
           <form action="/save-transaction/<%= each.id %>" method="post">
           <td>
             <select required class="form-control" style="max-width: fit-content;" name="type" id="type">
