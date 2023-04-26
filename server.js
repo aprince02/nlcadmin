@@ -227,11 +227,14 @@ app.get("/donations/:id", requireLogin, (req, res) => {
     db.all(sql, id, (err, rows) => {
         if (err) {
           return console.error(err.message);
-        }else if (!rows) {
-            res.redirect("no-donations")
+        }else if (!rows || rows.length === 0) {
+            console.log(rows)
+            res.redirect("/no-donations/" + encodeURI(id));
+
         } else {
-            const firstName = rows[0].first_name;
-            const surname = rows[0].surname;
+            console.log(rows[0])
+            const firstName = rows[0].first_name || "";
+            const surname = rows[0].surname || "";
 
             res.render("donations", {model: rows, id: id, loggedInName: loggedInName, firstName: firstName, surname: surname });
         }
