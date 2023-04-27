@@ -7,7 +7,6 @@
     <thead>
       <tr>
         <th>Date</th>
-        <th>Transaction Type</th>
         <th>Description</th>
         <th>Paid Out</th>
         <th>Paid In</th>
@@ -18,7 +17,6 @@
       <% for (const each of row) { %>
         <tr>
           <td ><%= each.date %></td>
-          <td ><%= each.transaction_type %></td>
           <td ><%= each.description %></td>
           <form action="/save-transaction/<%= each.id %>" method="post">
           <td ><%= each.paid_out %></td>
