@@ -38,15 +38,11 @@ app.get("/", (req, res) =>  {
 app.get("/claimants", requireLogin, (req, res) => {
     const sql = "SELECT * FROM members ORDER BY id ASC"
     const loggedInName = req.session.name;
-    const loggedTimestamp = req.session.timestamp;
-    const username = req.session.user;
-    console.log(loggedTimestamp)
-    console.log(username)
     db.all(sql, [], (err, rows) => {
         if (err) {
             console.log(err.message);
         } else {
-            res.render("claimants", {model: rows, loggedInName: loggedInName, loggedTimestamp: loggedTimestamp, username: username});
+            res.render("claimants", {model: rows, loggedInName: loggedInName});
         }});
     });
 
@@ -111,6 +107,9 @@ app.post("/create", requireLogin, (req, res) => {
 // POST /save-transactions
 app.post("/save-transaction/:id", requireLogin, (req, res) => {
     const id = req.params.id;
+    const type = req.body.type;
+    const outgoing = req.body.paid_out; 
+    console.log(outgoing)
     console.log(id)
     console.log(req.body.type)
     const claimant_sql = "UPDATE transactions SET type = ? WHERE (id = ?)";
@@ -120,6 +119,10 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'Type saved successfully.');
+            if (type == 'Tithe') {
+                console.log("type was tithe")
+            }
+
             res.redirect("/yearly-transactions");
         }}); 
     });
@@ -224,11 +227,14 @@ app.get("/donations/:id", requireLogin, (req, res) => {
     db.all(sql, id, (err, rows) => {
         if (err) {
           return console.error(err.message);
-        }else if (!rows) {
-            res.redirect("no-donations")
+        }else if (!rows || rows.length === 0) {
+            console.log(rows)
+            res.redirect("/no-donations/" + encodeURI(id));
+
         } else {
-            const firstName = rows[0].first_name;
-            const surname = rows[0].surname;
+            console.log(rows[0])
+            const firstName = rows[0].first_name || "";
+            const surname = rows[0].surname || "";
 
             res.render("donations", {model: rows, id: id, loggedInName: loggedInName, firstName: firstName, surname: surname });
         }
@@ -300,8 +306,6 @@ app.post("/login", (req, res) =>  {
                 }else {
                     req.session.timestamp = row.timestamp;
                     req.session.user = row.user;
-                    console.log(req.session.timestamp)
-                    console.log(req.session.user)
                 }
             });
 
