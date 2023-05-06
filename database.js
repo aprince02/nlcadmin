@@ -27,6 +27,7 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
         }); 
         db.run(`CREATE TABLE members (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title text,
             first_name text,
             surname text,
             sex text,
@@ -112,6 +113,27 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                 console.log('last_update table created')
             }
         })
+        db.run(`CREATE TABLE new_donations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id INTEGER,
+            first_name text,
+            surname text,
+            amount text,
+            date date,
+            fund text,
+            method text,
+            gift_aid_status text,
+            notes text
+        )`,
+        (err) => {
+            if (err) {
+                // Table already created
+                console.log('donations table already exists')
+            }else{
+                // Table just created
+                console.log('donations table created')
+            }
+        });
     }
 });
 
