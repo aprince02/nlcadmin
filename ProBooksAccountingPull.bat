@@ -1,3 +1,0 @@
-@echo off
-echo Pulling from GitHub...
-git pull
