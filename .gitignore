@@ -129,8 +129,8 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-.ProBooks Accounting Pull.bat
-.ProBooks Accounting Push.bat
-.ProBooks Accounting Web.bat
-.ProBooks Accounting Server.bat
-.ProBooks Accounting App.bat
+ProBooks Accounting Pull.bat
+ProBooks Accounting Push.bat
+ProBooks Accounting Web.bat
+ProBooks Accounting Server.bat
+ProBooks Accounting App.bat
