@@ -2,7 +2,7 @@
 
 Accounting and Giftaid claiming software that is currently in development for NewLife Church Sunderland. It is still in beta and there may be bugs and vulnerabilites.
 
-## How to use application
+## Guide on how to use application
 
 1. Open ProBooks Accounting Pull.Bat
 2. Open ProBooks Accounting App.Bat

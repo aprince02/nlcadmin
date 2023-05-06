@@ -123,7 +123,7 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
                 console.log("type was tithe")
             }
 
-            res.redirect("/yearly-transactions");
+            //res.redirect("/yearly-transactions");
         }}); 
     });
 
