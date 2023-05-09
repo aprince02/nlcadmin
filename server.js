@@ -9,6 +9,7 @@ const flash = require('connect-flash');
 const bcrypt = require('bcrypt');
 const { timeStamp } = require("console");
 const saltRounds = 10;
+const csvWriter = require('csv-writer').createObjectCsvWriter;
 
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -32,6 +33,11 @@ app.listen(8000, () => {
 // Root endpoint
 app.get("/", (req, res) =>  {
     res.render("index");
+  });
+
+  app.get("/admin", (req, res) =>  {
+    const loggedInName = req.session.name;
+    res.render("admin", {loggedInName: loggedInName});
   });
 
 // GET /claimants
@@ -317,6 +323,55 @@ app.post("/login", (req, res) =>  {
         }});     
     });
 });
+
+app.get('/export-transactions', checkUserRole, function(req, res) {
+  const tableName = 'transactions';
+  
+  db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
+    if (err) {
+      res.status(500).send('Error retrieving data');
+      return;
+    }
+    
+    const csvWrite = csvWriter({
+      path: 'transactions.csv',
+      header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
+    });
+    
+    csvWrite.writeRecords(rows)
+      .then(() => {
+        res.download('transactions.csv');
+      })
+      .catch(() => {
+        res.status(500).send('Error generating CSV file');
+      });
+  });
+});
+
+app.get('/export-donations', checkUserRole, function(req, res) {
+    const tableName = 'donations';
+    
+    db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
+      if (err) {
+        res.status(500).send('Error retrieving data');
+        return;
+      }
+      
+      const csvWrite = csvWriter({
+        path: 'donations.csv',
+        header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
+      });
+      
+      csvWrite.writeRecords(rows)
+        .then(() => {
+          res.download('donations.csv');
+        })
+        .catch(() => {
+          res.status(500).send('Error generating CSV file');
+        });
+    });
+  });
+
 
 // GET /logout
 app.get('/logout', (req, res) => {
