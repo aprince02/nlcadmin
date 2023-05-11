@@ -33,6 +33,7 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
             sex text,
             email text,
             phone_number text,
+            house_number INTEGER,
             address_line_1 text,
             address_line_2 text,
             city text, 
