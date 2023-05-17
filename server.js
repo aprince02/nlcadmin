@@ -372,7 +372,41 @@ app.get('/export-donations', checkUserRole, function(req, res) {
     });
   });
 
-
+  app.get('/export-giftaid-claims', checkUserRole, function(req, res) {
+  
+    db.all(`SELECT members.first_name, members.surname, donations.amount, donations.date, 
+      members.title, members.house_number, members.postcode
+      FROM donations 
+      INNER JOIN members ON donations.member_id = members.id 
+      WHERE donations.gift_aid_status = 'Unclaimed'`, function(err, rows) {
+      if (err) {
+        res.status(500).send('Error retrieving data');
+        return;
+      }
+  
+      const csvWrite = csvWriter({
+        path: 'giftaid_claim.csv',
+        header: [
+            { id: 'title', title: 'Title' },  
+            { id: 'first_name', title: 'First Name' },
+            { id: 'surname', title: 'Surname' },
+            { id: 'house_number', title: 'House Number' },
+            { id: 'postcode', title: 'Postcode' },
+            { id: 'date', title: 'Date' },
+            { id: 'amount', title: 'Amount' }
+        ]
+      });
+  
+      csvWrite.writeRecords(rows)
+        .then(() => {
+          res.download('giftaid_claim.csv');
+        })
+        .catch(() => {
+          res.status(500).send('Error generating CSV file');
+        });
+    });
+  });
+  
 // GET /logout
 app.get('/logout', (req, res) => {
     const sql = "INSERT INTO last_update (timestamp, user) VALUES (datetime('now'), ?)";
