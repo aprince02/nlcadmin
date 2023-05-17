@@ -129,10 +129,10 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
         (err) => {
             if (err) {
                 // Table already created
-                console.log('donations table already exists')
+                console.log('new_donations table already exists')
             }else{
                 // Table just created
-                console.log('donations table created')
+                console.log('new_donations table created')
             }
         });
     }
