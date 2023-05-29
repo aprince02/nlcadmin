@@ -115,7 +115,9 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const type = req.body.type;
     const outgoing = req.body.paid_out; 
+    const incoming = req.body.paid_in;
     console.log(outgoing)
+    console.log(incoming)
     console.log(id)
     console.log(req.body.type)
     const claimant_sql = "UPDATE transactions SET type = ? WHERE (id = ?)";
