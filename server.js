@@ -9,6 +9,7 @@ const flash = require('connect-flash');
 const bcrypt = require('bcrypt');
 const { timeStamp } = require("console");
 const saltRounds = 10;
+const csvWriter = require('csv-writer').createObjectCsvWriter;
 
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -32,6 +33,11 @@ app.listen(8000, () => {
 // Root endpoint
 app.get("/", (req, res) =>  {
     res.render("index");
+  });
+
+  app.get("/admin", (req, res) =>  {
+    const loggedInName = req.session.name;
+    res.render("admin", {loggedInName: loggedInName});
   });
 
 // GET /claimants
@@ -74,8 +80,8 @@ app.get("/edit/:id", requireLogin, (req, res) => {
 // POST /edit/id
 app.post("/edit/:id", requireLogin, (req, res) => {
     const id = req.params.id;
-    const claimant = [req.body.first_name, req.body.surname, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, id];
-    const sql = "UPDATE members SET first_name = ?, surname = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?  WHERE (id = ?)";
+    const claimant = [req.body.first_name, req.body.surname, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, id];
+    const sql = "UPDATE members SET first_name = ?, surname = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?, title = ?, house_number = ?  WHERE (id = ?)";
     db.run(sql, claimant, err => {
         if (err) {
             console.log(err.message);
@@ -93,8 +99,8 @@ app.get("/create", requireLogin, (req, res) => {
 
 // POST /create
 app.post("/create", requireLogin, (req, res) => {
-    const claimant_sql = "INSERT INTO members (first_name, surname, sex, email, phone_number, address_line_1, address_line_2, city, postcode, date_of_birth, baptised, baptised_date, holy_spirit, native_church, children_details, emergency_contact_1, emergency_contact_1_name, emergency_contact_2, emergency_contact_2_name, occupation_studies) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-    const claimant = [req.body.first_name, req.body.surname, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies];
+    const claimant_sql = "INSERT INTO members (first_name, surname, sex, email, phone_number, address_line_1, address_line_2, city, postcode, date_of_birth, baptised, baptised_date, holy_spirit, native_church, children_details, emergency_contact_1, emergency_contact_1_name, emergency_contact_2, emergency_contact_2_name, occupation_studies, title, house_number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+    const claimant = [req.body.first_name, req.body.surname, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number,];
     db.run(claimant_sql, claimant, err => {
         if (err) {
             console.log(err.message);
@@ -109,7 +115,9 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const type = req.body.type;
     const outgoing = req.body.paid_out; 
+    const incoming = req.body.paid_in;
     console.log(outgoing)
+    console.log(incoming)
     console.log(id)
     console.log(req.body.type)
     const claimant_sql = "UPDATE transactions SET type = ? WHERE (id = ?)";
@@ -318,6 +326,89 @@ app.post("/login", (req, res) =>  {
     });
 });
 
+app.get('/export-transactions', checkUserRole, function(req, res) {
+  const tableName = 'transactions';
+  
+  db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
+    if (err) {
+      res.status(500).send('Error retrieving data');
+      return;
+    }
+    
+    const csvWrite = csvWriter({
+      path: 'transactions.csv',
+      header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
+    });
+    
+    csvWrite.writeRecords(rows)
+      .then(() => {
+        res.download('transactions.csv');
+      })
+      .catch(() => {
+        res.status(500).send('Error generating CSV file');
+      });
+  });
+});
+
+app.get('/export-donations', checkUserRole, function(req, res) {
+    const tableName = 'donations';
+    
+    db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
+      if (err) {
+        res.status(500).send('Error retrieving data');
+        return;
+      }
+      
+      const csvWrite = csvWriter({
+        path: 'donations.csv',
+        header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
+      });
+      
+      csvWrite.writeRecords(rows)
+        .then(() => {
+          res.download('donations.csv');
+        })
+        .catch(() => {
+          res.status(500).send('Error generating CSV file');
+        });
+    });
+  });
+
+  app.get('/export-giftaid-claims', checkUserRole, function(req, res) {
+  
+    db.all(`SELECT members.first_name, members.surname, donations.amount, donations.date, 
+      members.title, members.house_number, members.postcode
+      FROM donations 
+      INNER JOIN members ON donations.member_id = members.id 
+      WHERE donations.gift_aid_status = 'Unclaimed'`, function(err, rows) {
+      if (err) {
+        res.status(500).send('Error retrieving data');
+        return;
+      }
+  
+      const csvWrite = csvWriter({
+        path: 'giftaid_claim.csv',
+        header: [
+            { id: 'title', title: 'Title' },  
+            { id: 'first_name', title: 'First Name' },
+            { id: 'surname', title: 'Surname' },
+            { id: 'house_number', title: 'House Number' },
+            { id: 'postcode', title: 'Postcode' },
+            { id: 'date', title: 'Date' },
+            { id: 'amount', title: 'Amount' }
+        ]
+      });
+  
+      csvWrite.writeRecords(rows)
+        .then(() => {
+          res.download('giftaid_claim.csv');
+        })
+        .catch(() => {
+          res.status(500).send('Error generating CSV file');
+        });
+    });
+  });
+  
 // GET /logout
 app.get('/logout', (req, res) => {
     const sql = "INSERT INTO last_update (timestamp, user) VALUES (datetime('now'), ?)";
