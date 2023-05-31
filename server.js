@@ -1,10 +1,10 @@
 var express = require("express")
 var app = express()
 var db = require("./database.js")
+const session = require('express-session');
 const bodyParser = require('body-parser');
 const csv = require('csv-parser');
 const fs = require('fs');
-const session = require('express-session');
 const flash = require('connect-flash');
 const bcrypt = require('bcrypt');
 const { timeStamp } = require("console");
@@ -114,12 +114,13 @@ app.post("/create", requireLogin, (req, res) => {
 app.post("/save-transaction/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const type = req.body.type;
+    req.session.date = req.body.date;
+    console.log(req.session.date)
+    const description = req.body.description;
     const outgoing = req.body.paid_out; 
     const incoming = req.body.paid_in;
-    console.log(outgoing)
-    console.log(incoming)
-    console.log(id)
-    console.log(req.body.type)
+
+    console.log(req.body)
     const claimant_sql = "UPDATE transactions SET type = ? WHERE (id = ?)";
     const claimant = [req.body.type, id];
     db.run(claimant_sql, claimant, err => {
@@ -189,12 +190,14 @@ app.get("/select-giver", requireLogin, (req, res) => {
 app.get("/add-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const sql = "SELECT * FROM members WHERE id = ?"
+    const donationDate = req.session.date;
+    console.log(req.session.date)
     const loggedInName = req.session.name;
     db.get(sql, id, (err, row) => {
         if (err) {
             console.log(err.message);
         } else {
-            res.render("add-donation", { row: row, loggedInName: loggedInName});
+            res.render("add-donation", { row: row, loggedInName: loggedInName, donationDate: donationDate});
         }});
     });
 
@@ -219,7 +222,6 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
     const fund = req.body.fund;
     const amount = req.body.amount;
     const method = req.body.method;
-
     const claimant_sql = "UPDATE donations SET date = ?, notes = ?, fund = ?, amount = ?, method = ? WHERE (id = ?)";
     const claimant = [date, notes, fund, amount, method, id];
     db.run(claimant_sql, claimant, err => {

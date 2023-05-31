@@ -16,47 +16,50 @@
     <tbody>
       <% for (const each of row) { %>
         <tr>
-          <td ><a style="font-size: 0.9rem;"><%= each.date %></a></td>
-          <td ><a style="font-size: 0.9rem;"><%= each.description %></a></td>
           <form action="/save-transaction/<%= each.id %>" method="post">
-          <td ><a style="font-size: 0.9rem;"><%= each.paid_out %></a></td>
-          <td ><a style="font-size: 0.9rem;"><%= each.paid_in %></a></td>  
-          <td><a style="font-size: 0.9rem;">
-            <select required class="form-control" style="max-width: fit-content;" name="type" id="type">
-            <option selected value="<%= each.type %>"><%= each.type %></option>
-            <option value="Tithe">Tithe</option>
-            <option value="Offering">Offering</option>
-            <option value="Church Building">Church Building</option>
-            <option value="Vehicle">Vehicle</option>
-            <option value="Building Rent">Building Rent</option>
-            <option value="Ladies Fund">Ladies Fund</option>
-            <option value="Sunday School Offering">Sunday School Offering</option>
-            <option value="Guest Pastor">Guest Pastor</option>
-            <option value="Support & Charity">Support & Charity</option>
-            <option value="Audio/Visual/Licenses">Audio/Visual/Licenses</option>
-            <option value="Books & Stationary">Books & Stationary</option>
-            <option value="Provisions">Provisions</option>
-            <option value="Gifts">Gifts</option>
-            <option value="Other Income">Other Income</option>
-            <option value="Gift Aid Claim">Gift Aid Claim</option>
-            <option value="VBS">VBS</option>
-            <option value="Evangelism">Evangelism</option>
-            <option value="AoG">AoG</option> 
-            <option value="Legal">Legal</option>
-            <option value="Anniversary">Anniversary</option>
-            <option value="Membership Interest Free Loan">Membership Interest Free Loan</option>
-          </a>
-          </td>
-          <td><a class="btn btn-sm btn-info" style="font-size: 0.6rem;" href="/select-giver>" target="_blank">Add Donation</a></td>
-          <td>
-            <div class="form-horizontal">
-              <div class="form-group row">
-                <div class="col-sm-10">
-                  <input type="submit" value="Save" class="btn btn-default btn-success" />
+            <td><input readonly type="text" style="width: 90px; font-size: 0.8rem;" autofocus class="form-control" name="date" value="<%= each.date %>" /></td>
+
+            <td><input readonly type="text" style="width: 325px; font-size: 0.7rem;" autofocus class="form-control" name="description" value="<%= each.description %>" /></td>  
+
+            <td><input readonly type="text" style="width: 70px; font-size: 0.8rem;" id="paid_out" name="paid_out" class="form-control" value="<%= each.paid_out %>"/></td>
+
+            <td><input readonly type="text" style="width: 70px; font-size: 0.8rem;" id="paid_in" name="paid_in" class="form-control" value="<%= each.paid_in %>"/></td>
+
+            <td>
+              <select style=" font-size: 0.8rem;" required class="form-control" style="max-width: fit-content;" name="type" id="type">
+              <option selected value="<%= each.type %>"><%= each.type %></option>
+              <option value="Tithe">Tithe</option>
+              <option value="Offering">Offering</option>
+              <option value="Church Building">Church Building</option>
+              <option value="Vehicle">Vehicle</option>
+              <option value="Building Rent">Building Rent</option>
+              <option value="Ladies Fund">Ladies Fund</option>
+              <option value="Sunday School Offering">Sunday School Offering</option>
+              <option value="Guest Pastor">Guest Pastor</option>
+              <option value="Support & Charity">Support & Charity</option>
+              <option value="Audio/Visual/Licenses">Audio/Visual/Licenses</option>
+              <option value="Books & Stationary">Books & Stationary</option>
+              <option value="Provisions">Provisions</option>
+              <option value="Gifts">Gifts</option>
+              <option value="Other Income">Other Income</option>
+              <option value="Gift Aid Claim">Gift Aid Claim</option>
+              <option value="VBS">VBS</option>
+              <option value="Evangelism">Evangelism</option>
+              <option value="AoG">AoG</option> 
+              <option value="Legal">Legal</option>
+              <option value="Anniversary">Anniversary</option>
+              <option value="Membership Interest Free Loan">Membership Interest Free Loan</option>
+            </td>
+            <td><a class="btn btn-sm btn-info" style="font-size: 0.7rem;" href="/select-giver" target="_blank" data-date="<%= each.date %>" data-description="<%= each.description %>" data-paid-out="<%= each.paid_out %>" data-paid-in="<%= each.paid_in %>">Add Donation</a></td>
+            <td>
+              <div class="form-horizontal">
+                <div class="form-group row">
+                  <div class="col-sm-10">
+                    <input type="submit" style="font-size: 0.7rem;" value="Save" class="btn btn-default btn-success" />
+                  </div>
                 </div>
               </div>
-            </div>
-          </td>
+            </td>
         </form>
         </tr>
       <% } %>
