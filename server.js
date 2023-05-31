@@ -211,6 +211,25 @@ app.get("/edit-donation/:id", requireLogin, (req, res) => {
         }});
     });
 
+// POST /edit-donation
+app.post("/edit-donation/:id", requireLogin, (req, res) => {
+    const id = req.params.id;
+    const date = req.body.date;
+    const notes = req.body.notes;
+    const fund = req.body.fund;
+    const amount = req.body.amount;
+    const method = req.body.method;
+
+    const claimant_sql = "UPDATE donations SET date = ?, notes = ?, fund = ?, amount = ?, method = ? WHERE (id = ?)";
+    const claimant = [date, notes, fund, amount, method, id];
+    db.run(claimant_sql, claimant, err => {
+        if (err) {
+            console.log(err.message);
+        } else {
+            res.redirect("/all-donations");
+        }}); 
+    });
+
 // POST /add-payment/id
 app.post("/add-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
