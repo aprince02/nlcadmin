@@ -110,32 +110,6 @@ app.post("/create", requireLogin, (req, res) => {
         }}); 
     });
 
-// POST /save-transactions
-app.post("/save-transaction/:id", requireLogin, (req, res) => {
-    const id = req.params.id;
-    const type = req.body.type;
-    req.session.date = req.body.date;
-    console.log(req.session.date)
-    const description = req.body.description;
-    const outgoing = req.body.paid_out; 
-    const incoming = req.body.paid_in;
-
-    console.log(req.body)
-    const claimant_sql = "UPDATE transactions SET type = ? WHERE (id = ?)";
-    const claimant = [req.body.type, id];
-    db.run(claimant_sql, claimant, err => {
-        if (err) {
-            console.log(err.message);
-        } else {
-            req.flash('success', 'Type saved successfully.');
-            if (type == 'Tithe') {
-                console.log("type was tithe")
-            }
-
-            //res.redirect("/yearly-transactions");
-        }}); 
-    });
-
 // GET /delete/id
 app.get("/delete/:id", requireLogin, checkUserRole, (req, res) => {
     const id = req.params.id;
@@ -191,13 +165,15 @@ app.get("/add-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const sql = "SELECT * FROM members WHERE id = ?"
     const donationDate = req.session.date;
+    const donationDescription = req.session.description;
+    const donationAmount = req.session.incoming;
     console.log(req.session.date)
     const loggedInName = req.session.name;
     db.get(sql, id, (err, row) => {
         if (err) {
             console.log(err.message);
         } else {
-            res.render("add-donation", { row: row, loggedInName: loggedInName, donationDate: donationDate});
+            res.render("add-donation", { row: row, loggedInName: loggedInName, donationDate: donationDate, donationAmount: donationAmount, donationDescription: donationDescription});
         }});
     });
 
@@ -265,7 +241,7 @@ app.get("/donations/:id", requireLogin, (req, res) => {
             const firstName = rows[0].first_name || "";
             const surname = rows[0].surname || "";
 
-            res.render("donations", {model: rows, id: id, loggedInName: loggedInName, firstName: firstName, surname: surname });
+            res.render("donations", {model: rows, id: id, loggedInName: loggedInName, firstName: firstName, surname: surname});
         }
     });
     });
@@ -304,6 +280,36 @@ app.post("/register", (req, res) => {
         });
     });
 });
+
+// POST /save-transactions
+app.post("/save-transaction/:id", requireLogin, (req, res) => {
+    const id = req.params.id;
+    const type = req.body.type;
+    req.session.date = req.body.date;
+    req.session.description = req.body.description;
+    const outgoing = req.body.paid_out; 
+    req.session.incoming = req.body.paid_in;
+    req.session.save((err) => {
+        if (err) {
+          // Handle the error
+          console.error('Failed to save session:', err);
+        }
+      });
+
+    const claimant_sql = "UPDATE transactions SET type = ? WHERE (id = ?)";
+    const claimant = [type, id];
+    db.run(claimant_sql, claimant, err => {
+        if (err) {
+            console.log(err.message);
+        } else {
+            req.flash('success', 'Type saved successfully.');
+            if (type == 'Tithe') {
+                console.log("type was tithe")
+            }
+
+            //res.redirect("/yearly-transactions");
+        }}); 
+    });
 
 // GET /login
 app.get("/login", (req, res) =>  {
