@@ -10,6 +10,7 @@ const bcrypt = require('bcrypt');
 const { timeStamp } = require("console");
 const saltRounds = 10;
 const csvWriter = require('csv-writer').createObjectCsvWriter;
+const generatePDF = require('./pdf-generator');
 
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -237,11 +238,14 @@ app.get("/donations/:id", requireLogin, (req, res) => {
             res.redirect("/no-donations/" + encodeURI(id));
 
         } else {
-            console.log(rows[0])
             const firstName = rows[0].first_name || "";
             const surname = rows[0].surname || "";
+            let totalAmount = 0;
+            rows.forEach((row) => {
+                totalAmount += row.amount;
+            });
 
-            res.render("donations", {model: rows, id: id, loggedInName: loggedInName, firstName: firstName, surname: surname});
+            res.render("donations", {model: rows, id: id, loggedInName: loggedInName, firstName: firstName, surname: surname, totalAmount: totalAmount});
         }
     });
     });
@@ -287,11 +291,9 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
     const type = req.body.type;
     req.session.date = req.body.date;
     req.session.description = req.body.description;
-    const outgoing = req.body.paid_out; 
     req.session.incoming = req.body.paid_in;
     req.session.save((err) => {
         if (err) {
-          // Handle the error
           console.error('Failed to save session:', err);
         }
       });
@@ -306,8 +308,6 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
             if (type == 'Tithe') {
                 console.log("type was tithe")
             }
-
-            //res.redirect("/yearly-transactions");
         }}); 
     });
 
@@ -343,7 +343,6 @@ app.post("/login", (req, res) =>  {
                     req.session.user = row.user;
                 }
             });
-
 
             res.redirect('claimants');
         } else {
@@ -401,6 +400,89 @@ app.get('/export-donations', checkUserRole, function(req, res) {
     });
   });
 
+  app.get("/export-totals", checkUserRole, function(req, res) {
+
+    const sql = "SELECT * FROM transactions WHERE date >= '2023-01-01' ORDER BY type";
+  
+  db.all(sql, function(err, rows) {
+    if (err) {
+      res.status(500).send('Error retrieving data');
+      return;
+    }
+
+    // Calculate the total "Paid In" for each type of transaction
+    const types = [
+        'Tithe', 'Offering', 'Church Building', 'Vehicle', 'Building Rent',
+        'Ladies Fund', 'Sunday School Offering', 'Guest Pastor', 'Support & Charity',
+        'Audio/Visual/Licenses', 'Books & Stationary', 'Provisions', 'Gifts', 'Other Income',
+        'Gift Aid Claim', 'VBS', 'Evangelism', 'AoG', 'Legal', 'Anniversary',
+        'Membership Interest Free Loan'
+      ];
+  
+      const totalPaidInByType = {};
+    const totalPaidOutByType = {};
+
+    types.forEach(type => {
+      const typeTransactions = rows.filter(row => row.type === type);
+      
+      // Calculate total "Paid In" for the current type
+      const totalPaidIn = typeTransactions.reduce((total, transaction) => {
+        const paidIn = parseFloat(transaction.paid_in) || 0;
+        if (!isNaN(paidIn)) {
+          total += paidIn;
+        }
+        return total;
+      }, 0);
+
+      // Calculate total "Paid Out" for the current type
+      const totalPaidOut = typeTransactions.reduce((total, transaction) => {
+        const paidOut = parseFloat(transaction.paid_out) || 0;
+        if (!isNaN(paidOut)) {
+          total += paidOut;
+        }
+        return total;
+      }, 0);
+
+      totalPaidInByType[type] = parseFloat(totalPaidIn.toFixed(2));;
+      totalPaidOutByType[type] = parseFloat(totalPaidOut.toFixed(2));
+    });
+
+    console.log("Total Paid In by Type:");
+    console.log(totalPaidInByType);
+
+    console.log("Total Paid Out by Type:");
+    console.log(totalPaidOutByType);
+    
+    // Write total "Paid In" and "Paid Out" to CSV file
+    const csvFilePath = "total_paid_in_out.csv";
+  const csvWriterOptions = {
+    path: csvFilePath,
+    header: [
+      { id: "type", title: "Type" },
+      { id: "paid_in", title: "Paid In" },
+      { id: "paid_out", title: "Paid Out" }
+    ]
+  };
+
+  const dataToWrite = types.map(type => ({
+    type: type,
+    paid_in: totalPaidInByType[type],
+    paid_out: totalPaidOutByType[type]
+  }));
+
+  const writer = csvWriter(csvWriterOptions);
+  writer.writeRecords(dataToWrite)
+    .then(() => {
+      console.log("CSV file has been written successfully.");
+    })
+    .catch(err => {
+      console.error("Error writing CSV file:", err);
+      res.status(500).send('Error exporting data to CSV.');
+    });
+});
+});
+
+
   app.get('/export-giftaid-claims', checkUserRole, function(req, res) {
   
     db.all(`SELECT members.first_name, members.surname, donations.amount, donations.date, 
@@ -451,6 +533,56 @@ app.get('/logout', (req, res) => {
     
 });
 
+app.get("/generate-donor-pdf/:id", (req, res) => {
+    const id = req.params.id;
+    const donorSql = "SELECT * FROM members WHERE id = ?";
+  
+    db.all(donorSql, id, (err, donor) => {
+      if (err) {
+        console.log(err.message);
+
+      } else {
+        const titheSql =
+          "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund = 'Tithe' ORDER BY date ASC";
+        const donationSql =
+          "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund != 'Tithe' ORDER BY date ASC";
+  
+        Promise.all([
+          new Promise((resolve, reject) => {
+            db.all(titheSql, id, (err, tithe) => {
+              if (err) {
+                reject(err.message);
+              } else {
+                resolve(tithe);
+              }
+            });
+          }),
+          new Promise((resolve, reject) => {
+            db.all(donationSql, id, (err, donations) => {
+              if (err) {
+                reject(err.message);
+              } else {
+                resolve(donations);
+              }
+            });
+          })
+        ])
+          .then(([tithe, donations]) => {
+            generatePDF(donor, tithe, donations);
+          })
+          .catch((err) => {
+            console.log(err);
+          });
+      }
+    });
+  });
+  
+// POST /import-transactions
+app.get("/import-transactions", requireLogin, checkUserRole, (req, res) => {
+   
+    readCSVAndProcess();
+  });
+
 // Default response for any other request
 app.use(function(req, res){
     res.status(404);
@@ -473,21 +605,65 @@ function formatted_date() {
     return today;
 }
 
+ // Assuming your CSV file is named 'data.csv'
+ const csvFilePath = __dirname + "/data.csv";
+
+ // Function to read the CSV file and process its contents
+ function readCSVAndProcess() {
+   const results = [];
+   
+   fs.createReadStream(csvFilePath)
+     .pipe(csv())
+     .on('data', (data) => {
+        data.Date = convertDateFormat(data.Date);
+       results.push(data);
+     })
+     .on('end', () => {
+       // 'results' array now contains the data from the CSV file
+       // Process the data and save it to the database as needed
+       // For example:
+       results.forEach(row => {
+         // Save the 'row' data to the 'transactions' table in your SQLite database
+         // Modify the code here to save the data into your 'transactions' table
+         // Example:
+         const sql = "INSERT INTO transactions (date, transaction_type, type, description, paid_out, paid_in, balance, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+         const params = [row.Date, row.Type, null, row.Description, row['Paid Out'], row['Paid In'], row.Balance, null];
+         
+         db.run(sql, params, (err) => {
+           if (err) {
+             console.error("Error inserting row into the database:", err.message);
+           } else {
+             console.log("Row inserted successfully:", row);
+           }
+         });
+       });
+     });
+ }
+
+ function convertDateFormat(dateString) {
+    const months = {
+      "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
+      "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
+    };
+  
+    const dateParts = dateString.split(' ');
+    const day = dateParts[0];
+    const month = months[dateParts[1]];
+    const year = dateParts[2];
+    return `${year}-${month}-${day}`;
+  }
+
 function requireLogin(req, res, next) {
     if (req.session && req.session.email) {
-        // user is logged in, so continue with the next middleware
         next();
     } else {
-        // user is not logged in, so redirect to login page
         res.redirect('/login');
     }}
 
 function checkUserRole(req, res, next) {
     if (req.session.role === 'admin') {
-        // if the logged in users role is admin, continue with the next middleware
         next();
     } else {
-        // user is not admin, so redirect to claimants page
         req.flash('error', 'Only Admins are allowed to delete claimants.');
         res.redirect('/claimants');
     }}
