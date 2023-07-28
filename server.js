@@ -11,6 +11,8 @@ const { timeStamp } = require("console");
 const saltRounds = 10;
 const csvWriter = require('csv-writer').createObjectCsvWriter;
 const generatePDF = require('./pdf-generator');
+const { exec } = require('child_process');
+const path = require('path');
 
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -43,7 +45,7 @@ app.get("/", (req, res) =>  {
 
 // GET /claimants
 app.get("/claimants", requireLogin, (req, res) => {
-    const sql = "SELECT * FROM members ORDER BY id ASC"
+    const sql = "SELECT * FROM members ORDER BY first_name ASC"
     const loggedInName = req.session.name;
     db.all(sql, [], (err, rows) => {
         if (err) {
@@ -151,7 +153,7 @@ app.get("/all-donations", requireLogin, (req, res) => {
 
 // GET /add-payment/id
 app.get("/select-giver", requireLogin, (req, res) => {
-    const sql = "SELECT * FROM members ORDER BY id ASC"
+    const sql = "SELECT * FROM members ORDER BY first_name ASC"
     const loggedInName = req.session.name;
     db.all(sql, [], (err, rows) => {
         if (err) {
@@ -527,8 +529,19 @@ app.get('/logout', (req, res) => {
         if (err) {
             return console.error(err.message);
         } else {
-            req.session.destroy();
-            res.redirect('/');
+          const scriptPath = path.join(__dirname, 'ProBooksAccountingPush.bat');
+
+      exec(`"${scriptPath}"`, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error: ${error.message}`);
+        } else {
+          console.log(`Batch script output: ${stdout}`);
+        }
+
+        // After executing the batch script, destroy the session and redirect
+        req.session.destroy();
+        res.redirect('/');
+      });
         }});
     
 });

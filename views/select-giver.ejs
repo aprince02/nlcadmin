@@ -2,31 +2,63 @@
 
 <h1>Select Giver</h1>
 
-<div class="table-responsive-sm">
-  <table class="table table-hover">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>First Name</th>
-        <th>Surname</th>
-        <th class="d-print-none">
-          <a class="btn btn-sm btn-success" href="/create">Add</a>
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      <% for (const member of row) { %>
+<div class="table-wrapper">
+  <div class="table-column">
+    <table class="table table-hover table-sm custom-table">
+      <thead>
         <tr>
-          <td ><%= member.id %></td>
-          <td><%= member.first_name %></td>
-          <td><%= member.surname %></td>
-          <td class="d-print-none">
-            <a class="btn btn-sm btn-info" href="/add-donation/<%= member.id %>">Add Donation</a>
-          </td>
+          <th>ID</th>
+          <th>First Name</th>
+          <th>Surname</th>
+          <th>Spouse Name</th>
+          <th class="d-print-none">
+            <a class="btn btn-sm btn-success" href="/create">Add</a>
+          </th>
         </tr>
-      <% } %>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <% const halfwayIndex = Math.ceil(row.length / 2); %>
+        <% for (let i = 0; i < halfwayIndex; i++) { %>
+          <tr>
+            <td><%= row[i].id %></td>
+            <td><%= row[i].first_name %></td>
+            <td><%= row[i].surname %></td>
+            <td><%= row[i].spouse_name %></td>
+            <td class="d-print-none">
+              <a class="btn btn-sm btn-info" href="/add-donation/<%= row[i].id %>">Add Donation</a>
+            </td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-column">
+    <table class="table table-hover table-sm custom-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>First Name</th>
+          <th>Surname</th>
+          <th class="d-print-none">
+            <a class="btn btn-sm btn-success" href="/create">Add</a>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (let i = halfwayIndex; i < row.length; i++) { %>
+          <tr>
+            <td><%= row[i].id %></td>
+            <td><%= row[i].first_name %></td>
+            <td><%= row[i].surname %></td>
+            <td class="d-print-none">
+              <a class="btn btn-sm btn-info" href="/add-donation/<%= row[i].id %>">Add Donation</a>
+            </td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <%- include("_loggedInFooter") -%>
