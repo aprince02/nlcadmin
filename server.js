@@ -90,6 +90,7 @@ app.post("/edit/:id", requireLogin, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'Member details updated successfully.');
+            log(req, "Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
             res.redirect("/claimants");
         }});
     });
@@ -109,6 +110,7 @@ app.post("/create", requireLogin, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'New member added successfully.');
+            log(req, "Added new member with first name: " + req.body.first_name + "and last name: " + req.body.surname)
             res.redirect("/claimants");
         }}); 
     });
@@ -135,6 +137,7 @@ app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'Member deleted successfully.');
+            log(req, "Deleted member with id: " + id)
             res.redirect("/claimants");
         }});
     });
@@ -207,6 +210,7 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
         if (err) {
             console.log(err.message);
         } else {
+            log(req, "Edited donation with id: " + id)
             res.redirect("/all-donations");
         }}); 
     });
@@ -223,6 +227,7 @@ app.post("/add-donation/:id", requireLogin, (req, res) => {
             return console.error(err.message);
         } else {
             req.flash('success', 'Donation added successfully.');
+            log(req, "Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname)
             res.redirect("/select-giver"); 
         }});
     });
@@ -307,9 +312,7 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'Type saved successfully.');
-            if (type == 'Tithe') {
-                console.log("type was tithe")
-            }
+            log(req, "Transaction with id: " + id + " saved with type:" + type)
         }}); 
     });
 
@@ -343,6 +346,7 @@ app.post("/login", (req, res) =>  {
                 }else {
                     req.session.timestamp = row.timestamp;
                     req.session.user = row.user;
+                    log(req, "User " + req.session.name + " logged in");
                 }
             });
 
@@ -448,14 +452,7 @@ app.get('/export-donations', checkUserRole, function(req, res) {
       totalPaidInByType[type] = parseFloat(totalPaidIn.toFixed(2));;
       totalPaidOutByType[type] = parseFloat(totalPaidOut.toFixed(2));
     });
-
-    console.log("Total Paid In by Type:");
-    console.log(totalPaidInByType);
-
-    console.log("Total Paid Out by Type:");
-    console.log(totalPaidOutByType);
     
-    // Write total "Paid In" and "Paid Out" to CSV file
     const csvFilePath = "total_paid_in_out.csv";
   const csvWriterOptions = {
     path: csvFilePath,
@@ -531,6 +528,7 @@ app.get('/logout', (req, res) => {
         } else {
           const scriptPath = path.join(__dirname, 'ProBooksAccountingPush.bat');
 
+        log(req, "User logged out")
       exec(`"${scriptPath}"`, (error, stdout, stderr) => {
         if (error) {
           console.error(`Error: ${error.message}`);
@@ -617,6 +615,20 @@ function formatted_date() {
     var today = yyyy+'-'+mm+'-'+dd;
     return today;
 }
+
+function log(req, update) {
+  const sql = "INSERT INTO console_logs (timestamp, user, log_message) VALUES (datetime('now'), ?, ?)";
+  const loggedInName = req.session.name;
+  const data = [loggedInName, update];
+
+  db.run(sql, data, err => {
+    if (err) {
+      console.error(err.message);
+      return;
+    }
+  });
+}
+
 
  // Assuming your CSV file is named 'data.csv'
  const csvFilePath = __dirname + "/data.csv";
