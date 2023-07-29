@@ -13,6 +13,7 @@ const csvWriter = require('csv-writer').createObjectCsvWriter;
 const generatePDF = require('./pdf-generator');
 const { exec } = require('child_process');
 const path = require('path');
+const os = require("os");
 
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -90,7 +91,7 @@ app.post("/edit/:id", requireLogin, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'Member details updated successfully.');
-            log(req, "Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
+            log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
             res.redirect("/claimants");
         }});
     });
@@ -110,7 +111,7 @@ app.post("/create", requireLogin, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'New member added successfully.');
-            log(req, "Added new member with first name: " + req.body.first_name + "and last name: " + req.body.surname)
+            log("Added new member with first name: " + req.body.first_name + "and last name: " + req.body.surname)
             res.redirect("/claimants");
         }}); 
     });
@@ -137,7 +138,7 @@ app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'Member deleted successfully.');
-            log(req, "Deleted member with id: " + id)
+            log("Deleted member with id: " + id)
             res.redirect("/claimants");
         }});
     });
@@ -210,7 +211,7 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
         if (err) {
             console.log(err.message);
         } else {
-            log(req, "Edited donation with id: " + id)
+            log("Edited donation with id: " + id)
             res.redirect("/all-donations");
         }}); 
     });
@@ -227,7 +228,7 @@ app.post("/add-donation/:id", requireLogin, (req, res) => {
             return console.error(err.message);
         } else {
             req.flash('success', 'Donation added successfully.');
-            log(req, "Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname)
+            log("Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname)
             res.redirect("/select-giver"); 
         }});
     });
@@ -312,7 +313,7 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'Type saved successfully.');
-            log(req, "Transaction with id: " + id + " saved with type:" + type)
+            log("Transaction with id: " + id + " saved with type:" + type)
         }}); 
     });
 
@@ -346,7 +347,7 @@ app.post("/login", (req, res) =>  {
                 }else {
                     req.session.timestamp = row.timestamp;
                     req.session.user = row.user;
-                    log(req, "User " + req.session.name + " logged in");
+                    log("User " + req.session.name + " logged in");
                 }
             });
 
@@ -528,7 +529,7 @@ app.get('/logout', (req, res) => {
         } else {
           const scriptPath = path.join(__dirname, 'ProBooksAccountingPush.bat');
 
-        log(req, "User logged out")
+        log("User logged out")
       exec(`"${scriptPath}"`, (error, stdout, stderr) => {
         if (error) {
           console.error(`Error: ${error.message}`);
@@ -588,9 +589,7 @@ app.get("/generate-donor-pdf/:id", (req, res) => {
     });
   });
   
-// POST /import-transactions
-app.get("/import-transactions", requireLogin, checkUserRole, (req, res) => {
-   
+  app.get("/import-transactions", requireLogin, checkUserRole, (req, res) => {
     readCSVAndProcess();
   });
 
@@ -616,10 +615,10 @@ function formatted_date() {
     return today;
 }
 
-function log(req, update) {
+function log(update) {
   const sql = "INSERT INTO console_logs (timestamp, user, log_message) VALUES (datetime('now'), ?, ?)";
-  const loggedInName = req.session.name;
-  const data = [loggedInName, update];
+  const computerName = os.hostname();
+  const data = [computerName, update];
 
   db.run(sql, data, err => {
     if (err) {
@@ -629,41 +628,47 @@ function log(req, update) {
   });
 }
 
+// Function to read the CSV file and process its contents
+function readCSVAndProcess(callback) {
+  // Assuming your CSV file is named 'data.csv'
+  const csvFilePath = __dirname + "/data.csv";
 
- // Assuming your CSV file is named 'data.csv'
- const csvFilePath = __dirname + "/data.csv";
+  // Check if the file exists before attempting to read it
+  if (!fs.existsSync(csvFilePath)) {
+    log("CSV file not found. Aborting the process.");
+    return;
+  }
 
- // Function to read the CSV file and process its contents
- function readCSVAndProcess() {
-   const results = [];
-   
-   fs.createReadStream(csvFilePath)
-     .pipe(csv())
-     .on('data', (data) => {
-        data.Date = convertDateFormat(data.Date);
-       results.push(data);
-     })
-     .on('end', () => {
-       // 'results' array now contains the data from the CSV file
-       // Process the data and save it to the database as needed
-       // For example:
-       results.forEach(row => {
-         // Save the 'row' data to the 'transactions' table in your SQLite database
-         // Modify the code here to save the data into your 'transactions' table
-         // Example:
-         const sql = "INSERT INTO transactions (date, transaction_type, type, description, paid_out, paid_in, balance, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-         const params = [row.Date, row.Type, null, row.Description, row['Paid Out'], row['Paid In'], row.Balance, null];
-         
-         db.run(sql, params, (err) => {
-           if (err) {
-             console.error("Error inserting row into the database:", err.message);
-           } else {
-             console.log("Row inserted successfully:", row);
-           }
-         });
-       });
-     });
- }
+  const results = [];
+
+  fs.createReadStream(csvFilePath)
+    .pipe(csv())
+    .on('data', (data) => {
+      data.Date = convertDateFormat(data.Date);
+      results.push(data);
+    })
+    .on('end', () => {
+      // 'results' array now contains the data from the CSV file
+      // Process the data and save it to the database as needed
+      // For example:
+      results.forEach(row => {
+        // Save the 'row' data to the 'transactions' table in your SQLite database
+        // Modify the code here to save the data into your 'transactions' table
+        // Example:
+        const sql = "INSERT INTO transactions (date, transaction_type, type, description, paid_out, paid_in, balance, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        const params = [row.Date, row.Type, null, row.Description, row['Paid Out'], row['Paid In'], row.Balance, null];
+
+        db.run(sql, params, (err) => {
+          if (err) {
+            console.error("Error inserting row into the database:", err.message);
+          } else {
+            console.log("Row inserted successfully:", row);
+          }
+        });
+      });
+    });
+}
+
 
  function convertDateFormat(dateString) {
     const months = {
