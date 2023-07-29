@@ -14,6 +14,7 @@ const generatePDF = require('./pdf-generator');
 const { exec } = require('child_process');
 const path = require('path');
 const os = require("os");
+const mysql = require('mysql');
 
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -29,6 +30,24 @@ app.use(flash());
 app.use(function(req, res, next){
     res.locals.message = req.flash();
     next();
+
+const dbConfig = {
+  host: 'probooks-accounting.cwwmgt0ram7p.ap-southeast-2.rds.amazonaws.com',
+  user: 'admin',
+  password: 'albin2002',
+  database: 'probooks-accounting'
+}
+
+const connection = mysql.createConnection(dbConfig);
+
+connection.connect((err) => {
+  if (err) {
+    console.error('Error connecting to the database:', err.message);
+    return;
+  }
+  console.log('Connected to the database!');
+});
+
 });
 // Start server
 app.listen(8000, () => {
