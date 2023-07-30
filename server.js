@@ -31,23 +31,6 @@ app.use(function(req, res, next){
     res.locals.message = req.flash();
     next();
 
-const dbConfig = {
-  host: 'probooks-accounting.cwwmgt0ram7p.ap-southeast-2.rds.amazonaws.com',
-  user: 'admin',
-  password: 'albin2002',
-  database: 'probooks-accounting'
-}
-
-const connection = mysql.createConnection(dbConfig);
-
-connection.connect((err) => {
-  if (err) {
-    console.error('Error connecting to the database:', err.message);
-    return;
-  }
-  console.log('Connected to the database!');
-});
-
 });
 // Start server
 app.listen(8000, () => {
@@ -364,7 +347,6 @@ app.post("/login", (req, res) =>  {
                 if (err) {
                     throw err;
                 }else {
-                    req.session.timestamp = row.timestamp;
                     req.session.user = row.user;
                     log("User " + req.session.name + " logged in");
                 }
