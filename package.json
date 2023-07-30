@@ -20,7 +20,6 @@
     "express-session": "^1.17.3",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.5.29",
-    "mysql": "^2.18.1",
     "sqlite3": "^5.1.4"
   }
 }

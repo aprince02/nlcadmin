@@ -14,7 +14,6 @@ const generatePDF = require('./pdf-generator');
 const { exec } = require('child_process');
 const path = require('path');
 const os = require("os");
-const mysql = require('mysql');
 
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -347,7 +346,6 @@ app.post("/login", (req, res) =>  {
                 if (err) {
                     throw err;
                 }else {
-                    req.session.user = row.user;
                     log("User " + req.session.name + " logged in");
                 }
             });
