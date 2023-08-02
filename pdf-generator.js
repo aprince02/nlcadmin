@@ -1,9 +1,9 @@
 // pdf.js
 const { jsPDF } = require("jspdf");
-const { autoTable } = require("jspdf-autotable");
 const fs = require("fs");
+const { log } = require('./utils');
 
-function generatePDF(donor, tithe, donations) {
+async function generatePDF(donor, tithe, donations) {
   const doc = new jsPDF();
 
   const logoPath = "css/logo.png";
@@ -95,9 +95,11 @@ function generatePDF(donor, tithe, donations) {
   doc.text("Treasurer", 10, donationTableEndY + 45)
 
   const fileName = `${fullName} - Statement of Donations.pdf`;
+  const pdfPath = `./${fileName}`;
   doc.autoPrint();
   doc.save(fileName);
-  console.log( `Tithe/Donations PDF generated for ${fullName}`)
+  log( `Tithe/Donations PDF generated for ${fullName}`)
+  return pdfPath;
 }
 
-module.exports = generatePDF;
+module.exports = { generatePDF };

@@ -3,17 +3,20 @@ var app = express()
 var db = require("./database.js")
 const session = require('express-session');
 const bodyParser = require('body-parser');
-const csv = require('csv-parser');
-const fs = require('fs');
 const flash = require('connect-flash');
 const bcrypt = require('bcrypt');
-const { timeStamp } = require("console");
 const saltRounds = 10;
 const csvWriter = require('csv-writer').createObjectCsvWriter;
-const generatePDF = require('./pdf-generator');
+const { generatePDF } = require('./pdf-generator');
 const { exec } = require('child_process');
 const path = require('path');
-const os = require("os");
+const {
+  requireLogin,
+  checkUserRole,
+  readCSVAndProcess,
+  log,
+} = require('./utils');
+const { createAndEmailDBBackup, sendStatementByEmail } = require('./emailer');
 
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -35,10 +38,6 @@ app.use(function(req, res, next){
 app.listen(8000, () => {
     console.log("Server running on port: %PORT%".replace("%PORT%",8000))
 });
-// Root endpoint
-app.get("/", (req, res) =>  {
-    res.render("index");
-  });
 
   app.get("/admin", (req, res) =>  {
     const loggedInName = req.session.name;
@@ -406,6 +405,14 @@ app.get('/export-donations', checkUserRole, function(req, res) {
     });
   });
 
+  app.get('/db-backup', async (req, res) => {
+    try {
+      await createAndEmailDBBackup('albinm65@gmail.com', 'gqmhrxtijtioasxj');
+      log('Database backup sent via email!');
+    } catch (error) {
+      log("Error sending database backup")
+    }
+  });
   app.get("/export-totals", checkUserRole, function(req, res) {
 
     const sql = "SELECT * FROM transactions WHERE date >= '2023-01-01' ORDER BY type";
@@ -545,48 +552,60 @@ app.get('/logout', (req, res) => {
 });
 
 app.get("/generate-donor-pdf/:id", (req, res) => {
-    const id = req.params.id;
-    const donorSql = "SELECT * FROM members WHERE id = ?";
-  
-    db.all(donorSql, id, (err, donor) => {
-      if (err) {
-        console.log(err.message);
+  const id = req.params.id;
+  const donorSql = "SELECT * FROM members WHERE id = ?";
 
-      } else {
-        const titheSql =
-          "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund = 'Tithe' ORDER BY date ASC";
-        const donationSql =
-          "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund != 'Tithe' ORDER BY date ASC";
-  
-        Promise.all([
-          new Promise((resolve, reject) => {
-            db.all(titheSql, id, (err, tithe) => {
-              if (err) {
-                reject(err.message);
-              } else {
-                resolve(tithe);
-              }
-            });
-          }),
-          new Promise((resolve, reject) => {
-            db.all(donationSql, id, (err, donations) => {
-              if (err) {
-                reject(err.message);
-              } else {
-                resolve(donations);
-              }
-            });
-          })
-        ])
-          .then(([tithe, donations]) => {
-            generatePDF(donor, tithe, donations);
-          })
-          .catch((err) => {
-            console.log(err);
+  db.all(donorSql, id, (err, donor) => {
+    if (err) {
+      console.log(err.message);
+      res.status(500).send("Error fetching donor details");
+    } else {
+      const titheSql =
+        "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund = 'Tithe' ORDER BY date ASC";
+      const donationSql =
+        "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund != 'Tithe' ORDER BY date ASC";
+
+      Promise.all([
+        new Promise((resolve, reject) => {
+          db.all(titheSql, id, (err, tithe) => {
+            if (err) {
+              reject(err.message);
+            } else {
+              resolve(tithe);
+            }
           });
-      }
-    });
+        }),
+        new Promise((resolve, reject) => {
+          db.all(donationSql, id, (err, donations) => {
+            if (err) {
+              reject(err.message);
+            } else {
+              resolve(donations);
+            }
+          });
+        })
+      ])
+        .then(([tithe, donations]) => {
+          const processPDFAndEmail = async () => {
+            try {
+              const pdfPath = await generatePDF(donor, tithe, donations);
+              await sendStatementByEmail('albinm65@gmail.com', 'gqmhrxtijtioasxj', pdfPath);
+              log("Statement of donations sent for: " + donor);
+            } catch (err) {
+              log("Error generating or sending the statement of donations for donor: " + donor);
+            }
+          };
+
+          // Call the async function within the .then() block
+          processPDFAndEmail();
+        })
+        .catch((err) => {
+          res.status(500).send("Error fetching tithe and donations details");
+        });
+    }
   });
+});
+
   
   app.get("/import-transactions", requireLogin, checkUserRole, (req, res) => {
     readCSVAndProcess();
@@ -597,102 +616,3 @@ app.use(function(req, res){
     res.status(404);
     res.redirect('/claimants')
 });
-
-// returns todays date in correct format
-function formatted_date() {
-    var date_today = new Date();
-    var dd = date_today.getDate();
-    var mm = date_today.getMonth()+1;
-    var yyyy = date_today.getFullYear();
-    if(dd<10) {
-        dd='0'+dd;
-    } 
-    if(mm<10) {
-        mm='0'+mm;
-    }
-    var today = yyyy+'-'+mm+'-'+dd;
-    return today;
-}
-
-function log(update) {
-  const sql = "INSERT INTO console_logs (timestamp, user, log_message) VALUES (datetime('now'), ?, ?)";
-  const computerName = os.hostname();
-  const data = [computerName, update];
-
-  db.run(sql, data, err => {
-    if (err) {
-      console.error(err.message);
-      return;
-    }
-  });
-}
-
-// Function to read the CSV file and process its contents
-function readCSVAndProcess(callback) {
-  // Assuming your CSV file is named 'data.csv'
-  const csvFilePath = __dirname + "/data.csv";
-
-  // Check if the file exists before attempting to read it
-  if (!fs.existsSync(csvFilePath)) {
-    log("CSV file not found. Aborting the process.");
-    return;
-  }
-
-  const results = [];
-
-  fs.createReadStream(csvFilePath)
-    .pipe(csv())
-    .on('data', (data) => {
-      data.Date = convertDateFormat(data.Date);
-      results.push(data);
-    })
-    .on('end', () => {
-      // 'results' array now contains the data from the CSV file
-      // Process the data and save it to the database as needed
-      // For example:
-      results.forEach(row => {
-        // Save the 'row' data to the 'transactions' table in your SQLite database
-        // Modify the code here to save the data into your 'transactions' table
-        // Example:
-        const sql = "INSERT INTO transactions (date, transaction_type, type, description, paid_out, paid_in, balance, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        const params = [row.Date, row.Type, null, row.Description, row['Paid Out'], row['Paid In'], row.Balance, null];
-
-        db.run(sql, params, (err) => {
-          if (err) {
-            console.error("Error inserting row into the database:", err.message);
-          } else {
-            console.log("Row inserted successfully:", row);
-          }
-        });
-      });
-    });
-}
-
-
- function convertDateFormat(dateString) {
-    const months = {
-      "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
-      "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
-    };
-  
-    const dateParts = dateString.split(' ');
-    const day = dateParts[0];
-    const month = months[dateParts[1]];
-    const year = dateParts[2];
-    return `${year}-${month}-${day}`;
-  }
-
-function requireLogin(req, res, next) {
-    if (req.session && req.session.email) {
-        next();
-    } else {
-        res.redirect('/login');
-    }}
-
-function checkUserRole(req, res, next) {
-    if (req.session.role === 'admin') {
-        next();
-    } else {
-        req.flash('error', 'Only Admins are allowed to delete claimants.');
-        res.redirect('/claimants');
-    }}

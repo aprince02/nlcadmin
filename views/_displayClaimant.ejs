@@ -1,12 +1,12 @@
 <div class="form-group row">
   <div class="col-sm-5">
     <label class="col-form-label" for="first_name">First Name</label>
-    <input readonly required type="text" style="max-width: fit-content;" autofocus class="form-control" name="first_name" value="<%= member.first_name %>" />
+    <input readonly type="text" style="max-width: fit-content;" autofocus class="form-control" name="first_name" value="<%= member.first_name %>" />
 
   </div>
   <div class="col-sm-5">
     <label class="col-form-label" for="surname">Surname</label>
-    <input  readonly required type="text" style="max-width: fit-content;" class="form-control" name="surname" value="<%= member.surname %>" />
+    <input  readonly type="text" style="max-width: fit-content;" class="form-control" name="surname" value="<%= member.surname %>" />
     
   </div>
   </div>
@@ -14,7 +14,7 @@
   <div class="form-group row">
     <div class="col-sm-5">
     <label class="col-form-label" for="sex">SEX</label>
-      <select required class="form-control" name="sex" id="sex" style="max-width: fit-content;">
+      <select class="form-control" name="sex" id="sex" style="max-width: fit-content;">
         <option selected value="<%= member.sex %>"><%= member.sex %></option>
         <option value="MALE">MALE</option>
         <option value="FEMALE">FEMALE</option>
@@ -22,18 +22,18 @@
     </div>
     <div class="col-sm-5">
       <label class="col-form-label" for="date_of_birth">Date of Birth</label>
-      <input readonly required type="date" class="form-control" cols="20" name="date_of_birth" style="max-width: fit-content;" maxlength="32000" value="<%= member.date_of_birth %>" />
+      <input readonly type="date" class="form-control" cols="20" name="date_of_birth" style="max-width: fit-content;" maxlength="32000" value="<%= member.date_of_birth %>" />
     </div>
   </div>
 
   <div class="form-group row">
     <div class="col-sm-5">
       <label class="col-form-label" for="email">Email</label>
-      <input readonly required type="email" class="form-control" style="max-width: fit-content;" name="email" value="<%= member.email %>" />
+      <input readonly type="email" class="form-control" style="max-width: fit-content;" name="email" value="<%= member.email %>" />
     </div>
     <div class="col-sm-5">
       <label class="col-form-label" for="phone_number">Phone Number</label>
-      <input readonly required type="text" class="form-control" style="max-width: fit-content;" name="phone_number" value="<%= member.phone_number %>" />
+      <input readonly type="text" class="form-control" style="max-width: fit-content;" name="phone_number" value="<%= member.phone_number %>" />
 
     </div>
   </div>
@@ -66,7 +66,7 @@
     
     <div class="col-sm-5">
       <label class="col-form-label" for="baptised">Baptised</label>
-      <select required class="form-control" style="max-width: fit-content;" name="baptised" id="baptised">
+      <select class="form-control" style="max-width: fit-content;" name="baptised" id="baptised">
         <option selected value="<%= member.baptised %>"><%= member.baptised %></option>
         <option value="YES">YES</option>
         <option value="NO">NO</option>
@@ -81,7 +81,7 @@
   <div class="form-group row">
     <label class="col-form-label col-sm-5" for="holy_spirit">Annointed with Holy Spirit</label>
     <div class="col-sm-7">
-      <select required class="form-control" style="max-width: fit-content;" name="holy_spirit" id="holy_spirit">
+      <select class="form-control" style="max-width: fit-content;" name="holy_spirit" id="holy_spirit">
         <option selected value="<%= member.holy_spirit %>"><%= member.holy_spirit %></option>
         <option value="YES">YES</option>
         <option value="NO">NO</option>
