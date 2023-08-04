@@ -1,6 +1,7 @@
 // pdf.js
 const { jsPDF } = require("jspdf");
 const fs = require("fs");
+const { autoTable } = require("jspdf-autotable");
 const { log } = require('./utils');
 
 async function generatePDF(donor, tithe, donations) {

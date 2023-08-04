@@ -1,4 +1,6 @@
 var express = require("express")
+const { google } = require('googleapis');
+const fs = require('fs');
 var app = express()
 var db = require("./database.js")
 const session = require('express-session');
@@ -16,7 +18,7 @@ const {
   readCSVAndProcess,
   log,
 } = require('./utils');
-const { createAndEmailDBBackup, sendStatementByEmail } = require('./emailer');
+const { createAndEmailDBBackup, sendStatementByEmail, createAndEmailTransactions, createAndEmailDonations, createAndEmailGiftAid, createAndEmailTotals } = require('./emailer');
 
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -209,8 +211,10 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
     const claimant = [date, notes, fund, amount, method, id];
     db.run(claimant_sql, claimant, err => {
         if (err) {
+            req.flash('error', 'Error editing donation, please try again!')
             console.log(err.message);
         } else {
+          req.flash('success', 'Donation edited successfully!')
             log("Edited donation with id: " + id)
             res.redirect("/all-donations");
         }}); 
@@ -225,11 +229,14 @@ app.post("/add-donation/:id", requireLogin, (req, res) => {
     
     db.run(payment_sql, payment, err => {
         if (err) {
-            return console.error(err.message);
+          req.flash('error', 'Error adding donation, please try again!');
+            log(err.message);
+            console.error(err.message);
+            return res.redirect("/select-giver"); 
         } else {
             req.flash('success', 'Donation added successfully.');
             log("Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname)
-            res.redirect("/select-giver"); 
+            return res.redirect("/select-giver"); 
         }});
     });
 
@@ -310,9 +317,12 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
     const claimant = [type, id];
     db.run(claimant_sql, claimant, err => {
         if (err) {
+            req.flash('error', 'Error saving transaction, please try again!');
+            log(err.message);
             console.log(err.message);
+            return res.redirect("/yearly-transactions");
         } else {
-            req.flash('success', 'Type saved successfully.');
+            req.flash('success', 'Transaction type saved successfully.');
             log("Transaction with id: " + id + " saved with type:" + type)
         }}); 
     });
@@ -357,13 +367,13 @@ app.post("/login", (req, res) =>  {
     });
 });
 
-app.get('/export-transactions', checkUserRole, function(req, res) {
+app.get('/export-transactions', checkUserRole, async function(req, res) {
   const tableName = 'transactions';
   
   db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
     if (err) {
-      res.status(500).send('Error retrieving data');
-      return;
+      req.flash('error', 'Error retrieving data to export transactions.');
+      log('Error retrieving data for transactions.')
     }
     
     const csvWrite = csvWriter({
@@ -376,18 +386,25 @@ app.get('/export-transactions', checkUserRole, function(req, res) {
         res.download('transactions.csv');
       })
       .catch(() => {
-        res.status(500).send('Error generating CSV file');
+        log('Error generating CSV file for transactions.')
+        req.flash('error', 'Error generating CSV file for transactions.');
       });
   });
+  try {
+    await createAndEmailTransactions('albinm65@gmail.com', 'gqmhrxtijtioasxj');
+    log('Transactions sent via email!');
+  } catch (error) {
+    log("Error sending transactions email")
+  }
 });
 
-app.get('/export-donations', checkUserRole, function(req, res) {
+app.get('/export-donations', checkUserRole, async function(req, res) {
     const tableName = 'donations';
     
     db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
       if (err) {
-        res.status(500).send('Error retrieving data');
-        return;
+        req.flash('error', 'Error retrieving data to export donations.');
+        log('Error retrieving data to export donations.')
       }
       
       const csvWrite = csvWriter({
@@ -398,29 +415,43 @@ app.get('/export-donations', checkUserRole, function(req, res) {
       csvWrite.writeRecords(rows)
         .then(() => {
           res.download('donations.csv');
+          req.flash('success', 'Donations successfully exported.');
+          log('Donations successfully exported')
         })
         .catch(() => {
-          res.status(500).send('Error generating CSV file');
+          req.flash('error', 'Error generating CSV file for donations.');
+          log('Error generating CSV file for donations.')
         });
     });
+    try {
+      await createAndEmailDonations('albinm65@gmail.com', 'gqmhrxtijtioasxj');
+      log('Donations sent via email!');
+    } catch (error) {
+      log("Error sending donations email")
+    }
   });
 
   app.get('/db-backup', async (req, res) => {
     try {
       await createAndEmailDBBackup('albinm65@gmail.com', 'gqmhrxtijtioasxj');
       log('Database backup sent via email!');
+      req.flash('success', 'Database backup sent via email successfully.');
+      return res.redirect('/admin')
     } catch (error) {
       log("Error sending database backup")
+      req.flash('error', 'Error sending database backup.');
+      return res.redirect('/admin');
     }
   });
-  app.get("/export-totals", checkUserRole, function(req, res) {
+
+  app.get("/export-totals", checkUserRole, async function(req, res) {
 
     const sql = "SELECT * FROM transactions WHERE date >= '2023-01-01' ORDER BY type";
   
   db.all(sql, function(err, rows) {
     if (err) {
-      res.status(500).send('Error retrieving data');
-      return;
+      req.flash('error', 'Error retrieving data for donations.');
+      return res.redirect('/admin');
     }
 
     // Calculate the total "Paid In" for each type of transaction
@@ -482,14 +513,21 @@ app.get('/export-donations', checkUserRole, function(req, res) {
       console.log("CSV file has been written successfully.");
     })
     .catch(err => {
+      req.flash('error', 'Error generating CSV file for totals.');
       console.error("Error writing CSV file:", err);
-      res.status(500).send('Error exporting data to CSV.');
+      return res.redirect('/admin');
     });
-});
+  });
+  try {
+    await createAndEmailTotals('albinm65@gmail.com', 'gqmhrxtijtioasxj');
+    log('Totals sent via email!');
+  } catch (error) {
+    log("Error sending totals email")
+  }
 });
 
 
-  app.get('/export-giftaid-claims', checkUserRole, function(req, res) {
+  app.get('/export-giftaid-claims', checkUserRole, async function(req, res) {
   
     db.all(`SELECT members.first_name, members.surname, donations.amount, donations.date, 
       members.title, members.house_number, members.postcode
@@ -497,8 +535,8 @@ app.get('/export-donations', checkUserRole, function(req, res) {
       INNER JOIN members ON donations.member_id = members.id 
       WHERE donations.gift_aid_status = 'Unclaimed'`, function(err, rows) {
       if (err) {
-        res.status(500).send('Error retrieving data');
-        return;
+        req.flash('error', 'Error generating CSV file for gift aid claim.');
+        return res.redirect('/admin');
       }
   
       const csvWrite = csvWriter({
@@ -519,9 +557,15 @@ app.get('/export-donations', checkUserRole, function(req, res) {
           res.download('giftaid_claim.csv');
         })
         .catch(() => {
-          res.status(500).send('Error generating CSV file');
+          req.flash('error', 'Error generating CSV file for donations.');
         });
     });
+    try {
+      await createAndEmailGiftAid('albinm65@gmail.com', 'gqmhrxtijtioasxj');
+      log('Gift Aid Claim sent via email!');
+    } catch (error) {
+      log("Error sending gift aid claim email")
+    }
   });
   
 // GET /logout
@@ -558,7 +602,7 @@ app.get("/generate-donor-pdf/:id", (req, res) => {
   db.all(donorSql, id, (err, donor) => {
     if (err) {
       console.log(err.message);
-      res.status(500).send("Error fetching donor details");
+      req.flash('error', 'Error fetching Donor details.');
     } else {
       const titheSql =
         "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund = 'Tithe' ORDER BY date ASC";
@@ -600,7 +644,8 @@ app.get("/generate-donor-pdf/:id", (req, res) => {
           processPDFAndEmail();
         })
         .catch((err) => {
-          res.status(500).send("Error fetching tithe and donations details");
+          req.flash('error', 'Error fetching tithe and donation details for donor.');
+          return res.redirect('/claimants');
         });
     }
   });
@@ -608,7 +653,29 @@ app.get("/generate-donor-pdf/:id", (req, res) => {
 
   
   app.get("/import-transactions", requireLogin, checkUserRole, (req, res) => {
-    readCSVAndProcess();
+    readCSVAndProcess(req, res);
+  });
+
+// GET /create
+app.get("/membership", (req, res) => {
+  res.render("membership", { member: {}, bank_account: {} });
+});
+
+// POST /create
+app.post("/membership", (req, res) => {
+  const claimant_sql = "INSERT INTO members (first_name, surname, sex, email, phone_number, address_line_1, address_line_2, city, postcode, date_of_birth, baptised, baptised_date, holy_spirit, native_church, children_details, emergency_contact_1, emergency_contact_1_name, emergency_contact_2, emergency_contact_2_name, occupation_studies, title, house_number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+  const claimant = [req.body.first_name, req.body.surname, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number,];
+  db.run(claimant_sql, claimant, err => {
+      if (err) {
+          console.log(err.message);
+          log('Error submitting membership form. ' + err.message)
+          req.flash('error', 'Error submitting membership form, please try again!');
+          res.redirect("/membership");
+      } else {
+          req.flash('success', 'Membership Form completed successfully. Thank You!');
+          log("Added new member with first name: " + req.body.first_name + "and last name: " + req.body.surname)
+          res.redirect("/membership");
+      }}); 
   });
 
 // Default response for any other request

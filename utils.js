@@ -34,12 +34,13 @@ function log(update) {
   }
 
 // Function to read the CSV file and process its contents
-function readCSVAndProcess() {
+function readCSVAndProcess(req, res, next) {
     const csvFilePath = __dirname + "/data.csv";
   
     if (!fs.existsSync(csvFilePath)) {
       log("CSV file not found. Process aborted.");
-      return;
+      req.flash('error', 'CSV file not found');
+      return res.redirect('/admin');
     }
   
     const results = [];

@@ -1,0 +1,20 @@
+<%- include("_publicHeader") -%>
+<br>
+<h1>Membership Form</h1>
+
+<form action="/membership" method="post">
+  <div class="form-horizontal">
+
+    <%- include("_claimantEditor") -%>
+    
+
+    <div class="form-group row">
+      <label class="col-form-label col-sm-2"></label>
+      <div class="col-sm-10">
+        <input type="submit" value="Save" class="btn btn-default btn-success" />
+      </div>
+    </div>
+  </div>
+</form>
+
+<%- include("_footer") -%>
