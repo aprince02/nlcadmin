@@ -34,8 +34,7 @@ function log(update) {
   }
 
 // Function to read the CSV file and process its contents
-function readCSVAndProcess(req, res, next) {
-    const csvFilePath = __dirname + "/data.csv";
+function readCSVAndProcess(csvFilePath, req, res, next) {
   
     if (!fs.existsSync(csvFilePath)) {
       log("CSV file not found. Process aborted.");
@@ -58,9 +57,9 @@ function readCSVAndProcess(req, res, next) {
   
           db.run(sql, params, (err) => {
             if (err) {
-              console.error("Error inserting row into the database:", err.message);
+              log("Error inserting row into the database: " + err.message);
             } else {
-              console.log("Row inserted successfully:", row);
+              log("Row inserted successfully: " + row);
             }
           });
         });

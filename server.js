@@ -11,6 +11,7 @@ const csvWriter = require('csv-writer').createObjectCsvWriter;
 const { generatePDF } = require('./pdf-generator');
 const { exec } = require('child_process');
 const path = require('path');
+const multer = require('multer');
 const {
   requireLogin,
   checkUserRole,
@@ -18,7 +19,6 @@ const {
   log,
 } = require('./utils');
 const { createAndEmailDBBackup, sendStatementByEmail, createAndEmailTransactions, createAndEmailDonations, createAndEmailGiftAid, createAndEmailTotals } = require('./emailer');
-
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
 app.use(express.static("public"));
@@ -35,6 +35,17 @@ app.use(function(req, res, next){
     next();
 
 });
+// Multer configuration for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: storage });
 // Start server
 app.listen(8000, () => {
     console.log("Server running on port: %PORT%".replace("%PORT%",8000))
@@ -85,8 +96,8 @@ app.get("/edit/:id", requireLogin, (req, res) => {
 // POST /edit/id
 app.post("/edit/:id", requireLogin, (req, res) => {
     const id = req.params.id;
-    const claimant = [req.body.first_name, req.body.surname, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, id];
-    const sql = "UPDATE members SET first_name = ?, surname = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?, title = ?, house_number = ?  WHERE (id = ?)";
+    const claimant = [req.body.first_name, req.body.surname, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
+    const sql = "UPDATE members SET first_name = ?, surname = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?, title = ?, house_number = ?, spouse_name = ?  WHERE (id = ?)";
     db.run(sql, claimant, err => {
         if (err) {
             console.log(err.message);
@@ -556,12 +567,19 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
           res.download('giftaid_claim.csv');
         })
         .catch(() => {
-          req.flash('error', 'Error generating CSV file for donations.');
+          req.flash('error', 'Error generating CSV file for gift aid claim.');
         });
     });
     try {
       await createAndEmailGiftAid('albinm65@gmail.com', 'gqmhrxtijtioasxj');
       log('Gift Aid Claim sent via email!');
+      db.run(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed'`, function(err) {
+        if (err) {
+          log("Error updating gift_aid_status:", err.message);
+        } else {
+          log("Gift aid status updated successfully.");
+        }
+      });
     } catch (error) {
       log("Error sending gift aid claim email")
     }
@@ -652,7 +670,19 @@ app.get("/generate-donor-pdf/:id", (req, res) => {
 
   
   app.get("/import-transactions", requireLogin, checkUserRole, (req, res) => {
-    readCSVAndProcess(req, res);
+    const loggedInName = req.session.name;
+    res.render("import-transactions", {loggedInName: loggedInName });
+  });
+
+  app.post("/import-transactions", requireLogin, checkUserRole, upload.single('csvfile'), (req, res) => {
+    if (!req.file) {
+      req.flash('No file uploaded, try again!');
+      return res.redirect('/admin');
+    } else {
+      readCSVAndProcess(req.file.path, req, res);
+      req.flash('File uploaded and processed successfully');
+      return res.redirect('/admin');
+    }
   });
 
 // GET /create
