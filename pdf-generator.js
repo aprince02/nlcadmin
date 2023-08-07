@@ -96,7 +96,7 @@ async function generatePDF(donor, tithe, donations) {
   doc.text("Treasurer", 10, donationTableEndY + 45)
 
   const fileName = `${fullName} - Statement of Donations.pdf`;
-  const pdfPath = `./${fileName}`;
+  const pdfPath = fileName;
   doc.autoPrint();
   doc.save(fileName);
   log( `Tithe/Donations PDF generated for ${fullName}`)

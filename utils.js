@@ -2,7 +2,6 @@ const os = require('os');
 var db = require("./database.js")
 const csv = require('csv-parser');
 const fs = require('fs');
-const nodemailer = require('nodemailer');
 
 // returns todays date in correct format
 function formatted_date() {

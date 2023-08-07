@@ -12,13 +12,14 @@ const { generatePDF } = require('./pdf-generator');
 const { exec } = require('child_process');
 const path = require('path');
 const multer = require('multer');
+const schedule = require('node-schedule');
 const {
   requireLogin,
   checkUserRole,
   readCSVAndProcess,
   log,
 } = require('./utils');
-const { createAndEmailDBBackup, sendStatementByEmail, createAndEmailTransactions, createAndEmailDonations, createAndEmailGiftAid, createAndEmailTotals } = require('./emailer');
+const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup } = require('./emailer');
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
 app.use(express.static("public"));
@@ -401,7 +402,7 @@ app.get('/export-transactions', checkUserRole, async function(req, res) {
       });
   });
   try {
-    await createAndEmailTransactions('albinm65@gmail.com', 'gqmhrxtijtioasxj');
+    await createAndEmail('transactions', 'ProBooks Accounting - Transactions Export CSV', 'transactions export csv file');
     log('Transactions sent via email!');
   } catch (error) {
     log("Error sending transactions email")
@@ -434,7 +435,7 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
         });
     });
     try {
-      await createAndEmailDonations('albinm65@gmail.com', 'gqmhrxtijtioasxj');
+      await createAndEmail('donations', 'ProBooks Accounting - Donations Export CSV File', 'donations export csv file');
       log('Donations sent via email!');
     } catch (error) {
       log("Error sending donations email")
@@ -443,16 +444,26 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
 
   app.get('/db-backup', async (req, res) => {
     try {
-      await createAndEmailDBBackup('albinm65@gmail.com', 'gqmhrxtijtioasxj');
+      await createAndEmailDBBackup();
       log('Database backup sent via email!');
       req.flash('success', 'Database backup sent via email successfully.');
       return res.redirect('/admin')
     } catch (error) {
-      log("Error sending database backup")
+       log("Error sending database backup" + error.message)
       req.flash('error', 'Error sending database backup.');
       return res.redirect('/admin');
     }
   });
+
+const scheduledTime = '59 23 * * 0'; // '59 23 * * 0' represents every Sunday at 23:59
+schedule.scheduleJob(scheduledTime, async () => {
+  try {
+    await createAndEmailDBBackup();
+    log('Database backup sent via email!');
+  } catch (error) {
+    log("Error sending database backup: " + error.message);
+  }
+});
 
   app.get("/export-totals", checkUserRole, async function(req, res) {
 
@@ -529,7 +540,7 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
     });
   });
   try {
-    await createAndEmailTotals('albinm65@gmail.com', 'gqmhrxtijtioasxj');
+    await createAndEmail('total_paid_in_out', 'ProBooks Accounting - Totals Export CSV File', 'totals export csv file');
     log('Totals sent via email!');
   } catch (error) {
     log("Error sending totals email")
@@ -571,7 +582,7 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
         });
     });
     try {
-      await createAndEmailGiftAid('albinm65@gmail.com', 'gqmhrxtijtioasxj');
+      await createAndEmail('giftaid_claim', 'Gift Aid Claim Export', 'gift aid claim export csv file');
       log('Gift Aid Claim sent via email!');
       db.run(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed'`, function(err) {
         if (err) {
@@ -650,7 +661,7 @@ app.get("/generate-donor-pdf/:id", (req, res) => {
           const processPDFAndEmail = async () => {
             try {
               const pdfPath = await generatePDF(donor, tithe, donations);
-              await sendStatementByEmail('albinm65@gmail.com', 'gqmhrxtijtioasxj', pdfPath);
+              await sendStatementByEmail(pdfPath);
               log("Statement of donations sent for: " + donor);
             } catch (err) {
               log("Error generating or sending the statement of donations for donor: " + donor);
