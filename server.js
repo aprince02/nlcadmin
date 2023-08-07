@@ -13,6 +13,8 @@ const { exec } = require('child_process');
 const path = require('path');
 const multer = require('multer');
 const schedule = require('node-schedule');
+const http = require('http');
+const https = require('https');
 const {
   requireLogin,
   checkUserRole,
@@ -46,11 +48,22 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage: storage });
-// Start server
-app.listen(8000, () => {
-    console.log("Server running on port: %PORT%".replace("%PORT%",8000))
+const httpServer = http.createServer(app);
+httpServer.listen(80, () => {
+  console.log('HTTP server is running on port 80');
 });
+
+const options = {
+  key: fs.readFileSync('./cert/private.key'),
+  cert: fs.readFileSync('./cert/certificate.crt'),
+};
+
+const httpsServer = https.createServer(options, app);
+httpsServer.listen(443, () => {
+  console.log('HTTPS server is running on port 443');
+});
+const upload = multer({ storage: storage });
+
 
   app.get("/admin", (req, res) =>  {
     const loggedInName = req.session.name;
