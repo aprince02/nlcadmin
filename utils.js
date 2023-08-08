@@ -2,6 +2,8 @@ const os = require('os');
 var db = require("./database.js")
 const csv = require('csv-parser');
 const fs = require('fs');
+const csvWriter = require('csv-writer').createObjectCsvWriter;
+const {createAndEmail} = require('./emailer');
 
 // returns todays date in correct format
 function formatted_date() {
@@ -91,7 +93,39 @@ function checkUserRole(req, res, next) {
     } else {
         req.flash('error', 'Only Admins are allowed to delete claimants.');
         res.redirect('/claimants');
-    }}
+    }};
+
+async function exportDonationsCsv(req, res) {
+    const tableName = 'donations';
+    db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
+      if (err) {
+        req.flash('error', 'Error retrieving data to export donations.');
+        log('Error retrieving data to export donations.')
+      }
+      
+      const csvWrite = csvWriter({
+        path: 'donations.csv',
+        header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
+      });
+      
+      csvWrite.writeRecords(rows)
+        .then(() => {
+          res.download('donations.csv');
+          req.flash('success', 'Donations successfully exported.');
+          log('Donations successfully exported')
+        })
+        .catch(() => {
+          req.flash('error', 'Error generating CSV file for donations.');
+          log('Error generating CSV file for donations.')
+        });
+    });
+    try {
+      await createAndEmail('donations', 'ProBooks Accounting - Donations Export CSV File', 'donations export csv file');
+      log('Donations sent via email!');
+    } catch (error) {
+      log("Error sending donations email")
+    }
+}
 
 module.exports = {
     formatted_date,
@@ -99,6 +133,7 @@ module.exports = {
     readCSVAndProcess,
     convertDateFormat,
     requireLogin,
-    checkUserRole
+    checkUserRole,
+    exportDonationsCsv
 }
 

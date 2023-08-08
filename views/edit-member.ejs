@@ -1,10 +1,9 @@
-<%- include("_loggedInHeader") -%>
+<%- include("_header") -%>
 
 <h1>Update Member</h1>
 
-<form action="/edit/<%= member.id %>" method="post">
+<form action="/edit-member/<%= member.id %>" method="post">
   <div class="form-horizontal">
-    <a class="btn btn-default btn-info" href="/send-update-request/<%= member.id %>">Request Member to update details</a>
 
     <%- include("_claimantEditor") -%>
     <br>
@@ -13,7 +12,6 @@
       <label class="col-form-label"></label>
       <div class="col-sm-5">
         <input type="submit" value="Update" class="btn btn-default btn-warning" />
-        <a class="btn btn-outline-dark cancel" href="/claimants">Cancel</a>
       </div>
     </div>
   </div>

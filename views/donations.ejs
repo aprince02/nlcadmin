@@ -28,8 +28,9 @@
           </tr>
         <% } %>
         <a class="btn btn-default btn-success" href="/add-donation/<%= id %>">Add Donation</a>
-        <a class="btn btn-default btn-success" href="/generate-donor-pdf/<%= id %>">Generate PDF</a>
-        <a class="btn btn-outline-dark cancel" href="/claimants">Return</a>
+        <a class="btn btn-default btn-secondary" href="/generate-donor-pdf/<%= id %>">Generate PDF</a>
+        <a class="btn btn-default btn-info" href="/send-update-request/<%= id %>">Request Member to update details</a>
+        <a class="btn btn-default btn-warning" href="/claimants">Return</a>
       </tbody>
     </table>
     

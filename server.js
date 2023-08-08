@@ -18,8 +18,9 @@ const {
   checkUserRole,
   readCSVAndProcess,
   log,
+  exportDonationsCsv
 } = require('./utils');
-const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup } = require('./emailer');
+const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate } = require('./emailer');
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
 app.use(express.static("public"));
@@ -409,34 +410,12 @@ app.get('/export-transactions', checkUserRole, async function(req, res) {
 });
 
 app.get('/export-donations', checkUserRole, async function(req, res) {
-    const tableName = 'donations';
-    
-    db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
-      if (err) {
-        req.flash('error', 'Error retrieving data to export donations.');
-        log('Error retrieving data to export donations.')
-      }
-      
-      const csvWrite = csvWriter({
-        path: 'donations.csv',
-        header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
-      });
-      
-      csvWrite.writeRecords(rows)
-        .then(() => {
-          res.download('donations.csv');
-          req.flash('success', 'Donations successfully exported.');
-          log('Donations successfully exported')
-        })
-        .catch(() => {
-          req.flash('error', 'Error generating CSV file for donations.');
-          log('Error generating CSV file for donations.')
-        });
-    });
     try {
-      await createAndEmail('donations', 'ProBooks Accounting - Donations Export CSV File', 'donations export csv file');
+      await exportDonationsCsv(req, res);
+      req.flash('success', 'Donations export sent via email successfully.');
       log('Donations sent via email!');
     } catch (error) {
+      req.flash('error', 'Unable to send donations export via email.');
       log("Error sending donations email")
     }
   });
@@ -716,6 +695,55 @@ app.post("/membership", (req, res) => {
           res.redirect("/membership");
       }}); 
   });
+
+  // GET /edit/id
+app.get("/edit-member/:id", (req, res) => {
+  const id = req.params.id;
+
+  const claimant_sql = "SELECT * FROM members WHERE id = ?";
+  db.get(claimant_sql, id, (err, row) => {
+      if (err) {
+          console.log(err.message);
+      } else {
+          res.render("edit-member", { member: row});
+      }});
+  });
+
+// POST /edit/id
+app.post("/edit-member/:id", (req, res) => {
+  const id = req.params.id;
+  const claimant = [req.body.first_name, req.body.surname, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
+  const sql = "UPDATE members SET first_name = ?, surname = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?, title = ?, house_number = ?, spouse_name = ?  WHERE (id = ?)";
+  db.run(sql, claimant, err => {
+      if (err) {
+          console.log(err.message);
+      } else {
+          req.flash('success', 'Member details updated successfully.');
+          log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
+          res.redirect("/edit-member/" + id);
+      }});
+  });
+
+  app.get("/send-update-request/:id", async (req, res) => {
+    const id = req.params.id;
+
+    const claimant_sql = "SELECT * FROM members WHERE id = ?";
+    db.get(claimant_sql, id, (err, row) => {
+        if (err) {
+            console.log(err.message);
+        } else {
+          try {
+            emailMemberForUpdate(row);
+            log('Update details link sent via email!');
+            req.flash('success', 'Email sent successfully.');
+            res.redirect("/edit/" + id);
+          } catch (error) {
+            log("Error sending update email")
+            req.flash('error', 'Error sending email to member, try again!.');
+            res.redirect("/edit/" + id);
+          }   
+        }});
+  })
 
 // Default response for any other request
 app.use(function(req, res){

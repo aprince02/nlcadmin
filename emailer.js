@@ -1,3 +1,4 @@
+const e = require('connect-flash');
 const { log } = require('console');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
@@ -13,6 +14,7 @@ const emailConfig = {
 };
 
 const receiver = 'info@nlcsunderland.uk';
+const emailFooter = "\n\nThank you for using our services!\nProBooks Accounting\n\nIf you have any doubts using our services, please reply to this email or phone us on 07421136484"
 
 async function createAndEmail(fileType, subject, message) {
   const fileName = `${fileType}.csv`;
@@ -26,7 +28,7 @@ async function createAndEmail(fileType, subject, message) {
     from: emailConfig.auth.user,
     to: receiver,
     subject: subject,
-    text: `Find attached the ${message}.`,
+    text: `Find attached the ${message}.` + emailFooter,
     attachments: [
       {
         filename: backupFilename,
@@ -53,7 +55,7 @@ async function sendStatementByEmail(pdfPath) {
     from: emailConfig.auth.user,
     to: receiver,
     subject: 'Statement of Donations',
-    text: 'Find attached the statement of donations.',
+    text: 'Find attached the statement of donations.' + emailFooter,
     attachments: [
       {
         filename: pdfPath,
@@ -82,7 +84,7 @@ async function createAndEmailDBBackup() {
     from: emailConfig.auth.user,
     to: receiver,
     subject: 'ProBooks Accounting - Database Backup',
-    text: 'Find attached the database backup.',
+    text: 'Find attached the database backup.' + emailFooter,
     attachments: [
       {
         filename: backupFilename,
@@ -102,8 +104,29 @@ async function createAndEmailDBBackup() {
   fs.unlinkSync(backupFilename);
 }
 
+async function emailMemberForUpdate (row) {
+  const transporter = nodemailer.createTransport(emailConfig);
+  
+  link = "http://probooksaccounting.co.uk:8000/edit-member/"+row.id;
+  const mailOptions = {
+    from: emailConfig.auth.user,
+    to: row.email,
+    subject: 'ProBooks Accounting - Update Member Details',
+    text: 'Dear ' + row.first_name + ' ' + row.surname + ',\n\nPlease click on the link below to check your details stored by NewLife Church Sunderland, and update any details that are not correct.\n ' + link + emailFooter,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent successfully!', info.response);
+  } catch (error) {
+    console.error('Error sending email:', error);
+  }
+
+}
+
 module.exports = {
   createAndEmail,
   sendStatementByEmail,
   createAndEmailDBBackup,
+  emailMemberForUpdate
 };
