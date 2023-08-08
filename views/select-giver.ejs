@@ -40,6 +40,7 @@
           <th>ID</th>
           <th>First Name</th>
           <th>Surname</th>
+          <th>Spouse Name</th>
           <th class="d-print-none">
             <a class="btn btn-sm btn-success" href="/create">Add</a>
           </th>
@@ -51,6 +52,7 @@
             <td><%= row[i].id %></td>
             <td><%= row[i].first_name %></td>
             <td><%= row[i].surname %></td>
+            <td><%= row[i].spouse_name %></td>
             <td class="d-print-none">
               <a class="btn btn-sm btn-info" href="/add-donation/<%= row[i].id %>">Add Donation</a>
             </td>

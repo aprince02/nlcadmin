@@ -14,7 +14,7 @@ const emailConfig = {
 };
 
 const receiver = 'info@nlcsunderland.uk';
-const emailFooter = "\n\nThank you for using our services!\nProBooks Accounting\n\nIf you have any doubts using our services, please reply to this email or phone us on 07421136484"
+const emailFooter = "\n\n\n\nThank you for using our services!\nProBooks Accounting\n\nIf you have any doubts using our services, please reply to this email or phone us on 07421136484"
 
 async function createAndEmail(fileType, subject, message) {
   const fileName = `${fileType}.csv`;
