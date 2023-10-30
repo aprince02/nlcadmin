@@ -445,7 +445,7 @@ schedule.scheduleJob(scheduledTime, async () => {
 
   app.get("/export-totals", checkUserRole, async function(req, res) {
 
-    const sql = "SELECT * FROM transactions WHERE date >= '2023-01-01' ORDER BY type";
+    const sql = "SELECT * FROM transactions WHERE date >= '2022-01-01'  ORDER BY type";
   
   db.all(sql, function(err, rows) {
     if (err) {
