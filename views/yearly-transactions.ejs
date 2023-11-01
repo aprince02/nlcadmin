@@ -19,7 +19,7 @@
           <form action="/save-transaction/<%= each.id %>" method="post">
             <td><input readonly type="text" style="width: 90px; font-size: 0.8rem;" autofocus class="form-control" name="date" value="<%= each.date %>" /></td>
 
-            <td><input readonly type="text" style="width: 325px; font-size: 0.7rem;" autofocus class="form-control" name="description" value="<%= each.description %>" /></td>  
+            <td><input type="text" style="width: 325px; font-size: 0.7rem;" autofocus class="form-control" name="description" value="<%= each.description %>" /></td>  
 
             <td><input readonly type="text" style="width: 70px; font-size: 0.8rem;" id="paid_out" name="paid_out" class="form-control" value="<%= each.paid_out %>"/></td>
 

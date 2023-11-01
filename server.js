@@ -315,6 +315,7 @@ app.post("/register", (req, res) => {
 app.post("/save-transaction/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const type = req.body.type;
+    const description = req.body.description;
     req.session.date = req.body.date;
     req.session.description = req.body.description;
     req.session.incoming = req.body.paid_in;
@@ -324,8 +325,8 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
         }
       });
 
-    const claimant_sql = "UPDATE transactions SET type = ? WHERE (id = ?)";
-    const claimant = [type, id];
+    const claimant_sql = "UPDATE transactions SET type = ?, description = ? WHERE (id = ?)";
+    const claimant = [type, description, id];
     db.run(claimant_sql, claimant, err => {
         if (err) {
             req.flash('error', 'Error saving transaction, please try again!');
