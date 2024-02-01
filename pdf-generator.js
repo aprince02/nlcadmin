@@ -38,11 +38,17 @@ async function generatePDF(donor, tithe, donations) {
   doc.text('Charity No. 117881', 135, 30);
   doc.line(0, 37, 250, 38, 'S')
   doc.text(fullName,10, 43 )
+  doc.setFontSize(8)
+  doc.setTextColor('#7d7d81');
+  doc.text("Probooks Accounting © - Alpha Media Productions Ltd.", 135, 43);
+  doc.setFontSize(12);
+  doc.setTextColor('#000000');
   doc.text(person.house_number + ' ' + person.address_line_1, 10, 48)
   doc.text(person.postcode, 10, 53)
   doc.text("Statement of Tithe/Donations", 10, 65)
   doc.setFontSize(10);
   doc.text("Period:", 10, 70)
+  doc.text("01/01/2023 - 31/12/2023", 90, 70)
   doc.text("Total Tithe/Donations:", 10, 75)
   doc.text(totalDonation, 90, 75)
   doc.text("Gift Aid Claimed:", 10, 80)
@@ -91,9 +97,9 @@ async function generatePDF(donor, tithe, donations) {
 
   doc.setFontSize(10)
   doc.text("Thank you for your generous support, May God Bless You.", 10, donationTableEndY + 15)
-  doc.text("Shinu Yohannan", 10, donationTableEndY + 40)
+  doc.text("Shinu Yohannan", 10, donationTableEndY + 25)
   doc.setFontSize(9)
-  doc.text("Treasurer", 10, donationTableEndY + 45)
+  doc.text("Treasurer", 10, donationTableEndY + 30)
 
   const fileName = `${fullName} - Statement of Donations.pdf`;
   const pdfPath = fileName;

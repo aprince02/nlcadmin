@@ -117,8 +117,8 @@ app.get("/create", requireLogin, (req, res) => {
 
 // POST /create
 app.post("/create", requireLogin, (req, res) => {
-    const claimant_sql = "INSERT INTO members (first_name, surname, sex, email, phone_number, address_line_1, address_line_2, city, postcode, date_of_birth, baptised, baptised_date, holy_spirit, native_church, children_details, emergency_contact_1, emergency_contact_1_name, emergency_contact_2, emergency_contact_2_name, occupation_studies, title, house_number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-    const claimant = [req.body.first_name, req.body.surname, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number,];
+    const claimant_sql = "INSERT INTO members (first_name, surname, spouse_name, sex, email, phone_number, address_line_1, address_line_2, city, postcode, date_of_birth, baptised, baptised_date, holy_spirit, native_church, children_details, emergency_contact_1, emergency_contact_1_name, emergency_contact_2, emergency_contact_2_name, occupation_studies, title, house_number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+    const claimant = [req.body.first_name, req.body.surname, req.body.spouse_name, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number,];
     db.run(claimant_sql, claimant, err => {
         if (err) {
             console.log(err.message);
@@ -187,7 +187,6 @@ app.get("/add-donation/:id", requireLogin, (req, res) => {
     const donationDate = req.session.date;
     const donationDescription = req.session.description;
     const donationAmount = req.session.incoming;
-    console.log(req.session.date)
     const loggedInName = req.session.name;
     db.get(sql, id, (err, row) => {
         if (err) {
@@ -236,7 +235,8 @@ app.post("/add-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const payment_sql = "INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status) VALUES (?,?,?,?,?,?,?,?)";
     const status = "Unclaimed";
-    const payment = [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, req.body.method, status];
+    const bank = "Bank"
+    const payment = [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, bank, status];
     
     db.run(payment_sql, payment, err => {
         if (err) {
@@ -260,7 +260,6 @@ app.get("/donations/:id", requireLogin, (req, res) => {
         if (err) {
           return console.error(err.message);
         }else if (!rows || rows.length === 0) {
-            console.log(rows)
             res.redirect("/no-donations/" + encodeURI(id));
 
         } else {
@@ -460,7 +459,7 @@ schedule.scheduleJob(scheduledTime, async () => {
         'Ladies Fund', 'Sunday School Offering', 'Guest Pastor', 'Support & Charity',
         'Audio/Visual/Licenses', 'Books & Stationary', 'Provisions', 'Gifts', 'Other Income',
         'Gift Aid Claim', 'VBS', 'Evangelism', 'AoG', 'Legal', 'Anniversary',
-        'Membership Interest Free Loan'
+        'Membership Interest Free Loan', 'Other Donations', 'Live Music Event', 'Bank Charges'
       ];
   
       const totalPaidInByType = {};
