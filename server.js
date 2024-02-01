@@ -233,10 +233,10 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
 // POST /add-payment/id
 app.post("/add-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
-    const payment_sql = "INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status) VALUES (?,?,?,?,?,?,?,?)";
+    const payment_sql = "INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES (?,?,?,?,?,?,?,?,?)";
     const status = "Unclaimed";
     const bank = "Bank"
-    const payment = [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, bank, status];
+    const payment = [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, bank, status, req.body.notes];
     
     db.run(payment_sql, payment, err => {
         if (err) {

@@ -107,7 +107,7 @@ async function createAndEmailDBBackup() {
 async function emailMemberForUpdate (row) {
   const transporter = nodemailer.createTransport(emailConfig);
   
-  link = "http://https://probooksaccounting-gyvk3.ondigitalocean.app/edit-member/"+row.id;
+  link = "https://probooksaccounting-gyvk3.ondigitalocean.app/edit-member/"+row.id;
   const mailOptions = {
     from: emailConfig.auth.user,
     to: row.email,
