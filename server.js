@@ -583,7 +583,7 @@ app.get('/logout', (req, res) => {
         if (err) {
             return console.error(err.message);
         } else {
-          const scriptPath = path.join(__dirname, 'ProBooksAccountingPush.bat');
+          const scriptPath = path.join(__dirname, 'ProBooksAccountingPush.sh');
 
         log("User logged out")
       exec(`"${scriptPath}"`, (error, stdout, stderr) => {
