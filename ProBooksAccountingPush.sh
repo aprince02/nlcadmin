@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Your database change detection logic here
+# Your database change detection logic
 
 # Commit and push changes to GitHub
 git add .
