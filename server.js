@@ -70,16 +70,24 @@ app.get("/claimants", requireLogin, (req, res) => {
     });
 
 // GET /yearly-transactions
-app.get("/yearly-transactions", requireLogin, (req, res) => {
-    const sql = "SELECT * FROM transactions ORDER BY date DESC"
-    const loggedInName = req.session.name;
-    db.all(sql, [], (err, rows) => {
-        if (err) {
-            console.log(err.message);
-        } else {
-            res.render("yearly-transactions", {row: rows, loggedInName: loggedInName});
-        }});
-    });
+app.get("/yearly-transactions/:year", requireLogin, (req, res) => {
+  const year = req.params.year;  // Set the desired year
+
+  const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date DESC";
+  const startDate = `${year}-01-01`;
+  const endDate = `${year}-12-31`;
+
+  const loggedInName = req.session.name;
+
+  db.all(sql, [startDate, endDate], (err, rows) => {
+      if (err) {
+          console.log(err.message);
+      } else {
+          res.render("yearly-transactions", { row: rows, loggedInName: loggedInName });
+      }
+  });
+});
+
 
 // GET /edit/id
 app.get("/edit/:id", requireLogin, (req, res) => {
@@ -104,7 +112,7 @@ app.post("/edit/:id", requireLogin, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'Member details updated successfully.');
-            log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
+            console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
             res.redirect("/claimants");
         }});
     });
@@ -124,7 +132,7 @@ app.post("/create", requireLogin, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'New member added successfully.');
-            log("Added new member with first name: " + req.body.first_name + "and last name: " + req.body.surname)
+            console.log("Added new member with first name: " + req.body.first_name + "and last name: " + req.body.surname)
             res.redirect("/claimants");
         }}); 
     });
@@ -151,7 +159,7 @@ app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
             console.log(err.message);
         } else {
             req.flash('success', 'Member deleted successfully.');
-            log("Deleted member with id: " + id)
+            console.log("Deleted member with id: " + id)
             res.redirect("/claimants");
         }});
     });
@@ -225,7 +233,7 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
             console.log(err.message);
         } else {
           req.flash('success', 'Donation edited successfully!')
-            log("Edited donation with id: " + id)
+            console.log("Edited donation with id: " + id)
             res.redirect("/all-donations");
         }}); 
     });
@@ -241,12 +249,11 @@ app.post("/add-donation/:id", requireLogin, (req, res) => {
     db.run(payment_sql, payment, err => {
         if (err) {
           req.flash('error', 'Error adding donation, please try again!');
-            log(err.message);
             console.error(err.message);
             return res.redirect("/select-giver"); 
         } else {
             req.flash('success', 'Donation added successfully.');
-            log("Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname)
+            console.log("Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname)
             return res.redirect("/select-giver"); 
         }});
     });
@@ -329,12 +336,11 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
     db.run(claimant_sql, claimant, err => {
         if (err) {
             req.flash('error', 'Error saving transaction, please try again!');
-            log(err.message);
             console.log(err.message);
             return res.redirect("/yearly-transactions");
         } else {
             req.flash('success', 'Transaction type saved successfully.');
-            log("Transaction with id: " + id + " saved with type:" + type)
+            console.log("Transaction with id: " + id + " saved with type:" + type)
         }}); 
     });
 
@@ -366,7 +372,7 @@ app.post("/login", (req, res) =>  {
                 if (err) {
                     throw err;
                 }else {
-                    log("User " + req.session.name + " logged in");
+                    console.log("User " + req.session.name + " logged in");
                 }
             });
 
@@ -384,7 +390,7 @@ app.get('/export-transactions', checkUserRole, async function(req, res) {
   db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
     if (err) {
       req.flash('error', 'Error retrieving data to export transactions.');
-      log('Error retrieving data for transactions.')
+      console.log('Error retrieving data for transactions.' + err)
     }
     
     const csvWrite = csvWriter({
@@ -397,15 +403,15 @@ app.get('/export-transactions', checkUserRole, async function(req, res) {
         res.download('transactions.csv');
       })
       .catch(() => {
-        log('Error generating CSV file for transactions.')
+        console.log('Error generating CSV file for transactions.')
         req.flash('error', 'Error generating CSV file for transactions.');
       });
   });
   try {
     await createAndEmail('transactions', 'ProBooks Accounting - Transactions Export CSV', 'transactions export csv file');
-    log('Transactions sent via email!');
+    console.log('Transactions CSV sent via email!');
   } catch (error) {
-    log("Error sending transactions email")
+    console.log("Error sending transactions email" + error)
   }
 });
 
@@ -413,21 +419,21 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
     try {
       await exportDonationsCsv(req, res);
       req.flash('success', 'Donations export sent via email successfully.');
-      log('Donations sent via email!');
+      console.log('Donations CSV sent via email!');
     } catch (error) {
       req.flash('error', 'Unable to send donations export via email.');
-      log("Error sending donations email")
+      console.log("Error sending donations email" + error)
     }
   });
 
   app.get('/db-backup', async (req, res) => {
     try {
       await createAndEmailDBBackup();
-      log('Database backup sent via email!');
+      console.log('Database backup sent via email!');
       req.flash('success', 'Database backup sent via email successfully.');
       return res.redirect('/admin')
     } catch (error) {
-       log("Error sending database backup" + error.message)
+       console.log("Error sending database backup" + error.message)
       req.flash('error', 'Error sending database backup.');
       return res.redirect('/admin');
     }
@@ -437,9 +443,9 @@ const scheduledTime = '59 23 * * 0'; // '59 23 * * 0' represents every Sunday at
 schedule.scheduleJob(scheduledTime, async () => {
   try {
     await createAndEmailDBBackup();
-    log('Database backup sent via email!');
+    console.log('Database backup sent via email!');
   } catch (error) {
-    log("Error sending database backup: " + error.message);
+    console.log("Error sending database backup: " + error.message);
   }
 });
 
@@ -519,9 +525,9 @@ schedule.scheduleJob(scheduledTime, async () => {
   });
   try {
     await createAndEmail('total_paid_in_out', 'ProBooks Accounting - Totals Export CSV File', 'totals export csv file');
-    log('Totals sent via email!');
+    console.log('Totals sent via email!');
   } catch (error) {
-    log("Error sending totals email")
+    console.log("Error sending totals email" + error)
   }
 });
 
@@ -561,16 +567,16 @@ schedule.scheduleJob(scheduledTime, async () => {
     });
     try {
       await createAndEmail('giftaid_claim', 'Gift Aid Claim Export', 'gift aid claim export csv file');
-      log('Gift Aid Claim sent via email!');
+      console.log('Gift Aid Claim sent via email!');
       db.run(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed'`, function(err) {
         if (err) {
-          log("Error updating gift_aid_status:", err.message);
+          console.log("Error updating gift_aid_status:", err.message);
         } else {
-          log("Gift aid status updated successfully.");
+          console.log("Gift aid status updated successfully.");
         }
       });
     } catch (error) {
-      log("Error sending gift aid claim email")
+      console.log("Error sending gift aid claim email")
     }
   });
   
@@ -640,9 +646,9 @@ app.get("/generate-donor-pdf/:id", (req, res) => {
             try {
               const pdfPath = await generatePDF(donor, tithe, donations);
               await sendStatementByEmail(pdfPath);
-              log("Statement of donations sent for: " + donor);
+              console.log("Statement of donations sent for: " + donor);
             } catch (err) {
-              log("Error generating or sending the statement of donations for donor: " + donor);
+              console.log("Error generating or sending the statement of donations for donor: " + donor);
             }
           };
 
@@ -685,13 +691,12 @@ app.post("/membership", (req, res) => {
   const claimant = [req.body.first_name, req.body.surname, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number,];
   db.run(claimant_sql, claimant, err => {
       if (err) {
-          console.log(err.message);
-          log('Error submitting membership form. ' + err.message)
+          console.log('Error submitting membership form. ' + err.message)
           req.flash('error', 'Error submitting membership form, please try again!');
           res.redirect("/membership");
       } else {
           req.flash('success', 'Membership Form completed successfully. Thank You!');
-          log("Added new member with first name: " + req.body.first_name + "and last name: " + req.body.surname)
+          console.log("Added new member with first name: " + req.body.first_name + "and last name: " + req.body.surname)
           res.redirect("/membership");
       }}); 
   });
@@ -719,7 +724,7 @@ app.post("/edit-member/:id", (req, res) => {
           console.log(err.message);
       } else {
           req.flash('success', 'Member details updated successfully.');
-          log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
+          console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
           res.redirect("/edit-member/" + id);
       }});
   });
@@ -732,18 +737,26 @@ app.post("/edit-member/:id", (req, res) => {
         if (err) {
             console.log(err.message);
         } else {
-          try {
-            emailMemberForUpdate(row);
-            log('Update details link sent via email!');
-            req.flash('success', 'Email sent successfully.');
-            res.redirect("/edit/" + id);
-          } catch (error) {
-            log("Error sending update email")
-            req.flash('error', 'Error sending email to member, try again!.');
-            res.redirect("/edit/" + id);
-          }   
-        }});
-  })
+            if (row && row.email) {
+                try {
+                    emailMemberForUpdate(row);
+                    console.log('Update details link sent via email for: ' + row.first_name + " " + row.surname);
+                    req.flash('success', 'Email sent successfully.');
+                    res.redirect("/edit/" + id);
+                } catch (error) {
+                    log("Error sending update email")
+                    req.flash('error', 'Error sending email to member, try again!.');
+                    res.redirect("/edit/" + id);
+                }
+            } else {
+                console.log("Email is blank or null. Cannot send update email for: " + row.first_name + " " + row.surname);
+                req.flash('error', 'Email is blank or null. Cannot send update email.');
+                res.redirect("/edit/" + id);
+            }
+        }
+    });
+});
+
 
 // Default response for any other request
 app.use(function(req, res){

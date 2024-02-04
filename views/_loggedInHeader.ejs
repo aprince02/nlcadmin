@@ -42,26 +42,30 @@
         <li class="nav-item">
           <a class="nav-link" href="/claimants">Members</a>
         </li>
-      </ul>
-      <ul class="navbar-nav mr-auto">
         <li class="nav-item">
           <a class="nav-link" href="/all-donations">Donations</a>
         </li>
-      </ul>
-      <ul class="navbar-nav mr-auto">
-        <li class="nav-item">
-          <a class="nav-link" href="/yearly-transactions">Bank Transactions</a>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Bank Transactions
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="/yearly-transactions/2024">2024</a></li>
+            <li><a class="dropdown-item" href="/yearly-transactions/2023">2023</a></li>
+          </ul>
         </li>
-      </ul>
-      <ul class="navbar-nav mr-auto">
         <li class="nav-item">
           <a class="nav-link" href="/admin">Administration</a>
         </li>
       </ul>
-        <a style="padding-right: 10px;">logged in as <%= loggedInName %></a>
+      <div class="navbar-nav ml-auto">
+        <span class="navbar-text" style="padding-right: 10px;">Logged in as <%= loggedInName %></span>
         <a class="btn btn-primary" href="/logout">Log Out</a>
-        
+      </div>
     </nav>
+    
+    
+    
 
     <% if (message.success) { %>
       <div id="flash-message" class="alert alert-success">
