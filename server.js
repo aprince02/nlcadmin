@@ -757,7 +757,6 @@ app.post("/edit-member/:id", (req, res) => {
     });
 });
 
-
 // Default response for any other request
 app.use(function(req, res){
     res.status(404);

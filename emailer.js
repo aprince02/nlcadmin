@@ -82,7 +82,7 @@ async function createAndEmailDBBackup() {
   const transporter = nodemailer.createTransport(emailConfig);
   const mailOptions = {
     from: emailConfig.auth.user,
-    to: receiver,
+    to: 'mailer@probooksaccounting.co.uk',
     subject: 'ProBooks Accounting - Database Backup',
     text: 'Find attached the database backup.' + emailFooter,
     attachments: [
@@ -100,7 +100,6 @@ async function createAndEmailDBBackup() {
     console.error('Error sending email:', error);
   }
 
-  // Delete the backup file after sending the email
   fs.unlinkSync(backupFilename);
 }
 
