@@ -20,7 +20,8 @@ const {
   log,
   exportDonationsCsv
 } = require('./utils');
-const { transactionTypes, addTransactionType } = require('./transactionTypes');
+const transactionTypes = require('./transactionTypes');
+const dbHelper = require('./dbHelper')
 const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate } = require('./emailer');
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -77,14 +78,20 @@ app.get("/yearly-transactions/:year", requireLogin, (req, res) => {
   const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date DESC";
   const startDate = `${year}-01-01`;
   const endDate = `${year}-12-31`;
+  const typesSql = "SELECT type FROM transaction_types";
 
   const loggedInName = req.session.name;
-
   db.all(sql, [startDate, endDate], (err, rows) => {
       if (err) {
           console.log(err.message);
       } else {
-          res.render("yearly-transactions", { row: rows, loggedInName: loggedInName });
+        db.all(typesSql, (err, types) => {
+          if (err) {
+              console.log(err.message);
+          } else {
+              res.render("yearly-transactions", { row: rows, types: types, loggedInName: loggedInName });
+          }
+      });
       }
   });
 });
@@ -450,76 +457,81 @@ schedule.scheduleJob(scheduledTime, async () => {
   }
 });
 
-  app.get("/export-totals", checkUserRole, async function(req, res) {
-
+app.get("/export-totals", checkUserRole, async function(req, res) {
     const sql = "SELECT * FROM transactions WHERE date >= '2022-01-01'  ORDER BY type";
-  
-  db.all(sql, function(err, rows) {
-    if (err) {
-      req.flash('error', 'Error retrieving data for donations.');
-      return res.redirect('/admin');
-    }
 
-    const totalPaidInByType = {};
-    const totalPaidOutByType = {};
-    transactionTypes.forEach(type => {
-      const typeTransactions = rows.filter(row => row.type === type);
-      
-      // Calculate total "Paid In" for the current type
-      const totalPaidIn = typeTransactions.reduce((total, transaction) => {
-        const paidIn = parseFloat(transaction.paid_in) || 0;
-        if (!isNaN(paidIn)) {
-          total += paidIn;
+    db.all(sql, async function(err, rows) {
+        if (err) {
+            req.flash('error', 'Error retrieving data for donations.');
+            return res.redirect('/admin');
         }
-        return total;
-      }, 0);
 
-      // Calculate total "Paid Out" for the current type
-      const totalPaidOut = typeTransactions.reduce((total, transaction) => {
-        const paidOut = parseFloat(transaction.paid_out) || 0;
-        if (!isNaN(paidOut)) {
-          total += paidOut;
+        const totalPaidInByType = {};
+        const totalPaidOutByType = {};
+
+        try {
+            const types = await transactionTypes.getAllTransactionTypes();
+
+            types.forEach(type => {
+                const typeTransactions = rows.filter(row => row.type === type);
+
+                // Calculate total "Paid In" for the current type
+                const totalPaidIn = typeTransactions.reduce((total, transaction) => {
+                    const paidIn = parseFloat(transaction.paid_in) || 0;
+                    if (!isNaN(paidIn)) {
+                        total += paidIn;
+                    }
+                    return total;
+                }, 0);
+
+                // Calculate total "Paid Out" for the current type
+                const totalPaidOut = typeTransactions.reduce((total, transaction) => {
+                    const paidOut = parseFloat(transaction.paid_out) || 0;
+                    if (!isNaN(paidOut)) {
+                        total += paidOut;
+                    }
+                    return total;
+                }, 0);
+
+                totalPaidInByType[type] = parseFloat(totalPaidIn.toFixed(2));
+                totalPaidOutByType[type] = parseFloat(totalPaidOut.toFixed(2));
+            });
+
+            const csvFilePath = "total_paid_in_out.csv";
+            const csvWriterOptions = {
+                path: csvFilePath,
+                header: [
+                    { id: "type", title: "Type" },
+                    { id: "paid_in", title: "Paid In" },
+                    { id: "paid_out", title: "Paid Out" }
+                ]
+            };
+
+            const dataToWrite = types.map(type => ({
+                type: type,
+                paid_in: totalPaidInByType[type],
+                paid_out: totalPaidOutByType[type]
+            }));
+
+            const writer = csvWriter(csvWriterOptions);
+            await writer.writeRecords(dataToWrite);
+
+            console.log("CSV file has been written successfully.");
+
+            try {
+                await createAndEmail('total_paid_in_out', 'ProBooks Accounting - Totals Export CSV File', 'totals export csv file');
+                console.log('Totals sent via email!');
+            } catch (error) {
+                console.log("Error sending totals email" + error);
+            }
+
+            res.redirect('/admin');
+        } catch (error) {
+            req.flash('error', 'Error getting transaction types.');
+            console.error("Error getting transaction types:", error);
+            return res.redirect('/admin');
         }
-        return total;
-      }, 0);
-
-      totalPaidInByType[type] = parseFloat(totalPaidIn.toFixed(2));;
-      totalPaidOutByType[type] = parseFloat(totalPaidOut.toFixed(2));
     });
-    
-    const csvFilePath = "total_paid_in_out.csv";
-  const csvWriterOptions = {
-    path: csvFilePath,
-    header: [
-      { id: "type", title: "Type" },
-      { id: "paid_in", title: "Paid In" },
-      { id: "paid_out", title: "Paid Out" }
-    ]
-  };
-
-  const dataToWrite = transactionTypes.map(type => ({
-    type: type,
-    paid_in: totalPaidInByType[type],
-    paid_out: totalPaidOutByType[type]
-  }));
-
-  const writer = csvWriter(csvWriterOptions);
-  writer.writeRecords(dataToWrite)
-    .then(() => {
-      console.log("CSV file has been written successfully.");
-    })
-    .catch(err => {
-      req.flash('error', 'Error generating CSV file for totals.');
-      console.error("Error writing CSV file:", err);
-      return res.redirect('/admin');
-    });
-  });
-  try {
-    await createAndEmail('total_paid_in_out', 'ProBooks Accounting - Totals Export CSV File', 'totals export csv file');
-    console.log('Totals sent via email!');
-  } catch (error) {
-    console.log("Error sending totals email" + error)
-  }
 });
 
 
@@ -691,6 +703,35 @@ app.post("/membership", (req, res) => {
           res.redirect("/membership");
       }}); 
   });
+
+  app.get("/addnewtransactiontype", async (req, res) => {
+    const loggedInName = req.session.name;
+    const types = await transactionTypes.getAllTransactionTypes();
+    res.render("addnewtransactiontype", { loggedInName, types });
+});
+
+app.post("/addnewtransactiontype", async (req, res) => {
+  const userInput = req.body.new_transaction_type;
+  const loggedInName = req.session.name;
+
+  try {
+    const types = await transactionTypes.getAllTransactionTypes();
+    if (types.includes(userInput)) {
+      console.log(`${userInput} already exists.`);
+      req.flash('error', 'Transaction type already exists.');
+      return res.redirect("/addnewtransactiontype")
+    } else {
+      await dbHelper.insertTransactionType(userInput);
+      console.log(`${userInput} added successfully by: ` + loggedInName);
+      req.flash('success', 'New transaction type added successfully.');
+      return res.redirect("/addnewtransactiontype")
+    }
+  } catch (error) {
+    console.error('Error processing new transaction type:', error);
+    req.flash('error', 'Error adding transaction type.');
+    return res.redirect("/admin")
+  }
+});
 
   // GET /edit/id
 app.get("/edit-member/:id", (req, res) => {

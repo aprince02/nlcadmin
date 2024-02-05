@@ -131,6 +131,19 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                 console.log('logs table created')
             }
         });
+        db.run(`CREATE TABLE transaction_types (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type text UNIQUE NOT NULL
+        )`,
+        (err) => {
+            if (err) {
+                // Table already created
+                console.log('transaction_types table already exists')
+            }else{
+                // Table just created
+                console.log('transaction_types table created')
+            }
+        });
         
     }
 });
