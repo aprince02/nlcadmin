@@ -1,6 +1,15 @@
 <%- include("_loggedInHeader") -%>
 
 <h1>Add New Transaction Type</h1>
+
+<div>
+    <h3>Existing Transaction Types:</h3>
+    <ul>
+      <% for (const type of types) { %>
+        <li><%= type %></li>
+      <% } %>
+    </ul>
+  </div>
 <form action="/addnewtransactiontype" method="post">
     <div class="form-group row">
         <label class="col-form-label col-sm-2" for="new_transaction_type">New Transaction Label</label>

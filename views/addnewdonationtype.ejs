@@ -1,6 +1,16 @@
 <%- include("_loggedInHeader") -%>
 
 <h1>Add New Donation Type</h1>
+
+<div>
+    <h3>Existing Donation Types:</h3>
+    <ul>
+      <% for (const type of types) { %>
+        <li><%= type %></li>
+      <% } %>
+    </ul>
+  </div>
+  
 <form action="/addnewdonationtype" method="post">
     <div class="form-group row">
         <label class="col-form-label col-sm-2" for="new_donation_type">New Donation Label</label>

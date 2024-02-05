@@ -667,7 +667,6 @@ app.get("/generate-donor-pdf/:id", (req, res) => {
             }
           };
 
-          // Call the async function within the .then() block
           processPDFAndEmail();
         })
         .catch((err) => {
@@ -717,9 +716,15 @@ app.post("/membership", (req, res) => {
   });
 
   app.get("/addnewtransactiontype", async (req, res) => {
-    const loggedInName = req.session.name;
-    const types = await transactionTypes.getAllTransactionTypes();
-    res.render("addnewtransactiontype", { loggedInName, types });
+    try {
+      const loggedInName = req.session.name;
+      const types = await dbHelper.getAllTransactionTypes();
+      res.render("addnewtransactiontype", { loggedInName, types });
+    } catch (error) {
+      console.error('Error rendering addnewtransactiontype page:', error);
+      // Handle errors appropriately, e.g., render an error page or redirect
+      res.status(500).send('Internal Server Error');
+    }
 });
 
 app.post("/addnewtransactiontype", async (req, res) => {
@@ -745,11 +750,19 @@ app.post("/addnewtransactiontype", async (req, res) => {
   }
 });
 
+// Update your route definition
 app.get("/addnewdonationtype", async (req, res) => {
-  const loggedInName = req.session.name;
-  const types = await dbHelper.getAllDonationTypes();
-  res.render("addnewdonationtype", { loggedInName, types });
-});
+  try {
+    const loggedInName = req.session.name;
+    const types = await dbHelper.getAllDonationTypes();
+    res.render("addnewdonationtype", { loggedInName, types });
+  } catch (error) {
+    console.error('Error rendering addnewdonationtype page:', error);
+    // Handle errors appropriately, e.g., render an error page or redirect
+    res.status(500).send('Internal Server Error');
+  }
+}); 
+
 
 app.post("/addnewdonationtype", async (req, res) => {
 const userInput = req.body.new_donation_type;
