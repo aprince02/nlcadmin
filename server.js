@@ -20,6 +20,7 @@ const {
   log,
   exportDonationsCsv
 } = require('./utils');
+const { transactionTypes, addTransactionType } = require('./transactionTypes');
 const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate } = require('./emailer');
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -459,19 +460,9 @@ schedule.scheduleJob(scheduledTime, async () => {
       return res.redirect('/admin');
     }
 
-    // Calculate the total "Paid In" for each type of transaction
-    const types = [
-        'Tithe', 'Offering', 'Church Building', 'Vehicle', 'Building Rent',
-        'Ladies Fund', 'Sunday School Offering', 'Guest Pastor', 'Support & Charity',
-        'Audio/Visual/Licenses', 'Books & Stationary', 'Provisions', 'Gifts', 'Other Income',
-        'Gift Aid Claim', 'VBS', 'Evangelism', 'AoG', 'Legal', 'Anniversary',
-        'Membership Interest Free Loan', 'Other Donations', 'Live Music Event', 'Bank Charges'
-      ];
-  
-      const totalPaidInByType = {};
+    const totalPaidInByType = {};
     const totalPaidOutByType = {};
-
-    types.forEach(type => {
+    transactionTypes.forEach(type => {
       const typeTransactions = rows.filter(row => row.type === type);
       
       // Calculate total "Paid In" for the current type
@@ -506,7 +497,7 @@ schedule.scheduleJob(scheduledTime, async () => {
     ]
   };
 
-  const dataToWrite = types.map(type => ({
+  const dataToWrite = transactionTypes.map(type => ({
     type: type,
     paid_in: totalPaidInByType[type],
     paid_out: totalPaidOutByType[type]
