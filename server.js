@@ -204,11 +204,17 @@ app.get("/add-donation/:id", requireLogin, (req, res) => {
     const donationDescription = req.session.description;
     const donationAmount = req.session.incoming;
     const loggedInName = req.session.name;
+    const typesSql = "SELECT type FROM donation_types";
     db.get(sql, id, (err, row) => {
         if (err) {
             console.log(err.message);
         } else {
-            res.render("add-donation", { row: row, loggedInName: loggedInName, donationDate: donationDate, donationAmount: donationAmount, donationDescription: donationDescription});
+          db.all(typesSql, (err, types) => {
+            if (err) {
+                console.log(err.message);
+            } else {
+            res.render("add-donation", { row: row, loggedInName: loggedInName, donationDate: donationDate, donationAmount: donationAmount, donationDescription: donationDescription, types: types});
+        }});
         }});
     });
 
@@ -217,11 +223,17 @@ app.get("/edit-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const sql = "SELECT * FROM donations WHERE id = ?"
     const loggedInName = req.session.name;
+    const typesSql = "SELECT type FROM donation_types";
     db.get(sql, id, (err, row) => {
         if (err) {
             console.log(err.message);
         } else {
-            res.render("edit-donation", { row: row, loggedInName: loggedInName});
+          db.all(typesSql, (err, types) => {
+            if (err) {
+                console.log(err.message);
+            } else {
+            res.render("edit-donation", { row: row, loggedInName: loggedInName,  types: types});
+        }});
         }});
     });
 
@@ -731,6 +743,35 @@ app.post("/addnewtransactiontype", async (req, res) => {
     req.flash('error', 'Error adding transaction type.');
     return res.redirect("/admin")
   }
+});
+
+app.get("/addnewdonationtype", async (req, res) => {
+  const loggedInName = req.session.name;
+  const types = await dbHelper.getAllDonationTypes();
+  res.render("addnewdonationtype", { loggedInName, types });
+});
+
+app.post("/addnewdonationtype", async (req, res) => {
+const userInput = req.body.new_donation_type;
+const loggedInName = req.session.name;
+
+try {
+  const types = await dbHelper.getAllDonationTypes();
+  if (types.includes(userInput)) {
+    console.log(`${userInput} already exists.`);
+    req.flash('error', 'Donation type already exists.');
+    return res.redirect("/addnewdonationtype")
+  } else {
+    await dbHelper.insertDonationType(userInput);
+    console.log(`${userInput} added successfully by: ` + loggedInName);
+    req.flash('success', 'New donation type added successfully.');
+    return res.redirect("/addnewdonationtype")
+  }
+} catch (error) {
+  console.error('Error processing new donation type:', error);
+  req.flash('error', 'Error adding donation type.');
+  return res.redirect("/admin")
+}
 });
 
   // GET /edit/id

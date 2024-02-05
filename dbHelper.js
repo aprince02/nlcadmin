@@ -27,7 +27,36 @@ async function insertTransactionType(type) {
     });
   }
 
+  async function getAllDonationTypes() {
+    return new Promise((resolve, reject) => {
+      const sql = 'SELECT * FROM donation_types';
+      db.all(sql, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows.map(row => row.type));
+        }
+      });
+    });
+  }
+  
+  async function insertDonationType(type) {
+      return new Promise((resolve, reject) => {
+        const sql = 'INSERT INTO donation_types (type) VALUES (?)';
+        db.run(sql, [type], function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            console.log(`Inserted new donation type: ${type}, ID: ${this.lastID}`);
+            resolve(this.lastID);
+          }
+        });
+      });
+    }
+
 module.exports = {
   getAllTransactionTypes,
   insertTransactionType,
+  getAllDonationTypes,
+  insertDonationType
 };

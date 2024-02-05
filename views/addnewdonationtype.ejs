@@ -1,0 +1,16 @@
+<%- include("_loggedInHeader") -%>
+
+<h1>Add New Donation Type</h1>
+<form action="/addnewdonationtype" method="post">
+    <div class="form-group row">
+        <label class="col-form-label col-sm-2" for="new_donation_type">New Donation Label</label>
+        <div class="col-sm-7">
+        <input type="text" style="max-width: fit-content;" class="form-control" name="new_donation_type"/>
+        </div>
+    </div>
+    <div class="col-sm-10">
+        <input type="submit" value="Save" class="btn btn-default btn-success" />
+        <a class="btn btn-outline-dark cancel" href="/admin">Cancel</a>
+    </div>
+</form>
+<%- include("_loggedInFooter") -%>

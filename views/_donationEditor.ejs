@@ -30,15 +30,9 @@
   <label class="col-form-label col-sm-2" for="fund">Fund</label>
   <div class="col-sm-5">
     <select required class="form-control" style="max-width: fit-content;" name="fund" id="fund">
-      <option selected value="<%= row.fund %>"><%= row.fund %></option>
-      <option value="Tithe">Tithe</option>
-      <option value="Van Gift">Van Gift</option>
-      <option value="Support & Charity">Support & Charity</option>
-      <option value="Ladies Fund">Ladies Fund</option>
-      <option value="Church Building">Church Building</option>
-      <option value="Anniversary">Anniversary</option>
-      <option value="VBS">VBS</option>
-      <option value="Other Donations">Other Donations</option>
+      <% types.forEach(typeObj => { %>
+        <option value="<%= typeObj.type %>" <%= row.fund === typeObj.type ? 'selected' : '' %>><%= typeObj.type %></option>
+      <% }); %>
     </select>
   </div>
 </div>
