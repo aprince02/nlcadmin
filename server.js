@@ -17,7 +17,6 @@ const {
   requireLogin,
   checkUserRole,
   readCSVAndProcess,
-  log,
   exportDonationsCsv
 } = require('./utils');
 const transactionTypes = require('./transactionTypes');
@@ -37,7 +36,6 @@ app.use(flash());
 app.use(function(req, res, next){
     res.locals.message = req.flash();
     next();
-
 });
 // Multer configuration for file uploads
 const storage = multer.diskStorage({
@@ -73,12 +71,10 @@ app.get("/claimants", requireLogin, async (req, res) => {
 // GET /yearly-transactions
 app.get("/yearly-transactions/:year", requireLogin, (req, res) => {
   const year = req.params.year;
-
   const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date DESC";
   const startDate = `${year}-01-01`;
   const endDate = `${year}-12-31`;
   const typesSql = "SELECT type FROM transaction_types";
-
   const loggedInName = req.session.name;
   db.all(sql, [startDate, endDate], (err, rows) => {
       if (err) {
@@ -92,7 +88,6 @@ app.get("/yearly-transactions/:year", requireLogin, (req, res) => {
           }});
       }});
 });
-
 
 // GET /edit/id
 app.get("/edit/:id", async (req, res) => {
@@ -242,7 +237,6 @@ app.post("/add-donation/:id", requireLogin, (req, res) => {
     const status = "Unclaimed";
     const bank = "Bank"
     const payment = [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, bank, status, req.body.notes];
-    
     db.run(payment_sql, payment, err => {
         if (err) {
           req.flash('error', 'Error adding donation, please try again!');
@@ -265,7 +259,6 @@ app.get("/donations/:id", requireLogin, (req, res) => {
           return console.error(err.message);
         }else if (!rows || rows.length === 0) {
             res.redirect("/no-donations/" + encodeURI(id));
-
         } else {
             const firstName = rows[0].first_name || "";
             const surname = rows[0].surname || "";
@@ -284,7 +277,6 @@ app.get("/no-donations/:id", requireLogin, (req, res) => {
     res.render("no-donations", { id: id, loggedInName: loggedInName });
     });
 
-
 // GET /register
 app.get("/register", (req, res) =>  {
     res.render("register");
@@ -298,7 +290,6 @@ app.post("/register", (req, res) => {
         bcrypt.hash(password, salt, function(err, hash) {
             const role = "user";
             const user = [req.body.username, req.body.email, hash, role];
-            
             db.run(user_sql, user, err => {
                 if (err) {
                     req.flash('error', 'Error registering new account, try again.');
@@ -322,9 +313,7 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
     req.session.save((err) => {
         if (err) {
           console.error('Failed to save session:', err);
-        }
-      });
-
+        }});
     const claimant_sql = "UPDATE transactions SET type = ?, description = ? WHERE (id = ?)";
     const claimant = [type, description, id];
     db.run(claimant_sql, claimant, err => {
@@ -434,7 +423,6 @@ schedule.scheduleJob(scheduledTime, async () => {
 
 app.get("/export-totals", checkUserRole, async function(req, res) {
     const sql = "SELECT * FROM transactions WHERE date >= '2022-01-01'  ORDER BY type";
-
     db.all(sql, async function(err, rows) {
         if (err) {
             req.flash('error', 'Error retrieving data for donations.');
@@ -531,15 +519,13 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
           console.log("Error updating gift_aid_status:", err.message);
         } else {
           console.log("Gift aid status updated successfully.");
-        }
-      });
+        }});
     } catch (error) {
       console.log("Error sending gift aid claim email")
     }});
   
 // GET /logout
 app.get('/logout', (req, res) => {
-    const sql = "INSERT INTO last_update (timestamp, user) VALUES (datetime('now'), ?)";
     const loggedInName = req.session.name;
         console.log(loggedInName + " user logged out")
         req.session.destroy();
@@ -594,8 +580,6 @@ app.get('/logout', (req, res) => {
           req.flash('error', 'Error fetching Donor details.');
           return res.redirect("/claimants")
         }});
-      
-
   
   app.get("/import-transactions", requireLogin, checkUserRole, (req, res) => {
     const loggedInName = req.session.name;
@@ -709,13 +693,11 @@ try {
             console.log("Error sending update email")
             req.flash('error', 'Error sending email to member, try again!.');
             res.redirect("/edit/" + id);
-        }
-    } else {
+        }} else {
         console.log("Email is blank or null. Cannot send update email for: " + row.first_name + " " + row.surname);
         req.flash('error', 'Email is blank or null. Cannot send update email.');
         res.redirect("/edit/" + id);
-    }
-    } catch (error) {
+    }} catch (error) {
       console.log(error.message);
       return res.redirect("/claimants")
     }});
