@@ -53,7 +53,7 @@ async function sendStatementByEmail(pdfPath) {
 
   const mailOptions = {
     from: emailConfig.auth.user,
-    to: receiver,
+    to: "albinm65@gmail.com",
     subject: 'Statement of Donations',
     text: 'Find attached the statement of donations.' + emailFooter,
     attachments: [
@@ -106,7 +106,7 @@ async function createAndEmailDBBackup() {
 async function emailMemberForUpdate (row) {
   const transporter = nodemailer.createTransport(emailConfig);
   
-  link = "https://probooksaccounting.co.uk/edit-member/"+row.id;
+  link = "https://probooksaccounting.co.uk/edit/"+row.id;
   const mailOptions = {
     from: emailConfig.auth.user,
     to: row.email,

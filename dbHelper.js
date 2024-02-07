@@ -54,9 +54,37 @@ async function insertTransactionType(type) {
       });
     }
 
+    async function getAllMembers() {
+      return new Promise((resolve, reject) => {
+        const sql = 'SELECT * FROM members ORDER BY first_name ASC';
+        db.all(sql, function (err, rows) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(rows);
+          }
+        });
+      });
+    }
+
+    async function getMemberWithId(id) {
+      return new Promise((resolve, reject) => {
+        const sql = 'SELECT * FROM members WHERE id = ?';
+        db.get(sql, [id], function (err, row) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(row);
+          }
+        });
+      })};
+
+
 module.exports = {
   getAllTransactionTypes,
   insertTransactionType,
   getAllDonationTypes,
-  insertDonationType
+  insertDonationType,
+  getAllMembers,
+  getMemberWithId
 };

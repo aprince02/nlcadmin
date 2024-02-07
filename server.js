@@ -54,26 +54,25 @@ app.listen(8000, () => {
   console.log("Server running on port: %PORT%".replace("%PORT%",8000))
 });
 
-  app.get("/admin", (req, res) =>  {
+  app.get("/admin", requireLogin, (req, res) =>  {
     const loggedInName = req.session.name;
     res.render("admin", {loggedInName: loggedInName});
   });
 
 // GET /claimants
-app.get("/claimants", requireLogin, (req, res) => {
-    const sql = "SELECT * FROM members ORDER BY first_name ASC"
-    const loggedInName = req.session.name;
-    db.all(sql, [], (err, rows) => {
-        if (err) {
-            console.log(err.message);
-        } else {
-            res.render("claimants", {model: rows, loggedInName: loggedInName});
-        }});
-    });
+app.get("/claimants", requireLogin, async (req, res) => {
+    try {
+      const loggedInName = req.session.name;
+      const rows = await dbHelper.getAllMembers();
+      res.render("claimants", {model: rows, loggedInName: loggedInName});
+    } catch (error) {
+      console.error('Error rendering claimants page:', error);
+      return res.redirect("/")
+    }});
 
 // GET /yearly-transactions
 app.get("/yearly-transactions/:year", requireLogin, (req, res) => {
-  const year = req.params.year;  // Set the desired year
+  const year = req.params.year;
 
   const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date DESC";
   const startDate = `${year}-01-01`;
@@ -90,28 +89,25 @@ app.get("/yearly-transactions/:year", requireLogin, (req, res) => {
               console.log(err.message);
           } else {
               res.render("yearly-transactions", { row: rows, types: types, loggedInName: loggedInName });
-          }
-      });
-      }
-  });
+          }});
+      }});
 });
 
 
 // GET /edit/id
-app.get("/edit/:id", requireLogin, (req, res) => {
-    const id = req.params.id;
-    const loggedInName = req.session.name;
-    const claimant_sql = "SELECT * FROM members WHERE id = ?";
-    db.get(claimant_sql, id, (err, row) => {
-        if (err) {
-            console.log(err.message);
-        } else {
-            res.render("edit", { member: row, loggedInName: loggedInName });
-        }});
-    });
+app.get("/edit/:id", async (req, res) => {
+    try {
+      const loggedInName = req.session.name;
+      const id = req.params.id;
+      const row = await dbHelper.getMemberWithId(id);
+      res.render("edit", {member: row, loggedInName: loggedInName});
+    } catch (error) {
+      console.error('Error rendering edit member page:', error);
+      return res.redirect("/claimants")
+    }});
 
 // POST /edit/id
-app.post("/edit/:id", requireLogin, (req, res) => {
+app.post("/edit/:id", (req, res) => {
     const id = req.params.id;
     const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
     const sql = "UPDATE members SET first_name = ?, surname = ?, banking_name = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?, title = ?, house_number = ?, spouse_name = ?  WHERE (id = ?)";
@@ -146,17 +142,16 @@ app.post("/create", requireLogin, (req, res) => {
     });
 
 // GET /delete/id
-app.get("/delete/:id", requireLogin, checkUserRole, (req, res) => {
-    const id = req.params.id;
-    const loggedInName = req.session.name;
-    const sql = "SELECT * FROM members WHERE id = ?";
-    db.get(sql, id, (err, row) => {
-        if (err) {
-            console.log(err.message);
-        } else {
-            res.render("delete", { member: row, loggedInName: loggedInName });
-        }});
-    });
+app.get("/delete/:id", requireLogin, checkUserRole, async (req, res) => {
+    try {
+      const loggedInName = req.session.name;
+      const id = req.params.id;
+      const row = await dbHelper.getMemberWithId(id);
+      res.render("delete", {member: row, loggedInName: loggedInName});
+    } catch (error) {
+      console.error('Error rendering delete member page:', error);
+      return res.redirect("/claimants")
+    }});
 
 // POST /delete/id
 app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
@@ -184,69 +179,51 @@ app.get("/all-donations", requireLogin, (req, res) => {
         }});
     });
 
-// GET /add-payment/id
-app.get("/select-giver", requireLogin, (req, res) => {
-    const sql = "SELECT * FROM members ORDER BY first_name ASC"
+// GET /select-giver
+app.get("/select-giver", requireLogin, async (req, res) => {
+  try {
     const loggedInName = req.session.name;
-    db.all(sql, [], (err, rows) => {
-        if (err) {
-            console.log(err.message);
-        } else {
-            res.render("select-giver", {row: rows, loggedInName: loggedInName});
-        }});
-    });
+    const rows = await dbHelper.getAllMembers();
+    res.render("select-giver", {row: rows, loggedInName: loggedInName});
+  } catch (error) {
+    console.error('Error rendering select-giver page:', error);
+    return res.redirect("/claimants")
+  }});
 
 // GET /add-donation/id
-app.get("/add-donation/:id", requireLogin, (req, res) => {
+app.get("/add-donation/:id", requireLogin, async (req, res) => {
+  try {
+    const loggedInName = req.session.name;
     const id = req.params.id;
-    const sql = "SELECT * FROM members WHERE id = ?"
     const donationDate = req.session.date;
     const donationDescription = req.session.description;
     const donationAmount = req.session.incoming;
-    const loggedInName = req.session.name;
-    const typesSql = "SELECT type FROM donation_types";
-    db.get(sql, id, (err, row) => {
-        if (err) {
-            console.log(err.message);
-        } else {
-          db.all(typesSql, (err, types) => {
-            if (err) {
-                console.log(err.message);
-            } else {
-            res.render("add-donation", { row: row, loggedInName: loggedInName, donationDate: donationDate, donationAmount: donationAmount, donationDescription: donationDescription, types: types});
-        }});
-        }});
-    });
+    const row = await dbHelper.getMemberWithId(id);
+    const types = await dbHelper.getAllDonationTypes();
+    res.render("add-donation", { row: row, loggedInName: loggedInName, donationDate: donationDate, donationAmount: donationAmount, donationDescription: donationDescription, types: types});
+  } catch (error) {
+    console.error('Error rendering delete member page:', error);
+    return res.redirect("/claimants")
+  }});
 
 // GET /edit-donation/id
-app.get("/edit-donation/:id", requireLogin, (req, res) => {
-    const id = req.params.id;
-    const sql = "SELECT * FROM donations WHERE id = ?"
+app.get("/edit-donation/:id", requireLogin, async (req, res) => {
+  try {
     const loggedInName = req.session.name;
-    const typesSql = "SELECT type FROM donation_types";
-    db.get(sql, id, (err, row) => {
-        if (err) {
-            console.log(err.message);
-        } else {
-          db.all(typesSql, (err, types) => {
-            if (err) {
-                console.log(err.message);
-            } else {
-            res.render("edit-donation", { row: row, loggedInName: loggedInName,  types: types});
-        }});
-        }});
-    });
+    const id = req.params.id;
+    const row = await dbHelper.getMemberWithId(id);
+    const types = await dbHelper.getAllDonationTypes();
+    res.render("edit-donation", { row: row, loggedInName: loggedInName,  types: types});
+  } catch (error) {
+    console.error('Error rendering edit donation page:', error);
+    return res.redirect("/claimants")
+  }});
 
-// POST /edit-donation
+// POST /edit-donation/id
 app.post("/edit-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
-    const date = req.body.date;
-    const notes = req.body.notes;
-    const fund = req.body.fund;
-    const amount = req.body.amount;
-    const method = req.body.method;
     const claimant_sql = "UPDATE donations SET date = ?, notes = ?, fund = ?, amount = ?, method = ? WHERE (id = ?)";
-    const claimant = [date, notes, fund, amount, method, id];
+    const claimant = [req.body.date, req.body.notes, req.body.fund, req.body.amount, req.body.method, id];
     db.run(claimant_sql, claimant, err => {
         if (err) {
             req.flash('error', 'Error editing donation, please try again!')
@@ -258,7 +235,7 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
         }}); 
     });
 
-// POST /add-payment/id
+// POST /add-donation/id
 app.post("/add-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const payment_sql = "INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES (?,?,?,?,?,?,?,?,?)";
@@ -278,7 +255,7 @@ app.post("/add-donation/:id", requireLogin, (req, res) => {
         }});
     });
 
-// GET /payments/id
+// GET /donations/id
 app.get("/donations/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
@@ -296,18 +273,15 @@ app.get("/donations/:id", requireLogin, (req, res) => {
             rows.forEach((row) => {
                 totalAmount += row.amount;
             });
-
             res.render("donations", {model: rows, id: id, loggedInName: loggedInName, firstName: firstName, surname: surname, totalAmount: totalAmount});
-        }
-    });
+        }});
     });
 
-// GET /payments/id
+// GET /no-donations/id
 app.get("/no-donations/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     res.render("no-donations", { id: id, loggedInName: loggedInName });
-
     });
 
 
@@ -337,7 +311,7 @@ app.post("/register", (req, res) => {
     });
 });
 
-// POST /save-transactions
+// POST /save-transaction/id
 app.post("/save-transaction/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const type = req.body.type;
@@ -380,7 +354,6 @@ app.post("/login", (req, res) =>  {
         req.flash('error', 'Invalid email or password.');
         return res.redirect('/login');
     }
-
     bcrypt.compare(password, row.password, function(err, result){
         if (err){
             console.log(err.message);
@@ -393,9 +366,7 @@ app.post("/login", (req, res) =>  {
                     throw err;
                 }else {
                     console.log("User " + req.session.name + " logged in");
-                }
-            });
-
+                }});
             res.redirect('claimants');
         } else {
             req.flash('error', 'Invalid email or password.');
@@ -405,19 +376,15 @@ app.post("/login", (req, res) =>  {
 });
 
 app.get('/export-transactions', checkUserRole, async function(req, res) {
-  const tableName = 'transactions';
-  
-  db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
+  db.all(`SELECT * FROM transactions`, function(err, rows) {
     if (err) {
       req.flash('error', 'Error retrieving data to export transactions.');
       console.log('Error retrieving data for transactions.' + err)
     }
-    
     const csvWrite = csvWriter({
       path: 'transactions.csv',
       header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
     });
-    
     csvWrite.writeRecords(rows)
       .then(() => {
         res.download('transactions.csv');
@@ -432,8 +399,7 @@ app.get('/export-transactions', checkUserRole, async function(req, res) {
     console.log('Transactions CSV sent via email!');
   } catch (error) {
     console.log("Error sending transactions email" + error)
-  }
-});
+  }});
 
 app.get('/export-donations', checkUserRole, async function(req, res) {
     try {
@@ -443,8 +409,7 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
     } catch (error) {
       req.flash('error', 'Unable to send donations export via email.');
       console.log("Error sending donations email" + error)
-    }
-  });
+    }});
 
   app.get('/db-backup', async (req, res) => {
     try {
@@ -456,8 +421,7 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
        console.log("Error sending database backup" + error.message)
       req.flash('error', 'Error sending database backup.');
       return res.redirect('/admin');
-    }
-  });
+    }});
 
 const scheduledTime = '59 23 * * 0'; // '59 23 * * 0' represents every Sunday at 23:59
 schedule.scheduleJob(scheduledTime, async () => {
@@ -466,8 +430,7 @@ schedule.scheduleJob(scheduledTime, async () => {
     console.log('Database backup sent via email!');
   } catch (error) {
     console.log("Error sending database backup: " + error.message);
-  }
-});
+  }});
 
 app.get("/export-totals", checkUserRole, async function(req, res) {
     const sql = "SELECT * FROM transactions WHERE date >= '2022-01-01'  ORDER BY type";
@@ -477,17 +440,12 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
             req.flash('error', 'Error retrieving data for donations.');
             return res.redirect('/admin');
         }
-
         const totalPaidInByType = {};
         const totalPaidOutByType = {};
-
         try {
             const types = await transactionTypes.getAllTransactionTypes();
-
             types.forEach(type => {
                 const typeTransactions = rows.filter(row => row.type === type);
-
-                // Calculate total "Paid In" for the current type
                 const totalPaidIn = typeTransactions.reduce((total, transaction) => {
                     const paidIn = parseFloat(transaction.paid_in) || 0;
                     if (!isNaN(paidIn)) {
@@ -495,8 +453,6 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
                     }
                     return total;
                 }, 0);
-
-                // Calculate total "Paid Out" for the current type
                 const totalPaidOut = typeTransactions.reduce((total, transaction) => {
                     const paidOut = parseFloat(transaction.paid_out) || 0;
                     if (!isNaN(paidOut)) {
@@ -504,11 +460,9 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
                     }
                     return total;
                 }, 0);
-
                 totalPaidInByType[type] = parseFloat(totalPaidIn.toFixed(2));
                 totalPaidOutByType[type] = parseFloat(totalPaidOut.toFixed(2));
             });
-
             const csvFilePath = "total_paid_in_out.csv";
             const csvWriterOptions = {
                 path: csvFilePath,
@@ -518,37 +472,29 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
                     { id: "paid_out", title: "Paid Out" }
                 ]
             };
-
             const dataToWrite = types.map(type => ({
                 type: type,
                 paid_in: totalPaidInByType[type],
                 paid_out: totalPaidOutByType[type]
             }));
-
             const writer = csvWriter(csvWriterOptions);
             await writer.writeRecords(dataToWrite);
-
             console.log("CSV file has been written successfully.");
-
             try {
                 await createAndEmail('total_paid_in_out', 'ProBooks Accounting - Totals Export CSV File', 'totals export csv file');
                 console.log('Totals sent via email!');
             } catch (error) {
                 console.log("Error sending totals email" + error);
             }
-
             res.redirect('/admin');
         } catch (error) {
             req.flash('error', 'Error getting transaction types.');
             console.error("Error getting transaction types:", error);
             return res.redirect('/admin');
-        }
-    });
+        }});
 });
 
-
   app.get('/export-giftaid-claims', checkUserRole, async function(req, res) {
-  
     db.all(`SELECT members.first_name, members.surname, donations.amount, donations.date, 
       members.title, members.house_number, members.postcode
       FROM donations 
@@ -558,7 +504,6 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
         req.flash('error', 'Error generating CSV file for gift aid claim.');
         return res.redirect('/admin');
       }
-  
       const csvWrite = csvWriter({
         path: 'giftaid_claim.csv',
         header: [
@@ -569,9 +514,7 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
             { id: 'postcode', title: 'Postcode' },
             { id: 'date', title: 'Date' },
             { id: 'amount', title: 'Amount' }
-        ]
-      });
-  
+        ]});
       csvWrite.writeRecords(rows)
         .then(() => {
           res.download('giftaid_claim.csv');
@@ -592,90 +535,66 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
       });
     } catch (error) {
       console.log("Error sending gift aid claim email")
-    }
-  });
+    }});
   
 // GET /logout
 app.get('/logout', (req, res) => {
     const sql = "INSERT INTO last_update (timestamp, user) VALUES (datetime('now'), ?)";
     const loggedInName = req.session.name;
-    const data = [loggedInName];
-    db.run(sql, data, err => {
-        if (err) {
-            return console.error(err.message);
-        } else {
-          const scriptPath = path.join(__dirname, 'ProBooksAccountingPush.sh');
-
-        log("User logged out")
-      exec(`"${scriptPath}"`, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`Error: ${error.message}`);
-        } else {
-          console.log(`Batch script output: ${stdout}`);
-        }
-
-        // After executing the batch script, destroy the session and redirect
+        console.log(loggedInName + " user logged out")
         req.session.destroy();
         res.redirect('/');
       });
+
+      app.get("/generate-donor-pdf/:id", async (req, res) => {
+        try {
+          const id = req.params.id;
+          const donor = await dbHelper.getMemberWithId(id);
+          const titheSql = "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund = 'Tithe' ORDER BY date ASC";
+          const donationSql = "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund != 'Tithe' ORDER BY date ASC";
+          Promise.all([
+            new Promise((resolve, reject) => {
+              db.all(titheSql, [id], (err, tithe) => {
+                if (err) {
+                  reject(err.message);
+                } else {
+                  resolve(tithe);
+                }
+              });
+            }),
+            new Promise((resolve, reject) => {
+              db.all(donationSql, [id], (err, donations) => {
+                if (err) {
+                  reject(err.message);
+                } else {
+                  resolve(donations);
+                }
+              });
+            })
+          ])
+            .then(async ([tithe, donations]) => {
+              try {
+                const pdfPath = await generatePDF(donor, tithe, donations);
+                await sendStatementByEmail(pdfPath);
+                console.log("Statement of donations sent for: " + donor.first_name);
+                req.flash('sucess', 'Statement of donations sent');
+                return res.redirect('/claimants');
+              } catch (err) {
+                console.log("Error generating or sending the statement of donations for donor: " + donor.first_name + err);
+                req.flash('error', 'Error generating or sending the statement of donations for donor.');
+                return res.redirect('/claimants');
+              }})
+            .catch((err) => {
+              console.error('Error fetching tithe and donation details for donor:', err);
+              req.flash('error', 'Error fetching tithe and donation details for donor.');
+              return res.redirect('/claimants');
+            });
+        } catch (error) {
+          console.error('Error rendering delete member page:', error);
+          req.flash('error', 'Error fetching Donor details.');
+          return res.redirect("/claimants")
         }});
-    
-});
-
-app.get("/generate-donor-pdf/:id", (req, res) => {
-  const id = req.params.id;
-  const donorSql = "SELECT * FROM members WHERE id = ?";
-
-  db.all(donorSql, id, (err, donor) => {
-    if (err) {
-      console.log(err.message);
-      req.flash('error', 'Error fetching Donor details.');
-    } else {
-      const titheSql =
-        "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund = 'Tithe' ORDER BY date ASC";
-      const donationSql =
-        "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund != 'Tithe' ORDER BY date ASC";
-
-      Promise.all([
-        new Promise((resolve, reject) => {
-          db.all(titheSql, id, (err, tithe) => {
-            if (err) {
-              reject(err.message);
-            } else {
-              resolve(tithe);
-            }
-          });
-        }),
-        new Promise((resolve, reject) => {
-          db.all(donationSql, id, (err, donations) => {
-            if (err) {
-              reject(err.message);
-            } else {
-              resolve(donations);
-            }
-          });
-        })
-      ])
-        .then(([tithe, donations]) => {
-          const processPDFAndEmail = async () => {
-            try {
-              const pdfPath = await generatePDF(donor, tithe, donations);
-              await sendStatementByEmail(pdfPath);
-              console.log("Statement of donations sent for: " + donor);
-            } catch (err) {
-              console.log("Error generating or sending the statement of donations for donor: " + donor);
-            }
-          };
-
-          processPDFAndEmail();
-        })
-        .catch((err) => {
-          req.flash('error', 'Error fetching tithe and donation details for donor.');
-          return res.redirect('/claimants');
-        });
-    }
-  });
-});
+      
 
   
   app.get("/import-transactions", requireLogin, checkUserRole, (req, res) => {
@@ -691,15 +610,14 @@ app.get("/generate-donor-pdf/:id", (req, res) => {
       readCSVAndProcess(req.file.path, req, res);
       req.flash('File uploaded and processed successfully');
       return res.redirect('/admin');
-    }
-  });
+    }});
 
-// GET /create
+// GET /membership
 app.get("/membership", (req, res) => {
   res.render("membership", { member: {}, bank_account: {} });
 });
 
-// POST /create
+// POST /membership
 app.post("/membership", (req, res) => {
   const claimant_sql = "INSERT INTO members (first_name, surname, sex, email, phone_number, address_line_1, address_line_2, city, postcode, date_of_birth, baptised, baptised_date, holy_spirit, native_church, children_details, emergency_contact_1, emergency_contact_1_name, emergency_contact_2, emergency_contact_2_name, occupation_studies, title, house_number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
   const claimant = [req.body.first_name, req.body.surname, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number,];
@@ -722,15 +640,12 @@ app.post("/membership", (req, res) => {
       res.render("addnewtransactiontype", { loggedInName, types });
     } catch (error) {
       console.error('Error rendering addnewtransactiontype page:', error);
-      // Handle errors appropriately, e.g., render an error page or redirect
-      res.status(500).send('Internal Server Error');
-    }
-});
+      return res.redirect("/admin")
+    }});
 
 app.post("/addnewtransactiontype", async (req, res) => {
   const userInput = req.body.new_transaction_type;
   const loggedInName = req.session.name;
-
   try {
     const types = await transactionTypes.getAllTransactionTypes();
     if (types.includes(userInput)) {
@@ -747,10 +662,8 @@ app.post("/addnewtransactiontype", async (req, res) => {
     console.error('Error processing new transaction type:', error);
     req.flash('error', 'Error adding transaction type.');
     return res.redirect("/admin")
-  }
-});
+  }});
 
-// Update your route definition
 app.get("/addnewdonationtype", async (req, res) => {
   try {
     const loggedInName = req.session.name;
@@ -758,16 +671,12 @@ app.get("/addnewdonationtype", async (req, res) => {
     res.render("addnewdonationtype", { loggedInName, types });
   } catch (error) {
     console.error('Error rendering addnewdonationtype page:', error);
-    // Handle errors appropriately, e.g., render an error page or redirect
-    res.status(500).send('Internal Server Error');
-  }
-}); 
-
+    return res.redirect("/admin")
+  }}); 
 
 app.post("/addnewdonationtype", async (req, res) => {
 const userInput = req.body.new_donation_type;
 const loggedInName = req.session.name;
-
 try {
   const types = await dbHelper.getAllDonationTypes();
   if (types.includes(userInput)) {
@@ -784,64 +693,32 @@ try {
   console.error('Error processing new donation type:', error);
   req.flash('error', 'Error adding donation type.');
   return res.redirect("/admin")
-}
-});
-
-  // GET /edit/id
-app.get("/edit-member/:id", (req, res) => {
-  const id = req.params.id;
-
-  const claimant_sql = "SELECT * FROM members WHERE id = ?";
-  db.get(claimant_sql, id, (err, row) => {
-      if (err) {
-          console.log(err.message);
-      } else {
-          res.render("edit-member", { member: row});
-      }});
-  });
-
-// POST /edit/id
-app.post("/edit-member/:id", (req, res) => {
-  const id = req.params.id;
-  const claimant = [req.body.first_name, req.body.surname, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
-  const sql = "UPDATE members SET first_name = ?, surname = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?, title = ?, house_number = ?, spouse_name = ?  WHERE (id = ?)";
-  db.run(sql, claimant, err => {
-      if (err) {
-          console.log(err.message);
-      } else {
-          req.flash('success', 'Member details updated successfully.');
-          console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
-          res.redirect("/edit-member/" + id);
-      }});
-  });
+}});
 
   app.get("/send-update-request/:id", async (req, res) => {
-    const id = req.params.id;
-
-    const claimant_sql = "SELECT * FROM members WHERE id = ?";
-    db.get(claimant_sql, id, (err, row) => {
-        if (err) {
-            console.log(err.message);
-        } else {
-            if (row && row.email) {
-                try {
-                    emailMemberForUpdate(row);
-                    console.log('Update details link sent via email for: ' + row.first_name + " " + row.surname);
-                    req.flash('success', 'Email sent successfully.');
-                    res.redirect("/edit/" + id);
-                } catch (error) {
-                    log("Error sending update email")
-                    req.flash('error', 'Error sending email to member, try again!.');
-                    res.redirect("/edit/" + id);
-                }
-            } else {
-                console.log("Email is blank or null. Cannot send update email for: " + row.first_name + " " + row.surname);
-                req.flash('error', 'Email is blank or null. Cannot send update email.');
-                res.redirect("/edit/" + id);
-            }
+    try {
+      const id = req.params.id;
+      const row = await dbHelper.getMemberWithId(id);
+      if (row && row.email) {
+        try {
+            emailMemberForUpdate(row);
+            console.log('Update details link sent via email for: ' + row.first_name + " " + row.surname);
+            req.flash('success', 'Email sent successfully.');
+            res.redirect("/edit/" + id);
+        } catch (error) {
+            console.log("Error sending update email")
+            req.flash('error', 'Error sending email to member, try again!.');
+            res.redirect("/edit/" + id);
         }
-    });
-});
+    } else {
+        console.log("Email is blank or null. Cannot send update email for: " + row.first_name + " " + row.surname);
+        req.flash('error', 'Email is blank or null. Cannot send update email.');
+        res.redirect("/edit/" + id);
+    }
+    } catch (error) {
+      console.log(error.message);
+      return res.redirect("/claimants")
+    }});
 
 // Default response for any other request
 app.use(function(req, res){

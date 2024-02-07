@@ -9,8 +9,7 @@ async function generatePDF(donor, tithe, donations) {
 
   const logoPath = "css/logo.png";
   const logoData = fs.readFileSync(logoPath);
-  const person = donor[0];
-  const fullName = person.first_name + ' ' + person.surname;
+  const fullName = donor.first_name + ' ' + donor.surname;
   
   let totalAmount = 0;
   let giftaidClaimed = 0;
@@ -43,8 +42,8 @@ async function generatePDF(donor, tithe, donations) {
   doc.text("Probooks Accounting © - Alpha Media Productions Ltd.", 135, 43);
   doc.setFontSize(12);
   doc.setTextColor('#000000');
-  doc.text(person.house_number + ' ' + person.address_line_1, 10, 48)
-  doc.text(person.postcode, 10, 53)
+  doc.text(donor.house_number + ' ' + donor.address_line_1, 10, 48)
+  doc.text(donor.postcode, 10, 53)
   doc.text("Statement of Tithe/Donations", 10, 65)
   doc.setFontSize(10);
   doc.text("Period:", 10, 70)
