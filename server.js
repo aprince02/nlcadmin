@@ -13,12 +13,7 @@ const { exec } = require('child_process');
 const path = require('path');
 const multer = require('multer');
 const schedule = require('node-schedule');
-const {
-  requireLogin,
-  checkUserRole,
-  readCSVAndProcess,
-  exportDonationsCsv
-} = require('./utils');
+const { requireLogin, checkUserRole, readCSVAndProcess, exportDonationsCsv } = require('./utils');
 const transactionTypes = require('./transactionTypes');
 const dbHelper = require('./dbHelper')
 const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate } = require('./emailer');
@@ -37,15 +32,13 @@ app.use(function(req, res, next){
     res.locals.message = req.flash();
     next();
 });
-// Multer configuration for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
   },
   filename: function (req, file, cb) {
     cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
-  }
-});
+  }});
 
 const upload = multer({ storage: storage });
 app.listen(8000, () => {
@@ -57,7 +50,6 @@ app.listen(8000, () => {
     res.render("admin", {loggedInName: loggedInName});
   });
 
-// GET /claimants
 app.get("/claimants", requireLogin, async (req, res) => {
     try {
       const loggedInName = req.session.name;
@@ -68,7 +60,6 @@ app.get("/claimants", requireLogin, async (req, res) => {
       return res.redirect("/")
     }});
 
-// GET /yearly-transactions
 app.get("/yearly-transactions/:year", requireLogin, (req, res) => {
   const year = req.params.year;
   const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date DESC";
@@ -82,14 +73,13 @@ app.get("/yearly-transactions/:year", requireLogin, (req, res) => {
       } else {
         db.all(typesSql, (err, types) => {
           if (err) {
-              console.log(err.message);
+              console.error(err.message);
           } else {
               res.render("yearly-transactions", { row: rows, types: types, loggedInName: loggedInName });
           }});
       }});
 });
 
-// GET /edit/id
 app.get("/edit/:id", async (req, res) => {
     try {
       const loggedInName = req.session.name;
@@ -101,14 +91,13 @@ app.get("/edit/:id", async (req, res) => {
       return res.redirect("/claimants")
     }});
 
-// POST /edit/id
 app.post("/edit/:id", (req, res) => {
     const id = req.params.id;
     const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
     const sql = "UPDATE members SET first_name = ?, surname = ?, banking_name = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?, title = ?, house_number = ?, spouse_name = ?  WHERE (id = ?)";
     db.run(sql, claimant, err => {
         if (err) {
-            console.log(err.message);
+            console.error(err.message);
         } else {
             req.flash('success', 'Member details updated successfully.');
             console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
@@ -116,27 +105,23 @@ app.post("/edit/:id", (req, res) => {
         }});
     });
 
-// GET /create
 app.get("/create", requireLogin, (req, res) => {
     const loggedInName = req.session.name;
     res.render("create", { member: {}, bank_account: {} , loggedInName: loggedInName });
   });
 
-// POST /create
-app.post("/create", requireLogin, (req, res) => {
-    const claimant_sql = "INSERT INTO members (first_name, surname, spouse_name, banking_name, sex, email, phone_number, address_line_1, address_line_2, city, postcode, date_of_birth, baptised, baptised_date, holy_spirit, native_church, children_details, emergency_contact_1, emergency_contact_1_name, emergency_contact_2, emergency_contact_2_name, occupation_studies, title, house_number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-    const claimant = [req.body.first_name, req.body.surname, req.body.spouse_name, req.body.banking_name, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number,];
-    db.run(claimant_sql, claimant, err => {
-        if (err) {
-            console.log(err.message);
-        } else {
-            req.flash('success', 'New member added successfully.');
-            console.log("Added new member with first name: " + req.body.first_name + "and last name: " + req.body.surname)
-            res.redirect("/claimants");
-        }}); 
-    });
+app.post("/create", requireLogin, async (req, res) => {
+  try {
+    await dbHelper.addNewMember(req);
+    req.flash('success', 'New member added successfully.');
+    console.log("Added new member with first name: " + req.body.first_name + " and last name: " + req.body.surname)
+    res.redirect("/claimants");
+  } catch (error) {
+    console.error('Error adding new member. ' + err.message)
+    req.flash('error', 'Error adding new member, please try again!');
+    res.redirect("/claimants");
+  }});
 
-// GET /delete/id
 app.get("/delete/:id", requireLogin, checkUserRole, async (req, res) => {
     try {
       const loggedInName = req.session.name;
@@ -148,13 +133,12 @@ app.get("/delete/:id", requireLogin, checkUserRole, async (req, res) => {
       return res.redirect("/claimants")
     }});
 
-// POST /delete/id
 app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
     const id = req.params.id;
     const sql = "DELETE FROM members WHERE id = ?";
     db.run(sql, id, err => {
         if (err) {
-            console.log(err.message);
+            console.error(err.message);
         } else {
             req.flash('success', 'Member deleted successfully.');
             console.log("Deleted member with id: " + id)
@@ -162,7 +146,6 @@ app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
         }});
     });
 
-// GET /all-donations
 app.get("/all-donations", requireLogin, (req, res) => {
     const loggedInName = req.session.name;
     const donations_sql = "SELECT * FROM donations ORDER BY date DESC";
@@ -174,7 +157,6 @@ app.get("/all-donations", requireLogin, (req, res) => {
         }});
     });
 
-// GET /select-giver
 app.get("/select-giver", requireLogin, async (req, res) => {
   try {
     const loggedInName = req.session.name;
@@ -185,7 +167,6 @@ app.get("/select-giver", requireLogin, async (req, res) => {
     return res.redirect("/claimants")
   }});
 
-// GET /add-donation/id
 app.get("/add-donation/:id", requireLogin, async (req, res) => {
   try {
     const loggedInName = req.session.name;
@@ -201,7 +182,6 @@ app.get("/add-donation/:id", requireLogin, async (req, res) => {
     return res.redirect("/claimants")
   }});
 
-// GET /edit-donation/id
 app.get("/edit-donation/:id", requireLogin, async (req, res) => {
   try {
     const loggedInName = req.session.name;
@@ -214,7 +194,6 @@ app.get("/edit-donation/:id", requireLogin, async (req, res) => {
     return res.redirect("/claimants")
   }});
 
-// POST /edit-donation/id
 app.post("/edit-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const claimant_sql = "UPDATE donations SET date = ?, notes = ?, fund = ?, amount = ?, method = ? WHERE (id = ?)";
@@ -222,7 +201,7 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
     db.run(claimant_sql, claimant, err => {
         if (err) {
             req.flash('error', 'Error editing donation, please try again!')
-            console.log(err.message);
+            console.error(err.message);
         } else {
           req.flash('success', 'Donation edited successfully!')
             console.log("Edited donation with id: " + id)
@@ -230,7 +209,6 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
         }}); 
     });
 
-// POST /add-donation/id
 app.post("/add-donation/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const payment_sql = "INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES (?,?,?,?,?,?,?,?,?)";
@@ -249,7 +227,6 @@ app.post("/add-donation/:id", requireLogin, (req, res) => {
         }});
     });
 
-// GET /donations/id
 app.get("/donations/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
@@ -270,19 +247,16 @@ app.get("/donations/:id", requireLogin, (req, res) => {
         }});
     });
 
-// GET /no-donations/id
 app.get("/no-donations/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     res.render("no-donations", { id: id, loggedInName: loggedInName });
     });
 
-// GET /register
 app.get("/register", (req, res) =>  {
     res.render("register");
 });
 
-// POST /register
 app.post("/register", (req, res) => {
     const user_sql = "INSERT INTO user (name, email, password, role) VALUES (?, ?, ?, ?)";
     var password = req.body.password;
@@ -302,7 +276,6 @@ app.post("/register", (req, res) => {
     });
 });
 
-// POST /save-transaction/id
 app.post("/save-transaction/:id", requireLogin, (req, res) => {
     const id = req.params.id;
     const type = req.body.type;
@@ -319,7 +292,7 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
     db.run(claimant_sql, claimant, err => {
         if (err) {
             req.flash('error', 'Error saving transaction, please try again!');
-            console.log(err.message);
+            console.error(err.message);
             return res.redirect("/yearly-transactions");
         } else {
             req.flash('success', 'Transaction type saved successfully.');
@@ -327,12 +300,10 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
         }}); 
     });
 
-// GET /login
 app.get("/login", (req, res) =>  {
     res.render("login");
 });
 
-// POST /login
 app.post("/login", (req, res) =>  {
     const email = req.body.email;
     const password = req.body.password;
@@ -345,7 +316,7 @@ app.post("/login", (req, res) =>  {
     }
     bcrypt.compare(password, row.password, function(err, result){
         if (err){
-            console.log(err.message);
+            console.error(err.message);
         } else if (result === true) {
             req.session.email = email;
             req.session.name = row.name;
@@ -368,7 +339,7 @@ app.get('/export-transactions', checkUserRole, async function(req, res) {
   db.all(`SELECT * FROM transactions`, function(err, rows) {
     if (err) {
       req.flash('error', 'Error retrieving data to export transactions.');
-      console.log('Error retrieving data for transactions.' + err)
+      console.error('Error retrieving data for transactions.' + err)
     }
     const csvWrite = csvWriter({
       path: 'transactions.csv',
@@ -379,7 +350,7 @@ app.get('/export-transactions', checkUserRole, async function(req, res) {
         res.download('transactions.csv');
       })
       .catch(() => {
-        console.log('Error generating CSV file for transactions.')
+        console.error('Error generating CSV file for transactions.')
         req.flash('error', 'Error generating CSV file for transactions.');
       });
   });
@@ -387,7 +358,7 @@ app.get('/export-transactions', checkUserRole, async function(req, res) {
     await createAndEmail('transactions', 'ProBooks Accounting - Transactions Export CSV', 'transactions export csv file');
     console.log('Transactions CSV sent via email!');
   } catch (error) {
-    console.log("Error sending transactions email" + error)
+    console.error("Error sending transactions email" + error)
   }});
 
 app.get('/export-donations', checkUserRole, async function(req, res) {
@@ -397,7 +368,7 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
       console.log('Donations CSV sent via email!');
     } catch (error) {
       req.flash('error', 'Unable to send donations export via email.');
-      console.log("Error sending donations email" + error)
+      console.error("Error sending donations email" + error)
     }});
 
   app.get('/db-backup', async (req, res) => {
@@ -407,7 +378,7 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
       req.flash('success', 'Database backup sent via email successfully.');
       return res.redirect('/admin')
     } catch (error) {
-       console.log("Error sending database backup" + error.message)
+       console.error("Error sending database backup" + error.message)
       req.flash('error', 'Error sending database backup.');
       return res.redirect('/admin');
     }});
@@ -418,7 +389,7 @@ schedule.scheduleJob(scheduledTime, async () => {
     await createAndEmailDBBackup();
     console.log('Database backup sent via email!');
   } catch (error) {
-    console.log("Error sending database backup: " + error.message);
+    console.error("Error sending database backup: " + error.message);
   }});
 
 app.get("/export-totals", checkUserRole, async function(req, res) {
@@ -472,7 +443,7 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
                 await createAndEmail('total_paid_in_out', 'ProBooks Accounting - Totals Export CSV File', 'totals export csv file');
                 console.log('Totals sent via email!');
             } catch (error) {
-                console.log("Error sending totals email" + error);
+                console.error("Error sending totals email" + error);
             }
             res.redirect('/admin');
         } catch (error) {
@@ -516,15 +487,14 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
       console.log('Gift Aid Claim sent via email!');
       db.run(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed'`, function(err) {
         if (err) {
-          console.log("Error updating gift_aid_status:", err.message);
+          console.error("Error updating gift_aid_status:", err.message);
         } else {
           console.log("Gift aid status updated successfully.");
         }});
     } catch (error) {
       console.log("Error sending gift aid claim email")
     }});
-  
-// GET /logout
+
 app.get('/logout', (req, res) => {
     const loggedInName = req.session.name;
         console.log(loggedInName + " user logged out")
@@ -566,7 +536,7 @@ app.get('/logout', (req, res) => {
                 req.flash('sucess', 'Statement of donations sent');
                 return res.redirect('/claimants');
               } catch (err) {
-                console.log("Error generating or sending the statement of donations for donor: " + donor.first_name + err);
+                console.error("Error generating or sending the statement of donations for donor: " + donor.first_name + err);
                 req.flash('error', 'Error generating or sending the statement of donations for donor.');
                 return res.redirect('/claimants');
               }})
@@ -596,26 +566,21 @@ app.get('/logout', (req, res) => {
       return res.redirect('/admin');
     }});
 
-// GET /membership
 app.get("/membership", (req, res) => {
   res.render("membership", { member: {}, bank_account: {} });
 });
 
-// POST /membership
-app.post("/membership", (req, res) => {
-  const claimant_sql = "INSERT INTO members (first_name, surname, sex, email, phone_number, address_line_1, address_line_2, city, postcode, date_of_birth, baptised, baptised_date, holy_spirit, native_church, children_details, emergency_contact_1, emergency_contact_1_name, emergency_contact_2, emergency_contact_2_name, occupation_studies, title, house_number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-  const claimant = [req.body.first_name, req.body.surname, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number,];
-  db.run(claimant_sql, claimant, err => {
-      if (err) {
-          console.log('Error submitting membership form. ' + err.message)
-          req.flash('error', 'Error submitting membership form, please try again!');
-          res.redirect("/membership");
-      } else {
-          req.flash('success', 'Membership Form completed successfully. Thank You!');
-          console.log("Added new member with first name: " + req.body.first_name + "and last name: " + req.body.surname)
-          res.redirect("/membership");
-      }}); 
-  });
+app.post("/membership", async (req, res) => {
+  try {
+    await dbHelper.addNewMember(req);
+    req.flash('success', 'Membership Form completed successfully. Thank You!');
+    console.log("Added new member with first name: " + req.body.first_name + " and last name: " + req.body.surname)
+    res.redirect("/membership");
+  } catch (error) {
+    console.error('Error submitting membership form. ' + err.message)
+    req.flash('error', 'Error submitting membership form, please try again!');
+    res.redirect("/membership");
+  }});
 
   app.get("/addnewtransactiontype", async (req, res) => {
     try {
@@ -633,7 +598,7 @@ app.post("/addnewtransactiontype", async (req, res) => {
   try {
     const types = await transactionTypes.getAllTransactionTypes();
     if (types.includes(userInput)) {
-      console.log(`${userInput} already exists.`);
+      console.error(`${userInput} already exists.`);
       req.flash('error', 'Transaction type already exists.');
       return res.redirect("/addnewtransactiontype")
     } else {
@@ -664,7 +629,7 @@ const loggedInName = req.session.name;
 try {
   const types = await dbHelper.getAllDonationTypes();
   if (types.includes(userInput)) {
-    console.log(`${userInput} already exists.`);
+    console.error(`${userInput} already exists.`);
     req.flash('error', 'Donation type already exists.');
     return res.redirect("/addnewdonationtype")
   } else {
@@ -690,15 +655,15 @@ try {
             req.flash('success', 'Email sent successfully.');
             res.redirect("/edit/" + id);
         } catch (error) {
-            console.log("Error sending update email")
+            console.error("Error sending update email")
             req.flash('error', 'Error sending email to member, try again!.');
             res.redirect("/edit/" + id);
         }} else {
-        console.log("Email is blank or null. Cannot send update email for: " + row.first_name + " " + row.surname);
+        console.error("Email is blank or null. Cannot send update email for: " + row.first_name + " " + row.surname);
         req.flash('error', 'Email is blank or null. Cannot send update email.');
         res.redirect("/edit/" + id);
     }} catch (error) {
-      console.log(error.message);
+      console.error(error.message);
       return res.redirect("/claimants")
     }});
 
