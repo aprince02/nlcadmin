@@ -30,11 +30,11 @@
   <label class="col-form-label col-sm-2" for="fund">Fund</label>
   <div class="col-sm-5">
     <select required class="form-control" style="max-width: fit-content;" name="fund" id="fund">
-      <% types.forEach(typeObj => { %>
-        <option value="<%= typeObj.type %>" <%= row.fund === typeObj.type ? 'selected' : '' %>><%= typeObj.type %></option>
+      <% types.forEach(type => { %>
+        <option value="<%= type %>" <%= row.fund === type ? 'selected' : '' %>><%= type %></option>
       <% }); %>
     </select>
-  </div>
+  </div>  
 </div>
 
 <div class="form-group row">
