@@ -186,7 +186,7 @@ app.get("/edit-donation/:id", requireLogin, async (req, res) => {
   try {
     const loggedInName = req.session.name;
     const id = req.params.id;
-    const row = await dbHelper.getMemberWithId(id);
+    const row = await dbHelper.getDonationWithId(id);
     const types = await dbHelper.getAllDonationTypes();
     res.render("edit-donation", { row: row, loggedInName: loggedInName,  types: types});
   } catch (error) {

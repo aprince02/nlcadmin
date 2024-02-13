@@ -92,6 +92,18 @@ async function insertTransactionType(type) {
         });
       }
 
+      async function getDonationWithId(id) {
+        return new Promise((resolve, reject) => {
+          const sql = 'SELECT * FROM donations WHERE id = ?';
+          db.get(sql, [id], function (err, row) {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(row);
+            }
+          });
+        })};
+
 module.exports = {
   getAllTransactionTypes,
   insertTransactionType,
@@ -99,5 +111,6 @@ module.exports = {
   insertDonationType,
   getAllMembers,
   getMemberWithId,
-  addNewMember
+  addNewMember,
+  getDonationWithId
 };
