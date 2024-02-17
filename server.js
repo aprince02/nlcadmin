@@ -8,7 +8,7 @@ const flash = require('connect-flash');
 const bcrypt = require('bcrypt');
 const saltRounds = 10;
 const csvWriter = require('csv-writer').createObjectCsvWriter;
-const { generatePDF } = require('./pdf-generator');
+const pdfGenerator = require('./pdf-generator');
 const { exec } = require('child_process');
 const path = require('path');
 const multer = require('multer');
@@ -16,7 +16,7 @@ const schedule = require('node-schedule');
 const { requireLogin, checkUserRole, readCSVAndProcess, exportDonationsCsv } = require('./utils');
 const transactionTypes = require('./transactionTypes');
 const dbHelper = require('./dbHelper')
-const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate } = require('./emailer');
+const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail } = require('./emailer');
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
 app.use(express.static("public"));
@@ -530,7 +530,7 @@ app.get('/logout', (req, res) => {
           ])
             .then(async ([tithe, donations]) => {
               try {
-                const pdfPath = await generatePDF(donor, tithe, donations);
+                const pdfPath = await pdfGenerator.generatePDF(donor, tithe, donations);
                 await sendStatementByEmail(pdfPath);
                 console.log("Statement of donations sent for: " + donor.first_name);
                 req.flash('sucess', 'Statement of donations sent');
@@ -550,6 +550,22 @@ app.get('/logout', (req, res) => {
           req.flash('error', 'Error fetching Donor details.');
           return res.redirect("/claimants")
         }});
+
+        app.get("/generate-transaction-pdf/:year", async (req, res) => {
+          try {
+            const year = req.params.year;
+            const transactions = await dbHelper.getAllTransactionsForYear(year);
+            const pdfPath = await pdfGenerator.generateTransactionPDF(transactions);
+            await sendTransactionsEmail(pdfPath);
+            req.flash('success', 'Transactions PDF generated and sent successfully.');
+            return res.redirect('/admin');
+          } catch (error) {
+            console.error('Error generating or sending transaction PDF:', error);
+            req.flash('error', 'Error generating or sending transaction PDF.');
+            return res.redirect('/admin');
+          }
+        });
+        
   
   app.get("/import-transactions", requireLogin, checkUserRole, (req, res) => {
     const loggedInName = req.session.name;

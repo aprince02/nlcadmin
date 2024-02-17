@@ -108,4 +108,59 @@ async function generatePDF(donor, tithe, donations) {
   return pdfPath;
 }
 
-module.exports = { generatePDF };
+async function generateTransactionPDF(transactions) {
+  const doc = new jsPDF();
+
+  const logoPath = "css/probooks-statementOfTransactions.png";
+  const logoData = fs.readFileSync(logoPath);
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const logoWidth = 150; // Adjust the width of the logo as needed
+  const logoHeight = 150; // Adjust the height of the logo as needed
+  const logoX = (pageWidth - logoWidth) / 2;
+
+  doc.addImage(logoData, "PNG", logoX, 10, logoWidth, logoHeight);
+  doc.setFontSize(12);
+
+  const groupedTransactions = {};
+  transactions.forEach(transaction => {
+    if (!groupedTransactions[transaction.type]) {
+      groupedTransactions[transaction.type] = [];
+    }
+    groupedTransactions[transaction.type].push(transaction);
+  });
+
+  let startY = 10;
+  for (const [type, typeTransactions] of Object.entries(groupedTransactions)) {
+    doc.addPage();
+    doc.setFontSize(12);
+    doc.text(type, 6, startY);
+    doc.setFontSize(4);
+
+    const body = typeTransactions.map(transaction => {
+      const paidOut = transaction.paid_out ? `${transaction.paid_out}` : '';
+      const paidIn = transaction.paid_in ? `${transaction.paid_in}` : '';
+      return [transaction.date, transaction.description, paidOut, paidIn];
+    });     
+
+    const headers = ['Date', 'Description', 'Paid Out', 'Paid In'];
+
+    const table = doc.autoTable({
+      head: [headers],
+      body: body,
+      startY: startY + 5,
+      theme: 'grid'
+    });
+  }
+
+  const fileName = `Statement of Transactions.pdf`;
+  const pdfPath = fileName;
+  doc.autoPrint();
+  doc.save(fileName);
+  console.log(`Statement of Transactions PDF generated`);
+  return pdfPath;
+}
+
+
+
+module.exports = { generatePDF, generateTransactionPDF };

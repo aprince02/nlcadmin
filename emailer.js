@@ -73,6 +73,30 @@ async function sendStatementByEmail(pdfPath) {
   }
 }
 
+async function sendTransactionsEmail(pdfPath) {
+  const transporter = nodemailer.createTransport(emailConfig);
+
+  const mailOptions = {
+    from: emailConfig.auth.user,
+    to: "info@nlcsunderland.uk",
+    subject: 'Statement of Transactions',
+    text: 'As requested, please find attached the statement of transactions.' + emailFooter,
+    attachments: [
+      {
+        filename: pdfPath,
+        path: `./${pdfPath}`,
+      },
+    ],
+  };
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    log("Transactions email sent: " + pdfPath + info.response);
+    fs.unlinkSync(pdfPath);
+  } catch (error) {
+    log("'Error sending email: " + error)
+  }
+}
+
 async function createAndEmailDBBackup() {
   const dbFilename = 'db.sqlite';
 
@@ -127,5 +151,6 @@ module.exports = {
   createAndEmail,
   sendStatementByEmail,
   createAndEmailDBBackup,
-  emailMemberForUpdate
+  emailMemberForUpdate,
+  sendTransactionsEmail
 };
