@@ -551,10 +551,23 @@ app.get('/logout', (req, res) => {
           return res.redirect("/claimants")
         }});
 
-        app.get("/generate-transaction-pdf/:year", async (req, res) => {
+        app.get("/generate-transaction-pdf", (req, res) => {
+          try {
+            const loggedInName = req.session.name;
+            res.render("generate-transaction-pdf", {loggedInName: loggedInName});
+          } catch (error) {
+            console.error('Error rendering generate transactions page:', error);
+            return res.redirect("/admin")
+          }});
+
+        app.post("/generate-transaction-pdf", async (req, res) => {
           try {
             const year = req.params.year;
-            const transactions = await dbHelper.getAllTransactionsForYear(year);
+            const startDate = req.body.start_date;
+            const endDate = req.body.end_date;
+            console.log(req.body.start_date)
+            console.log(req.body.end_date)
+            const transactions = await dbHelper.getAllTransactionsForPeriod(startDate, endDate);
             const pdfPath = await pdfGenerator.generateTransactionPDF(transactions);
             await sendTransactionsEmail(pdfPath);
             req.flash('success', 'Transactions PDF generated and sent successfully.');

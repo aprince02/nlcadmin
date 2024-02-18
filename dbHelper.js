@@ -119,6 +119,19 @@ async function getAllTransactionsForYear(year) {
   });
 }
 
+async function getAllTransactionsForPeriod(startDate, endDate) {
+  return new Promise((resolve, reject) => {
+    const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date ASC";
+    db.all(sql, [startDate, endDate], (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+}
+
 module.exports = {
   getAllTransactionTypes,
   insertTransactionType,
@@ -128,5 +141,6 @@ module.exports = {
   getMemberWithId,
   addNewMember,
   getDonationWithId,
-  getAllTransactionsForYear
+  getAllTransactionsForYear,
+  getAllTransactionsForPeriod
 };
