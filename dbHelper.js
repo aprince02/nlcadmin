@@ -131,6 +131,53 @@ async function getAllTransactionsForPeriod(startDate, endDate) {
     });
   });
 }
+async function getAllTransactionsWithOnly(startDate, endDate, exportOnly) {
+  if (exportOnly == 'allPaidIn'){
+    return new Promise((resolve, reject) => {
+      const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? AND CAST(paid_in AS REAL) > 0 ORDER BY date ASC";
+      db.all(sql, [startDate, endDate], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows);
+        }});
+    });
+  } else if (exportOnly == 'allPaidOut') {
+    return new Promise((resolve, reject) => {
+      const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? AND CAST(paid_out AS REAL) > 0 ORDER BY date ASC";
+      db.all(sql, [startDate, endDate], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows);
+        }});
+    });
+  } else if (exportOnly == 'allPaidOutOver£2000') {
+    return new Promise((resolve, reject) => {
+      const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? AND CAST(paid_out AS REAL) >= 2000 ORDER BY date ASC";
+      db.all(sql, [startDate, endDate], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows);
+        }});
+    });
+  } else if (exportOnly == 'support&charity') {
+    return new Promise((resolve, reject) => {
+      const typeName = 'Support & Charity'
+      const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? AND type = ? ORDER BY date ASC";
+      db.all(sql, [startDate, endDate, typeName], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows);
+        }});
+    });
+  } else {
+    console.log('something went wrong with retrieving transactions: Incorrect type may have been requested')
+  }
+  
+}
 
 module.exports = {
   getAllTransactionTypes,
@@ -142,5 +189,6 @@ module.exports = {
   addNewMember,
   getDonationWithId,
   getAllTransactionsForYear,
-  getAllTransactionsForPeriod
+  getAllTransactionsForPeriod,
+  getAllTransactionsWithOnly
 };

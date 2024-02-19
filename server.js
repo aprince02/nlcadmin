@@ -565,9 +565,13 @@ app.get('/logout', (req, res) => {
             const year = req.params.year;
             const startDate = req.body.start_date;
             const endDate = req.body.end_date;
-            console.log(req.body.start_date)
-            console.log(req.body.end_date)
-            const transactions = await dbHelper.getAllTransactionsForPeriod(startDate, endDate);
+            const exportType = req.body.export;
+            let transactions;
+            if (exportType == 'everything') {
+              transactions = await dbHelper.getAllTransactionsForPeriod(startDate, endDate);
+            } else {
+               transactions = await dbHelper.getAllTransactionsWithOnly(startDate, endDate, exportType);
+            }
             const pdfPath = await pdfGenerator.generateTransactionPDF(transactions);
             await sendTransactionsEmail(pdfPath);
             req.flash('success', 'Transactions PDF generated and sent successfully.');
