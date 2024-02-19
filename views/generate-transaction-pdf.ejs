@@ -6,7 +6,7 @@
   <div class="form-group row">
       <label class="col-form-label col-sm-2" for="export">Export</label>
       <div class="col-sm-5">
-        <select class="form-control" name="export" id="export" style="max-width: fit-content;">
+        <select required class="form-control" name="export" id="export" style="max-width: fit-content;">
           <option value="everything">Everything</option>
           <option value="allPaidIn">All Paid In</option>
           <option value="allPaidOut">All Paid Out</option>
@@ -18,13 +18,19 @@
   <div class="form-group row">
     <label class="col-form-label col-sm-2" for="start_date">Date Beginning</label>
     <div class="col-sm-5">
-      <input type="date" style="max-width: fit-content;" class="form-control" cols="20" name="start_date" maxlength="32000"/>
+      <input required type="date" style="max-width: fit-content;" class="form-control" cols="20" name="start_date" maxlength="32000"/>
     </div>
   </div>
   <div class="form-group row">
     <label class="col-form-label col-sm-2" for="end_date">Date Ending</label>
     <div class="col-sm-5">
-      <input type="date" style="max-width: fit-content;" class="form-control" cols="20" name="end_date" maxlength="32000" />
+      <input required type="date" style="max-width: fit-content;" class="form-control" cols="20" name="end_date" maxlength="32000" />
+    </div>
+  </div>
+  <div class="form-group row">
+    <label class="col-form-label col-sm-2" for="email">Email</label>
+    <div class="col-sm-5">
+      <input required type="email" style="max-width: fit-content;" class="form-control" name="email" />
     </div>
   </div>
     <div class="col-sm-10">

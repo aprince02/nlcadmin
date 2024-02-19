@@ -73,12 +73,12 @@ async function sendStatementByEmail(pdfPath) {
   }
 }
 
-async function sendTransactionsEmail(pdfPath) {
+async function sendTransactionsEmail(pdfPath, receiverEmail) {
   const transporter = nodemailer.createTransport(emailConfig);
 
   const mailOptions = {
     from: emailConfig.auth.user,
-    to: "info@nlcsunderland.uk",
+    to: receiverEmail,
     subject: 'Statement of Transactions',
     text: 'As requested, please find attached the statement of transactions.' + emailFooter,
     attachments: [

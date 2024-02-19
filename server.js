@@ -562,10 +562,10 @@ app.get('/logout', (req, res) => {
 
         app.post("/generate-transaction-pdf", async (req, res) => {
           try {
-            const year = req.params.year;
             const startDate = req.body.start_date;
             const endDate = req.body.end_date;
             const exportType = req.body.export;
+            const email = req.body.email;
             let transactions;
             if (exportType == 'everything') {
               transactions = await dbHelper.getAllTransactionsForPeriod(startDate, endDate);
@@ -573,7 +573,7 @@ app.get('/logout', (req, res) => {
                transactions = await dbHelper.getAllTransactionsWithOnly(startDate, endDate, exportType);
             }
             const pdfPath = await pdfGenerator.generateTransactionPDF(transactions);
-            await sendTransactionsEmail(pdfPath);
+            await sendTransactionsEmail(pdfPath, email);
             req.flash('success', 'Transactions PDF generated and sent successfully.');
             return res.redirect('/admin');
           } catch (error) {
