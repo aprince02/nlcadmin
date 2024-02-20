@@ -335,7 +335,7 @@ app.post("/login", (req, res) =>  {
     });
 });
 
-app.get('/export-transactions', checkUserRole, async function(req, res) {
+app.get('/export-transactions', requireLogin, checkUserRole, async function(req, res) {
   db.all(`SELECT * FROM transactions`, function(err, rows) {
     if (err) {
       req.flash('error', 'Error retrieving data to export transactions.');
@@ -361,7 +361,7 @@ app.get('/export-transactions', checkUserRole, async function(req, res) {
     console.error("Error sending transactions email" + error)
   }});
 
-app.get('/export-donations', checkUserRole, async function(req, res) {
+app.get('/export-donations', requireLogin, checkUserRole, async function(req, res) {
     try {
       await exportDonationsCsv(req, res);
       req.flash('success', 'Donations export sent via email successfully.');
@@ -371,7 +371,7 @@ app.get('/export-donations', checkUserRole, async function(req, res) {
       console.error("Error sending donations email" + error)
     }});
 
-  app.get('/db-backup', async (req, res) => {
+  app.get('/db-backup', requireLogin, checkUserRole, async (req, res) => {
     try {
       await createAndEmailDBBackup();
       console.log('Database backup sent via email!');
@@ -392,7 +392,7 @@ schedule.scheduleJob(scheduledTime, async () => {
     console.error("Error sending database backup: " + error.message);
   }});
 
-app.get("/export-totals", checkUserRole, async function(req, res) {
+app.get("/export-totals", requireLogin, checkUserRole, async function(req, res) {
     const sql = "SELECT * FROM transactions WHERE date >= '2022-01-01'  ORDER BY type";
     db.all(sql, async function(err, rows) {
         if (err) {
@@ -453,7 +453,7 @@ app.get("/export-totals", checkUserRole, async function(req, res) {
         }});
 });
 
-  app.get('/export-giftaid-claims', checkUserRole, async function(req, res) {
+  app.get('/export-giftaid-claims', requireLogin, checkUserRole, async function(req, res) {
     db.all(`SELECT members.first_name, members.surname, donations.amount, donations.date, 
       members.title, members.house_number, members.postcode
       FROM donations 
@@ -502,7 +502,7 @@ app.get('/logout', (req, res) => {
         res.redirect('/');
       });
 
-      app.get("/generate-donor-pdf/:id", async (req, res) => {
+      app.get("/generate-donor-pdf/:id", requireLogin, checkUserRole, async (req, res) => {
         try {
           const id = req.params.id;
           const donor = await dbHelper.getMemberWithId(id);
@@ -551,7 +551,7 @@ app.get('/logout', (req, res) => {
           return res.redirect("/claimants")
         }});
 
-        app.get("/generate-transaction-pdf", (req, res) => {
+        app.get("/generate-transaction-pdf", requireLogin, checkUserRole, (req, res) => {
           try {
             const loggedInName = req.session.name;
             res.render("generate-transaction-pdf", {loggedInName: loggedInName});
@@ -560,7 +560,7 @@ app.get('/logout', (req, res) => {
             return res.redirect("/admin")
           }});
 
-        app.post("/generate-transaction-pdf", async (req, res) => {
+        app.post("/generate-transaction-pdf", requireLogin, checkUserRole, async (req, res) => {
           try {
             const startDate = req.body.start_date;
             const endDate = req.body.end_date;
@@ -615,7 +615,7 @@ app.post("/membership", async (req, res) => {
     res.redirect("/membership");
   }});
 
-  app.get("/addnewtransactiontype", async (req, res) => {
+  app.get("/addnewtransactiontype", requireLogin, checkUserRole, async (req, res) => {
     try {
       const loggedInName = req.session.name;
       const types = await dbHelper.getAllTransactionTypes();
@@ -625,7 +625,7 @@ app.post("/membership", async (req, res) => {
       return res.redirect("/admin")
     }});
 
-app.post("/addnewtransactiontype", async (req, res) => {
+app.post("/addnewtransactiontype", requireLogin, checkUserRole, async (req, res) => {
   const userInput = req.body.new_transaction_type;
   const loggedInName = req.session.name;
   try {
@@ -646,7 +646,7 @@ app.post("/addnewtransactiontype", async (req, res) => {
     return res.redirect("/admin")
   }});
 
-app.get("/addnewdonationtype", async (req, res) => {
+app.get("/addnewdonationtype", requireLogin, checkUserRole, async (req, res) => {
   try {
     const loggedInName = req.session.name;
     const types = await dbHelper.getAllDonationTypes();
@@ -656,7 +656,7 @@ app.get("/addnewdonationtype", async (req, res) => {
     return res.redirect("/admin")
   }}); 
 
-app.post("/addnewdonationtype", async (req, res) => {
+app.post("/addnewdonationtype", requireLogin, checkUserRole, async (req, res) => {
 const userInput = req.body.new_donation_type;
 const loggedInName = req.session.name;
 try {
@@ -677,7 +677,7 @@ try {
   return res.redirect("/admin")
 }});
 
-  app.get("/send-update-request/:id", async (req, res) => {
+  app.get("/send-update-request/:id", requireLogin, checkUserRole, async (req, res) => {
     try {
       const id = req.params.id;
       const row = await dbHelper.getMemberWithId(id);

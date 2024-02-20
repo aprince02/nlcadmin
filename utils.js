@@ -90,8 +90,10 @@ function readCSVAndProcess(csvFilePath, req, res, next) {
 function checkUserRole(req, res, next) {
     if (req.session.role === 'admin') {
         next();
+    } else if (req.session.role === 'super admin') {
+      next();
     } else {
-        req.flash('error', 'Only Admins are allowed to delete claimants.');
+        req.flash('error', 'Only Admins are allowed to use this functionality.');
         res.redirect('/claimants');
     }};
 
