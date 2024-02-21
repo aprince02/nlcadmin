@@ -13,7 +13,7 @@ const emailConfig = {
   },
 };
 
-const receiver = 'info@nlcsunderland.uk';
+const receiver = 'albinm65@gmail.com';
 const emailFooter = "\n\n\n\nThank you for using our services!\nProBooks Accounting\n\nIf you have any doubts using our services, please reply to this email\n\n\n\n Probooks Accounting © - Alpha Media Productions Ltd."
 
 async function createAndEmail(fileType, subject, message) {
@@ -41,7 +41,7 @@ async function createAndEmail(fileType, subject, message) {
     const info = await transporter.sendMail(mailOptions);
     console.log('Email sent successfully!', info.response);
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Error sending email: ', error);
   }
 
   fs.unlinkSync(backupFilename);

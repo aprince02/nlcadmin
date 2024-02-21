@@ -16,6 +16,7 @@ const schedule = require('node-schedule');
 const { requireLogin, checkUserRole, readCSVAndProcess, exportDonationsCsv } = require('./utils');
 const transactionTypes = require('./transactionTypes');
 const dbHelper = require('./dbHelper')
+const csvGenerator = require('./csvGenerator')
 const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail } = require('./emailer');
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -362,14 +363,20 @@ app.get('/export-transactions', requireLogin, checkUserRole, async function(req,
   }});
 
 app.get('/export-donations', requireLogin, checkUserRole, async function(req, res) {
+  try {
+    await csvGenerator.exportDonationsCsv(req, res);
     try {
-      await exportDonationsCsv(req, res);
+      await createAndEmail('donations', 'ProBooks Accounting - Donations Export CSV File', 'donations export csv file');
       req.flash('success', 'Donations export sent via email successfully.');
-      console.log('Donations CSV sent via email!');
     } catch (error) {
-      req.flash('error', 'Unable to send donations export via email.');
-      console.error("Error sending donations email" + error)
-    }});
+        req.flash('error', 'Unable to send donations export via email.');
+    }
+  } catch (error) {
+      req.flash('error', 'Unable to export donations csv.');
+  };
+  return res.redirect("/admin");
+});
+
 
   app.get('/db-backup', requireLogin, checkUserRole, async (req, res) => {
     try {
@@ -422,78 +429,45 @@ app.get("/export-totals", requireLogin, checkUserRole, async function(req, res) 
                 totalPaidInByType[type] = parseFloat(totalPaidIn.toFixed(2));
                 totalPaidOutByType[type] = parseFloat(totalPaidOut.toFixed(2));
             });
-            const csvFilePath = "total_paid_in_out.csv";
-            const csvWriterOptions = {
-                path: csvFilePath,
-                header: [
-                    { id: "type", title: "Type" },
-                    { id: "paid_in", title: "Paid In" },
-                    { id: "paid_out", title: "Paid Out" }
-                ]
-            };
-            const dataToWrite = types.map(type => ({
-                type: type,
-                paid_in: totalPaidInByType[type],
-                paid_out: totalPaidOutByType[type]
-            }));
-            const writer = csvWriter(csvWriterOptions);
-            await writer.writeRecords(dataToWrite);
-            console.log("CSV file has been written successfully.");
+            await csvGenerator.writeTotalPaidInOutCsv(types, totalPaidInByType, totalPaidOutByType);
             try {
                 await createAndEmail('total_paid_in_out', 'ProBooks Accounting - Totals Export CSV File', 'totals export csv file');
                 console.log('Totals sent via email!');
+                req.flash('success', 'Totals export sent via email successfully.');
             } catch (error) {
                 console.error("Error sending totals email" + error);
+                req.flash('error', 'Error sending totals email.');
             }
             res.redirect('/admin');
         } catch (error) {
             req.flash('error', 'Error getting transaction types.');
             console.error("Error getting transaction types:", error);
             return res.redirect('/admin');
-        }});
+        }
+    });
 });
 
-  app.get('/export-giftaid-claims', requireLogin, checkUserRole, async function(req, res) {
-    db.all(`SELECT members.first_name, members.surname, donations.amount, donations.date, 
-      members.title, members.house_number, members.postcode
-      FROM donations 
-      INNER JOIN members ON donations.member_id = members.id 
-      WHERE donations.gift_aid_status = 'Unclaimed'`, function(err, rows) {
+app.get('/export-giftaid-claims', requireLogin, checkUserRole, async function(req, res) {
+  try {
+    await csvGenerator.exportGiftAidClaimCsv(req, res);
+    await createAndEmail('giftaid_claim', 'Gift Aid Claim Export', 'gift aid claim export csv file');
+    console.log('Gift Aid Claim sent via email!');
+    db.run(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed'`, function(err) {
       if (err) {
-        req.flash('error', 'Error generating CSV file for gift aid claim.');
-        return res.redirect('/admin');
+        console.error("Error updating gift_aid_status:", err.message);
+        req.flash('error', 'Error updating gift aid status in the database.');
+      } else {
+        console.log("Gift aid status updated successfully.");
+        req.flash('success', 'Gift aid claims exported and updated successfully.');
       }
-      const csvWrite = csvWriter({
-        path: 'giftaid_claim.csv',
-        header: [
-            { id: 'title', title: 'Title' },  
-            { id: 'first_name', title: 'First Name' },
-            { id: 'surname', title: 'Surname' },
-            { id: 'house_number', title: 'House Number' },
-            { id: 'postcode', title: 'Postcode' },
-            { id: 'date', title: 'Date' },
-            { id: 'amount', title: 'Amount' }
-        ]});
-      csvWrite.writeRecords(rows)
-        .then(() => {
-          res.download('giftaid_claim.csv');
-        })
-        .catch(() => {
-          req.flash('error', 'Error generating CSV file for gift aid claim.');
-        });
+      res.redirect("/admin");
     });
-    try {
-      await createAndEmail('giftaid_claim', 'Gift Aid Claim Export', 'gift aid claim export csv file');
-      console.log('Gift Aid Claim sent via email!');
-      db.run(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed'`, function(err) {
-        if (err) {
-          console.error("Error updating gift_aid_status:", err.message);
-        } else {
-          console.log("Gift aid status updated successfully.");
-        }});
-    } catch (error) {
-      console.log("Error sending gift aid claim email")
-    }});
+  } catch (error) {
+    console.error("Error exporting gift aid claims:", error);
+    req.flash('error', 'Error exporting gift aid claims.');
+    res.redirect("/admin");
+  }
+});
 
 app.get('/logout', (req, res) => {
     const loggedInName = req.session.name;
