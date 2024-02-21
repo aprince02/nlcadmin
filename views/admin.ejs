@@ -1,11 +1,11 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 <%- include("_loggedInHeader") -%>
 
-<div class="container text-center"> <!-- Add 'text-center' class to center the content -->
-  <h1 class="display-2">Administration</h1>
+<div class="container text-center">
+  <h1 class="display-2">Admin Console</h1>
   <br>
 
-  <!-- Group 1: Add New Transactions -->
+  <!-- Group 1: Add -->
   <div class="button-group">
     <a class="btn btn-lg btn-secondary" href="/addnewtransactiontype">
       <i class="fas fa-plus"></i> Add New Transaction Type
@@ -16,7 +16,7 @@
   </div>
   <br>
 
-  <!-- Group 2: Export Transactions -->
+  <!-- Group 2: Export -->
   <div class="button-group">
     <a class="btn btn-lg btn-secondary" href="/generate-transaction-pdf">
       <i class="fas fa-file-export"></i> Export Transactions
