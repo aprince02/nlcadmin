@@ -610,7 +610,7 @@ app.post("/membership", async (req, res) => {
     console.log("Added new member with first name: " + req.body.first_name + " and last name: " + req.body.surname)
     res.redirect("/membership");
   } catch (error) {
-    console.error('Error submitting membership form. ' + err.message)
+    console.error('Error submitting membership form. ' + error.message)
     req.flash('error', 'Error submitting membership form, please try again!');
     res.redirect("/membership");
   }});
@@ -654,7 +654,7 @@ app.get("/addnewdonationtype", requireLogin, checkUserRole, async (req, res) => 
   } catch (error) {
     console.error('Error rendering addnewdonationtype page:', error);
     return res.redirect("/admin")
-  }}); 
+  }});
 
 app.post("/addnewdonationtype", requireLogin, checkUserRole, async (req, res) => {
 const userInput = req.body.new_donation_type;
@@ -699,6 +699,41 @@ try {
       console.error(error.message);
       return res.redirect("/claimants")
     }});
+
+app.get("/update-users", requireLogin, checkUserRole, async (req, res) => {
+  try {
+    const loggedInName = req.session.name;
+    const users = await dbHelper.getAllUsers();
+    res.render("update-users", { loggedInName, users });
+  } catch (error) {
+    console.error('Error rendering update-users page:', error);
+    return res.redirect("/admin")
+  }});
+
+app.post("/update-users", async (req, res) => {
+  try {
+    const user = await dbHelper.getUserById(req.body.id);
+    if (user.role === 'admin' && req.body.role === 'super admin') {
+      req.flash('error', 'Admins cannot change their role to Super Admin');
+      return res.redirect("/update-users");
+    }
+    if (user.role === 'user' && req.body.role === 'super admin') {
+      req.flash('error', 'User cannot change their role to Super Admin');
+      return res.redirect("/update-users");
+    }
+    if (user.role === 'super admin' && (req.body.role === 'admin' || req.body.role === 'user')) {
+      req.flash('error', 'Super Admin role cannot be changed. Please contact the development team if this change is necessary.');
+      return res.redirect("/update-users");
+    }  
+    await dbHelper.updateUser(req);
+    req.flash('success', 'User has been updated successfully');
+    console.log("Updated user with first name: " + req.body.name + " and email: " + req.body.email + " and role: " + req.body.role)
+    res.redirect("/admin");
+  } catch (error) {
+    console.error('Error updating user. ' + error.message)
+    req.flash('error', 'Error updating user, please try again!');
+    res.redirect("/update-users");
+  }});
 
 // Default response for any other request
 app.use(function(req, res){
