@@ -175,8 +175,43 @@ async function getAllTransactionsWithOnly(startDate, endDate, exportOnly) {
     });
   } else {
     console.log('something went wrong with retrieving transactions: Incorrect type may have been requested')
-  }
-  
+  }};
+
+async function getAllUsers() {
+  return new Promise((resolve, reject) => {
+    const sql = "SELECT * FROM user";
+    db.all(sql,(err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }});
+  });
+}
+
+async function getUserById(id) {
+  return new Promise((resolve, reject) => {
+    const sql = "SELECT * FROM user WHERE (id = ?)";
+    db.get(sql, [id], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row);
+      }});
+  });
+}
+
+async function updateUser(req) {
+return new Promise((resolve, reject) => {
+  const user = [req.body.name, req.body.email, req.body.role, req.body.id];
+  const sql = 'UPDATE user set name = ?, email = ?, role = ? WHERE (id = ?)';
+  db.run(sql, user, function (err) {
+    if (err) {
+      reject(err);
+    } else {
+      resolve(this.lastID);
+    }});
+  });
 }
 
 module.exports = {
@@ -190,5 +225,8 @@ module.exports = {
   getDonationWithId,
   getAllTransactionsForYear,
   getAllTransactionsForPeriod,
-  getAllTransactionsWithOnly
+  getAllTransactionsWithOnly,
+  getAllUsers,
+  getUserById,
+  updateUser
 };
