@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "bcrypt": "^5.1.0",
+    "bcrypt": "^5.1.1",
     "body-parser": "^1.20.2",
     "connect-flash": "^0.1.1",
     "csv-parser": "^3.0.0",
@@ -27,6 +27,6 @@
     "node-schedule": "^2.1.1",
     "nodemailer": "^6.9.4",
     "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.4"
+    "sqlite3": "^5.1.7"
   }
 }
