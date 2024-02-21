@@ -301,6 +301,10 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
         }}); 
     });
 
+app.get("/release-notes", (req, res) =>  {
+  res.render("release-notes");
+});
+    
 app.get("/login", (req, res) =>  {
     res.render("login");
 });
