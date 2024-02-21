@@ -13,7 +13,7 @@ const emailConfig = {
   },
 };
 
-const receiver = 'albinm65@gmail.com';
+const receiver = 'info@nlcsunderland.uk';
 const emailFooter = "\n\n\n\nThank you for using our services!\nProBooks Accounting\n\nIf you have any doubts using our services, please reply to this email\n\n\n\n Probooks Accounting © - Alpha Media Productions Ltd."
 
 async function createAndEmail(fileType, subject, message) {
@@ -53,7 +53,7 @@ async function sendStatementByEmail(pdfPath) {
 
   const mailOptions = {
     from: emailConfig.auth.user,
-    to: "albinm65@gmail.com",
+    to: receiver,
     subject: 'Statement of Donations',
     text: 'Find attached the statement of donations.' + emailFooter,
     attachments: [
