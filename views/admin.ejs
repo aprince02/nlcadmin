@@ -1,24 +1,56 @@
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 <%- include("_loggedInHeader") -%>
 
-<h1 class="display-2 text-center">Administration</h1>
-    <br>
-    <a class="btn btn-lg btn-secondary cancel" href="/addnewtransactiontype" style="text-align: center; display:flex; justify-content: center; align-items: center; height: 100px; width: 300px; font-size: 1.5em; margin-left: auto; margin-right: auto;">ADD NEW TRANSACTION TYPE</a>
-    <br>
-    <a class="btn btn-lg btn-secondary cancel" href="/addnewdonationtype" style="text-align: center; display:flex; justify-content: center; align-items: center; height: 100px; width: 300px; font-size: 1.5em; margin-left: auto; margin-right: auto;">ADD NEW DONATION TYPE</a>
-    <br>
-    <a class="btn btn-lg btn-secondary cancel" href="/generate-transaction-pdf" style="text-align: center; display:flex; justify-content: center; align-items: center; height: 100px; width: 300px; font-size: 1.5em; margin-left: auto; margin-right: auto;">EXPORT TRANSACTIONS</a>
-    <br>
-    <a class="btn btn-lg btn-secondary cancel" href="/export-donations" style="text-align: center; display:flex; justify-content: center; align-items: center; height: 100px; width: 300px; font-size: 1.5em; margin-left: auto; margin-right: auto;">EXPORT DONATIONS</a>
-    <br>
-    <a class="btn btn-lg btn-secondary cancel" href="/update-users" style="text-align: center; display:flex; justify-content: center; align-items: center; height: 100px; width: 300px; font-size: 1.5em; margin-left: auto; margin-right: auto;">UPDATE USERS</a>
-    <br>
-    <a class="btn btn-lg btn-secondary cancel" href="/export-giftaid-claims" style="text-align: center; display:flex; justify-content: center; align-items: center; height: 100px; width: 300px; font-size: 1.5em; margin-left: auto; margin-right: auto;">CLAIM GIFTAID</a>
-    <br>
-    <a class="btn btn-lg btn-secondary cancel" href="/import-transactions" style="text-align: center; display:flex; justify-content: center; align-items: center; height: 100px; width: 300px; font-size: 1.5em; margin-left: auto; margin-right: auto;">IMPORT TRANSACTIONS</a>
-    <br>
-    <a class="btn btn-lg btn-secondary cancel" href="/export-totals" style="text-align: center; display:flex; justify-content: center; align-items: center; height: 100px; width: 300px; font-size: 1.5em; margin-left: auto; margin-right: auto;">EXPORT TOTALS</a>
-    <br>
-    <a class="btn btn-lg btn-secondary cancel" href="/db-backup" style="text-align: center; display:flex; justify-content: center; align-items: center; height: 100px; width: 300px; font-size: 1.5em; margin-left: auto; margin-right: auto;">BACKUP DATABASE</a>
-    <br>
+<div class="container text-center">
+  <h1 class="display-2">Admin Console</h1>
+  <br>
 
-    <%- include("_loggedInFooter") -%>
+  <!-- Group 1: Add -->
+  <div class="button-group">
+    <a class="btn btn-lg btn-secondary" href="/addnewtransactiontype">
+      <i class="fas fa-plus"></i> Add New Transaction Type
+    </a>
+    <a class="btn btn-lg btn-secondary" href="/addnewdonationtype">
+      <i class="fas fa-plus"></i> Add New Donation Type
+    </a>
+  </div>
+  <br>
+
+  <!-- Group 2: Export -->
+  <div class="button-group">
+    <a class="btn btn-lg btn-secondary" href="/generate-transaction-pdf">
+      <i class="fas fa-file-export"></i> Export Transactions
+    </a>
+    <a class="btn btn-lg btn-secondary" href="/export-donations">
+      <i class="fas fa-file-export"></i> Export Donations
+    </a>
+    <a class="btn btn-lg btn-secondary" href="/export-giftaid-claims">
+      <i class="fas fa-file-export"></i> Claim Gift Aid
+    </a>
+    <a class="btn btn-lg btn-secondary" href="/export-totals">
+        <i class="fas fa-file-export"></i> Export Totals
+    </a>
+  </div>
+  <br>
+
+  <!-- Group 3: Import Transactions -->
+  <div class="button-group">
+    <a class="btn btn-lg btn-secondary" href="/import-transactions">
+      <i class="fas fa-file-import"></i> Import Transactions
+    </a>
+  </div>
+  <br>
+
+  <!-- Group 4: Other Actions -->
+  <div class="button-group">
+    <a class="btn btn-lg btn-secondary" href="/update-users">
+      <i class="fas fa-users-cog"></i> Update Users
+    </a>
+    <a class="btn btn-lg btn-secondary" href="/db-backup">
+      <i class="fas fa-database"></i> Backup Database
+    </a>
+  </div>
+  <br>
+</div>
+
+<%- include("_loggedInFooter") -%>

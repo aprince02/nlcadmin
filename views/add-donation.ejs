@@ -1,6 +1,6 @@
 <%- include("_loggedInHeader") -%>
 
-<h1>Add New Donation</h1><br>
+<h1 class="display-5">Add New Donation</h1><br>
 <h4><u>Last Saved Transaction Details</u> </h4><h6> Date: <%= donationDate %><br> Description: <%= donationDescription %><br> Amount: <%= donationAmount %></h6>
 
 <form action="/add-donation/<%= row.id %>" method="post">

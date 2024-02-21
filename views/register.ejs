@@ -1,6 +1,6 @@
 <%- include("_header") -%>
 
-<h1>Register as a new user:</h1>
+<h1 class="display-5">Register as a new user:</h1>
 
 <form action="/register" method="post">
     <div class="form-group row">
@@ -10,12 +10,10 @@
         </div>
     </div>
     <%- include("_loginEditor") -%>
-    
+    <div id="passwordHelpBlock" class="form-text">
+      Your password must be at least 8 characters long.
+    </div>
+    <br> 
     <input type="submit" value="Register" class="btn btn-default btn-primary" />
   </form>
-
-  
-
-
-
 <%- include("_footer") -%>
