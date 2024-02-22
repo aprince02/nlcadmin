@@ -19,6 +19,7 @@ const dbHelper = require('./dbHelper')
 const csvGenerator = require('./csvGenerator')
 const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
+const geoipLite = require('geoip-lite');
 app.use(fingerprint());
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -334,7 +335,8 @@ app.post("/login", (req, res) =>  {
                 }else {
                     console.log("User " + req.session.name + " logged in");
                     const fingerprintData = req.fingerprint;
-                    console.log(`Logged in user device fingerprint: ${JSON.stringify(fingerprintData)}`);
+                    const geo = geoipLite.lookup(req.ip);
+                    console.log(`Logged in user device fingerprint: ${JSON.stringify(fingerprintData)}` + ' geoIP: ' + geo );
                 }});
             res.redirect('claimants');
         } else {
