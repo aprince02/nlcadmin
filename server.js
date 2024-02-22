@@ -18,6 +18,8 @@ const transactionTypes = require('./transactionTypes');
 const dbHelper = require('./dbHelper')
 const csvGenerator = require('./csvGenerator')
 const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail } = require('./emailer');
+const fingerprint = require('express-fingerprint');
+app.use(fingerprint());
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
 app.use(express.static("public"));
@@ -326,12 +328,13 @@ app.post("/login", (req, res) =>  {
             req.session.email = email;
             req.session.name = row.name;
             req.session.role = row.role;
-            console.log(req.ip)
             db.get("SELECT * FROM last_update ORDER BY id DESC LIMIT 1", (err, row) => {
                 if (err) {
                     throw err;
                 }else {
                     console.log("User " + req.session.name + " logged in");
+                    const fingerprintData = req.fingerprint;
+                    console.log(`Logged in user device fingerprint: ${JSON.stringify(fingerprintData)}`);
                 }});
             res.redirect('claimants');
         } else {
