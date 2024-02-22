@@ -326,6 +326,7 @@ app.post("/login", (req, res) =>  {
             req.session.email = email;
             req.session.name = row.name;
             req.session.role = row.role;
+            console.log(req.ip)
             db.get("SELECT * FROM last_update ORDER BY id DESC LIMIT 1", (err, row) => {
                 if (err) {
                     throw err;
