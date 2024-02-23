@@ -14,7 +14,6 @@ const path = require('path');
 const multer = require('multer');
 const schedule = require('node-schedule');
 const { requireLogin, checkUserRole, readCSVAndProcess, log, checkSuperAdmin } = require('./utils');
-const transactionTypes = require('./transactionTypes');
 const dbHelper = require('./dbHelper')
 const csvGenerator = require('./csvGenerator')
 const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail } = require('./emailer');
@@ -502,7 +501,7 @@ app.get("/export-totals", requireLogin, checkUserRole, async function(req, res) 
         const totalPaidInByType = {};
         const totalPaidOutByType = {};
         try {
-            const types = await transactionTypes.getAllTransactionTypes();
+            const types = await dbHelper.getAllTransactionTypes();
             types.forEach(type => {
                 const typeTransactions = rows.filter(row => row.type === type);
                 const totalPaidIn = typeTransactions.reduce((total, transaction) => {
@@ -719,7 +718,7 @@ app.post("/addnewtransactiontype", requireLogin, checkUserRole, async (req, res)
   const userInput = req.body.new_transaction_type;
   const loggedInName = req.session.name;
   try {
-    const types = await transactionTypes.getAllTransactionTypes();
+    const types = await dbHelper.getAllTransactionTypes();
     if (types.includes(userInput)) {
       console.error(`${userInput} already exists.`);
       log(loggedInName + `: ${userInput} already exists in transaction types`)
