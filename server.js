@@ -53,37 +53,67 @@ app.listen(8000, () => {
     res.render("admin", {loggedInName: loggedInName});
   });
 
-app.get("/claimants", requireLogin, async (req, res) => {
-    try {
-      const loggedInName = req.session.name;
-      const rows = await dbHelper.getAllMembers();
-      res.render("claimants", {model: rows, loggedInName: loggedInName});
-    } catch (error) {
-      console.error('Error rendering claimants page:', error);
-      log(loggedInName + ': Error rendering claimants page: ' + error)
-      return res.redirect("/")
-    }});
+  const membersPerPage = 15;
 
-app.get("/yearly-transactions/:year", requireLogin, (req, res) => {
+  app.get("/claimants/:page", requireLogin, async (req, res) => {
+    const loggedInName = req.session.name;
+      try {
+          const currentPage = parseInt(req.params.page) || 1;
+          const startIndex = (currentPage - 1) * membersPerPage;
+          const rows = await dbHelper.getMembersPaginated(startIndex, membersPerPage);
+          const totalCount = await dbHelper.getMembersCount();
+          const totalPages = Math.ceil(totalCount / membersPerPage);
+          res.render("claimants", { model: rows, loggedInName: loggedInName, currentPage: currentPage, totalPages: totalPages });
+      } catch (error) {
+          console.error('Error rendering claimants page:', error);
+          log(loggedInName + ': Error rendering claimants page: ' + error);
+          return res.redirect("/");
+      }
+  });
+
+app.get("/yearly-transactions/:year/:page", requireLogin, (req, res) => {
   const year = req.params.year;
-  const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date DESC";
+  const rowsPerPage = 100;
+  let currentPage = parseInt(req.params.page) || 1;
+  if (currentPage < 1) {
+    currentPage = 1;
+  }
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const sqlData = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date DESC LIMIT ? OFFSET ?";
+  const sqlCount = "SELECT COUNT(*) AS totalRows FROM transactions WHERE date >= ? AND date <= ?";
   const startDate = `${year}-01-01`;
   const endDate = `${year}-12-31`;
   const typesSql = "SELECT type FROM transaction_types";
   const loggedInName = req.session.name;
-  db.all(sql, [startDate, endDate], (err, rows) => {
-      if (err) {
-          console.log(err.message);
+  
+  db.all(sqlData, [startDate, endDate, rowsPerPage, startIndex], (err, rows) => {
+    if (err) {
+      console.log(err.message);
+      log(loggedInName + ': ' + err.message)
+    } else {
+      db.all(typesSql, (err, types) => {
+        if (err) {
+          console.error(err.message);
           log(loggedInName + ': ' + err.message)
-      } else {
-        db.all(typesSql, (err, types) => {
-          if (err) {
+        } else {
+          db.get(sqlCount, [startDate, endDate], (err, countRow) => {
+            if (err) {
               console.error(err.message);
               log(loggedInName + ': ' + err.message)
-          } else {
-              res.render("yearly-transactions", { row: rows, types: types, loggedInName: loggedInName });
-          }});
-      }});
+            } else {
+              const totalRows = countRow.totalRows;
+              const totalPages = Math.ceil(totalRows / rowsPerPage);
+              res.render("yearly-transactions", { 
+                row: rows, 
+                types: types,
+                loggedInName: loggedInName, 
+                currentPage: currentPage, 
+                totalPages: totalPages,
+                year: year
+              });
+            }});
+        }});
+    }});
 });
 
 app.get("/edit/:id", async (req, res) => {
@@ -95,7 +125,7 @@ app.get("/edit/:id", async (req, res) => {
     } catch (error) {
       console.error('Error rendering edit member page:', error);
       log(loggedInName + ': Error rendering edit member page:' + error)
-      return res.redirect("/claimants")
+      return res.redirect("/claimants/:page")
     }});
 
 app.post("/edit/:id", (req, res) => {
@@ -110,7 +140,7 @@ app.post("/edit/:id", (req, res) => {
             req.flash('success', 'Member details updated successfully.');
             console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
             log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
-            res.redirect("/claimants");
+            res.redirect("/claimants/:page");
         }});
     });
 
@@ -125,12 +155,12 @@ app.post("/create", requireLogin, async (req, res) => {
     req.flash('success', 'New member added successfully.');
     console.log("Added new member with first name: " + req.body.first_name + " and last name: " + req.body.surname)
     log("Added new member with first name: " + req.body.first_name + " and last name: " + req.body.surname)
-    res.redirect("/claimants");
+    res.redirect("/claimants/:page");
   } catch (error) {
     console.error('Error adding new member. ' + err.message)
     log('Error adding new member. ' + err.message)
     req.flash('error', 'Error adding new member, please try again!');
-    res.redirect("/claimants");
+    res.redirect("/claimants/:page");
   }});
 
 app.get("/delete/:id", requireLogin, checkUserRole, async (req, res) => {
@@ -141,7 +171,7 @@ app.get("/delete/:id", requireLogin, checkUserRole, async (req, res) => {
       res.render("delete", {member: row, loggedInName: loggedInName});
     } catch (error) {
       console.error('Error rendering delete member page:', error);
-      return res.redirect("/claimants")
+      return res.redirect("/claimants/:page")
     }});
 
 app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
@@ -155,21 +185,34 @@ app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
             req.flash('success', 'Member deleted successfully.');
             console.log("Deleted member with id: " + id)
             log(loggedInName + ": Deleted member with id: " + id)
-            res.redirect("/claimants");
+            res.redirect("/claimants/:page");
         }});
     });
 
-app.get("/all-donations", requireLogin, (req, res) => {
-    const loggedInName = req.session.name;
-    const donations_sql = "SELECT * FROM donations ORDER BY date DESC";
-    db.all(donations_sql, [], (err, row) => {
-        if (err) {
-          log(err.message)
-          return console.error(err.message);
-        } else {
-            res.render("all-donations", {model: row, loggedInName: loggedInName });
-        }});
-    });
+    app.get("/all-donations/:page", requireLogin, (req, res) => {
+      const donationsPerPage = 100;
+        const loggedInName = req.session.name;
+        const currentPage = parseInt(req.params.page) || 1;
+        const startIndex = (currentPage - 1) * donationsPerPage;
+        const donations_sql = "SELECT * FROM donations ORDER BY date DESC LIMIT ? OFFSET ?";
+        const count_sql = "SELECT COUNT(*) AS totalCount FROM donations";
+    
+        db.all(donations_sql, [donationsPerPage, startIndex], (err, rows) => {
+            if (err) {
+                log(loggedInName + ': ' +err.message);
+                return console.error(err.message);
+            } else {
+                db.get(count_sql, (err, countRow) => {
+                    if (err) {
+                      log(loggedInName + ': ' +err.message);
+                        return console.error(err.message);
+                    } else {
+                        const totalDonations = countRow.totalCount;
+                        const totalPages = Math.ceil(totalDonations / donationsPerPage);
+                        res.render("all-donations", { model: rows, loggedInName: loggedInName, currentPage: currentPage, totalPages: totalPages });
+                    }});
+            }});
+    }); 
 
 app.get("/select-giver", requireLogin, async (req, res) => {
   try {
@@ -179,7 +222,7 @@ app.get("/select-giver", requireLogin, async (req, res) => {
   } catch (error) {
     console.error('Error rendering select-giver page:', error);
     log(loggedInName + ': Error rendering select-giver page: ' + error )
-    return res.redirect("/claimants")
+    return res.redirect("/claimants/:page")
   }});
 
 app.get("/add-donation/:id", requireLogin, async (req, res) => {
@@ -195,7 +238,7 @@ app.get("/add-donation/:id", requireLogin, async (req, res) => {
   } catch (error) {
     console.error('Error rendering delete member page:', error);
     log(loggedInName + ': Error rendering delete member page: ' + error )
-    return res.redirect("/claimants")
+    return res.redirect("/claimants/:page")
   }});
 
 app.get("/edit-donation/:id", requireLogin, async (req, res) => {
@@ -208,7 +251,7 @@ app.get("/edit-donation/:id", requireLogin, async (req, res) => {
   } catch (error) {
     console.error('Error rendering edit donation page:', error);
     log(loggedInName + ': Error rendering edit donation page: ' + error)
-    return res.redirect("/claimants")
+    return res.redirect("/claimants/:page")
   }});
 
 app.post("/edit-donation/:id", requireLogin, (req, res) => {
@@ -225,7 +268,7 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
           req.flash('success', 'Donation edited successfully!')
             console.log("Edited donation with id: " + id)
             log(loggedInName + ': Edited donation with id: ' + id)
-            res.redirect("/all-donations");
+            res.redirect("/all-donations/:page");
         }}); 
     });
 
@@ -321,7 +364,7 @@ app.post("/save-transaction/:id", requireLogin, (req, res) => {
             req.flash('error', 'Error saving transaction, please try again!');
             console.error(err.message);
             log(loggedInName + ': Error saving transaction: ' + err.message)
-            return res.redirect("/yearly-transactions");
+            return res.redirect("/yearly-transactions/:year/:page");
         } else {
             req.flash('success', 'Transaction type saved successfully.');
             console.log("Transaction with id: " + id + " saved with type:" + type)
@@ -569,24 +612,24 @@ app.get('/logout', (req, res) => {
                 console.log("Statement of donations sent for: " + donor.first_name);
                 log(loggedInName + ": Statement of donations sent for: " + donor.first_name)
                 req.flash('sucess', 'Statement of donations sent');
-                return res.redirect('/claimants');
+                return res.redirect('/claimants/:page');
               } catch (err) {
                 console.error("Error generating or sending the statement of donations for donor: " + donor.first_name + err);
                 log(loggedInName + ": Error generating or sending the statement of donations for donor: " + donor.first_name + err)
                 req.flash('error', 'Error generating or sending the statement of donations for donor.');
-                return res.redirect('/claimants');
+                return res.redirect('/claimants/:page');
               }})
             .catch((err) => {
               console.error('Error fetching tithe and donation details for donor:', err);
               req.flash('error', 'Error fetching tithe and donation details for donor.');
               log(loggedInName + ': Error fetching tithe and donation details for donor - ', err)
-              return res.redirect('/claimants');
+              return res.redirect('/claimants/:page');
             });
         } catch (error) {
           console.error('Error fetching Donor details: ', error);
           req.flash('error', 'Error fetching Donor details.');
           log(loggedInName + ': Error fetching Donor details - ', error)
-          return res.redirect("/claimants")
+          return res.redirect("/claimants/:page")
         }});
 
         app.get("/generate-transaction-pdf", requireLogin, checkUserRole, (req, res) => {
@@ -685,7 +728,7 @@ app.post("/addnewtransactiontype", requireLogin, checkUserRole, async (req, res)
     } else {
       await dbHelper.insertTransactionType(userInput);
       console.log(`${userInput} added successfully by: ` + loggedInName);
-      log(loggedInName + `: ${userInput} added successfully`)
+      log(loggedInName + `: ${userInput} transaction type added successfully`)
       req.flash('success', 'New transaction type added successfully.');
       return res.redirect("/addnewtransactiontype")
     }
@@ -756,7 +799,7 @@ try {
     }} catch (error) {
       console.error(error.message);
       log(loggedInName + ": Error retreiving member with ID: " + id + " Error: " + error)
-      return res.redirect("/claimants")
+      return res.redirect("/claimants/:page")
     }});
 
 app.get("/update-users", requireLogin, checkUserRole, async (req, res) => {
@@ -798,19 +841,34 @@ app.post("/update-users", requireLogin, checkUserRole, async (req, res) => {
     res.redirect("/update-users");
   }});
 
-  app.get("/software-logs", requireLogin, checkSuperAdmin, async (req, res) => {
+  app.get("/software-logs/:page", requireLogin, checkSuperAdmin, async (req, res) => {
+    const rowsPerPage = 50;
+    let currentPage = parseInt(req.params.page) || 1;
+    if (currentPage < 1) {
+        currentPage = 1;
+    }
+    const startIndex = (currentPage - 1) * rowsPerPage;
     const loggedInName = req.session.name;
     try {
-      const logging = await dbHelper.getAllLogs();
-      res.render("software-logs", { loggedInName, logging });
+        const logging = await dbHelper.getLogsPaginated(startIndex, rowsPerPage);
+        const totalRows = await dbHelper.getLogsCount();
+        const totalPages = Math.ceil(totalRows / rowsPerPage);
+        res.render("software-logs", { 
+            loggedInName, 
+            logging,
+            currentPage,
+            totalPages
+        });
     } catch (error) {
-      console.error('Error rendering software-logs page:', error);
-      log(loggedInName + ': Error rendering software-logs page - ' + error.message)
-      return res.redirect("/admin")
-    }});
+        console.error('Error rendering software-logs page:', error);
+        log(loggedInName + ': Error rendering software-logs page - ' + error.message)
+        return res.redirect("/admin")
+    }
+});
+
 
 // Default response for any other request
 app.use(function(req, res){
     res.status(404);
-    res.redirect('/claimants')
+    res.redirect('/claimants/:page')
 });
