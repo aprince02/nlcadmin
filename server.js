@@ -675,13 +675,14 @@ app.get('/logout', (req, res) => {
   app.post("/import-transactions", requireLogin, checkUserRole, upload.single('csvfile'), (req, res) => {
     const loggedInName = req.session.name;
     if (!req.file) {
-      req.flash('No file uploaded, try again!');
+      req.flash('error', 'No file uploaded, try again!');
       log(loggedInName + ': No usable file uploaded')
+      console.log("No file")
       return res.redirect('/admin');
     } else {
       readCSVAndProcess(req.file.path, req, res);
-      req.flash('File uploaded and processed successfully');
-      log(loggedInName + ': File uploaded and processed successfully')
+      req.flash('success', 'Bank transactions file uploaded and processed successfully');
+      log(loggedInName + ': Uploaded bank csv file and processed successfully')
       return res.redirect('/admin');
     }});
 
