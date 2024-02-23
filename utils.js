@@ -97,6 +97,14 @@ function checkUserRole(req, res, next) {
         res.redirect('/claimants');
     }};
 
+function checkSuperAdmin(req, res, next) {
+  if (req.session.role === 'super admin') {
+      next();
+  } else {
+      req.flash('error', 'Only Super Admins are allowed to use this functionality.');
+      res.redirect('/admin');
+  }};
+
 async function exportDonationsCsv(req, res) {
     const tableName = 'donations';
     db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
@@ -136,6 +144,7 @@ module.exports = {
     convertDateFormat,
     requireLogin,
     checkUserRole,
-    exportDonationsCsv
+    exportDonationsCsv,
+    checkSuperAdmin
 }
 
