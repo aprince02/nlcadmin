@@ -324,12 +324,12 @@ app.get("/register", (req, res) =>  {
 });
 
 app.post("/register", (req, res) => {
-    const user_sql = "INSERT INTO user (name, email, password, role) VALUES (?, ?, ?, ?)";
+    const user_sql = "INSERT INTO user (name, email, password, role, security_question) VALUES (?, ?, ?, ?, ?)";
     var password = req.body.password;
     bcrypt.genSalt(saltRounds, function(err, salt) {
         bcrypt.hash(password, salt, function(err, hash) {
             const role = "user";
-            const user = [req.body.username, req.body.email, hash, role];
+            const user = [req.body.username, req.body.email, hash, role, req.body.security_question];
             db.run(user_sql, user, err => {
                 if (err) {
                     req.flash('error', 'Error registering new account, try again.');
@@ -412,6 +412,57 @@ app.post("/login", (req, res) =>  {
         }});     
     });
 });
+
+app.get("/forgot-password", (req, res) =>  {
+  res.render("forgot-password");
+});
+
+app.post("/forgot-password", (req, res) => {
+  const security_question = req.body.security_question.toLowerCase();
+  const new_password = req.body.new_password;
+  const email = req.body.email;
+  const selectUserSQL = "SELECT * FROM user WHERE email = ?";
+  db.get(selectUserSQL, [email], (err, user) => {
+      if (err) {
+          console.error('Error fetching user:', err);
+          log('Error fetching user:' + err)
+          req.flash('error', 'Error resetting password, try again.');
+          return res.redirect("/forgot-password");
+      }
+      if (!user) {
+          req.flash('error', 'User with this email does not exist.');
+          return res.redirect("/forgot-password");
+      }
+      const storedSecurityQuestion = user.security_question.toLowerCase();
+      if (storedSecurityQuestion !== security_question) {
+          req.flash('error', 'Security question does not match.');
+          log(user.name + ': Security question does not match')
+          return res.redirect("/forgot-password");
+      }
+      bcrypt.genSalt(saltRounds, function(err, salt) {
+          bcrypt.hash(new_password, salt, function(err, hash) {
+              if (err) {
+                  console.error('Error hashing password:', err);
+                  log(user.name + ': Error hashing password:' + err)
+                  req.flash('error', 'Error resetting password, try again.');
+                  return res.redirect("/forgot-password");
+              }
+              const updatePasswordSQL = "UPDATE user SET password = ? WHERE email = ?";
+              db.run(updatePasswordSQL, [hash, email], err => {
+                  if (err) {
+                      console.error('Error updating password:', err);
+                      req.flash('error', 'Error resetting password, try again.');
+                      return res.redirect("/forgot-password");
+                  } 
+                  req.flash('success', 'Password reset successfully.');
+                  log(user.name + ': password reset successfully')
+                  return res.redirect("/login");
+              });
+          });
+      });
+  });
+});
+
 
 app.get('/export-transactions', requireLogin, checkUserRole, async function(req, res) {
   const loggedInName = req.session.name;
