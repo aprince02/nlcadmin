@@ -226,6 +226,58 @@ async function getAllLogs() {
   });
 }
 
+async function getLogsPaginated(startIndex, rowsPerPage) {
+  return new Promise((resolve, reject) => {
+      const sql = "SELECT * FROM console_logs ORDER BY ID DESC LIMIT ? OFFSET ?";
+      db.all(sql, [rowsPerPage, startIndex], (err, rows) => {
+          if (err) {
+              reject(err);
+          } else {
+              resolve(rows);
+          }
+      });
+  });
+}
+
+async function getLogsCount() {
+  return new Promise((resolve, reject) => {
+      const sql = "SELECT COUNT(*) AS totalRows FROM console_logs";
+      db.get(sql, (err, row) => {
+          if (err) {
+              reject(err);
+          } else {
+              resolve(row.totalRows);
+          }
+      });
+  });
+}
+
+async function getMembersPaginated(startIndex, rowsPerPage) {
+  return new Promise((resolve, reject) => {
+    const sql = "SELECT * FROM members ORDER BY first_name ASC LIMIT ? OFFSET ?";
+    db.all(sql, [rowsPerPage, startIndex], (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+}
+
+async function getMembersCount() {
+  return new Promise((resolve, reject) => {
+    const sql = "SELECT COUNT(*) AS totalRows FROM members";
+    db.get(sql, (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row.totalRows);
+      }
+    });
+  });
+}
+
 module.exports = {
   getAllTransactionTypes,
   insertTransactionType,
@@ -241,5 +293,9 @@ module.exports = {
   getAllUsers,
   getUserById,
   updateUser,
-  getAllLogs
+  getAllLogs,
+  getLogsPaginated,
+  getLogsCount,
+  getMembersCount,
+  getMembersPaginated
 };

@@ -25,4 +25,16 @@
     </table>
   </div>
 </div>
+
+<nav aria-label="Page navigation">
+  <ul class="pagination">
+    <% if (totalPages > 1) { %>
+      <% for (let i = 1; i <= totalPages; i++) { %>
+        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+          <a class="page-link" href="/software-logs/<%= i %>"><%= i %></a>
+        </li>
+      <% } %>
+    <% } %>
+  </ul>
+</nav>
 <%- include("_loggedInFooter") -%>

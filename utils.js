@@ -94,7 +94,7 @@ function checkUserRole(req, res, next) {
       next();
     } else {
         req.flash('error', 'Only Admins are allowed to use this functionality.');
-        res.redirect('/claimants');
+        res.redirect('/claimants/:page');
     }};
 
 function checkSuperAdmin(req, res, next) {
