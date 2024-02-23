@@ -214,6 +214,18 @@ return new Promise((resolve, reject) => {
   });
 }
 
+async function getAllLogs() {
+  return new Promise((resolve, reject) => {
+    const sql = "SELECT * FROM console_logs ORDER BY ID DESC";
+    db.all(sql,(err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }});
+  });
+}
+
 module.exports = {
   getAllTransactionTypes,
   insertTransactionType,
@@ -228,5 +240,6 @@ module.exports = {
   getAllTransactionsWithOnly,
   getAllUsers,
   getUserById,
-  updateUser
+  updateUser,
+  getAllLogs
 };
