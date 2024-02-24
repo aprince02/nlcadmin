@@ -163,11 +163,29 @@ async function sendUpdateSuggestionEmail(suggestion, user) {
   }
 }
 
+async function sendNewUserAddedEmail(user) {
+  const transporter = nodemailer.createTransport(emailConfig);
+
+  const mailOptions = {
+    from: emailConfig.auth.user,
+    to: "albinm65@gmail.com",
+    subject: 'New User Added',
+    text: user + ' Has been added. ' + emailFooter,
+  };
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    log("New user email sent by:" + ' ' + info.response);
+  } catch (error) {
+    log("'Error sending email: " + error)
+  }
+}
+
 module.exports = {
   createAndEmail,
   sendStatementByEmail,
   createAndEmailDBBackup,
   emailMemberForUpdate,
   sendTransactionsEmail,
-  sendUpdateSuggestionEmail
+  sendUpdateSuggestionEmail,
+  sendNewUserAddedEmail
 };

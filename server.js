@@ -16,7 +16,7 @@ const schedule = require('node-schedule');
 const { requireLogin, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser } = require('./utils');
 const dbHelper = require('./dbHelper')
 const csvGenerator = require('./csvGenerator')
-const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail, sendUpdateSuggestionEmail } = require('./emailer');
+const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail, sendUpdateSuggestionEmail, sendNewUserAddedEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
@@ -339,6 +339,7 @@ app.post("/register", (req, res) => {
                 } else {
                     req.flash('success', 'New account created successfully.');
                     log('New account created successfully: ' + req.body.username)
+                    sendNewUserAddedEmail(user)
                     return res.redirect("/login");
                 }});
         });
@@ -464,7 +465,6 @@ app.post("/forgot-password", (req, res) => {
       });
   });
 });
-
 
 app.get('/export-transactions', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
