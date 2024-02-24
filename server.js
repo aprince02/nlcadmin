@@ -542,7 +542,7 @@ schedule.scheduleJob(scheduledTime, async () => {
 
 app.get("/export-totals", requireLogin, checkUserRole, async function(req, res) {
   const loggedInName = req.session.name;
-    const sql = "SELECT * FROM transactions WHERE date >= '2022-01-01'  ORDER BY type";
+    const sql = "SELECT * FROM transactions WHERE date >= '2023-01-01' AND date <= '2023-12-31'  ORDER BY type";
     db.all(sql, async function(err, rows) {
         if (err) {
             req.flash('error', 'Error retrieving data for transactions.');
