@@ -203,8 +203,8 @@ async function getUserById(id) {
 
 async function updateUser(req) {
 return new Promise((resolve, reject) => {
-  const user = [req.body.name, req.body.email, req.body.role, req.body.id];
-  const sql = 'UPDATE user set name = ?, email = ?, role = ? WHERE (id = ?)';
+  const user = [req.body.name, req.body.email, req.body.role, req.body.approval, req.body.id];
+  const sql = 'UPDATE user set name = ?, email = ?, role = ?, approval = ? WHERE (id = ?)';
   db.run(sql, user, function (err) {
     if (err) {
       reject(err);

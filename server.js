@@ -13,7 +13,7 @@ const { exec } = require('child_process');
 const path = require('path');
 const multer = require('multer');
 const schedule = require('node-schedule');
-const { requireLogin, checkUserRole, readCSVAndProcess, log, checkSuperAdmin } = require('./utils');
+const { requireLogin, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser } = require('./utils');
 const dbHelper = require('./dbHelper')
 const csvGenerator = require('./csvGenerator')
 const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail, sendUpdateSuggestionEmail } = require('./emailer');
@@ -47,14 +47,14 @@ app.listen(8000, () => {
   console.log("Server running on port: %PORT%".replace("%PORT%",8000))
 });
 
-  app.get("/admin", requireLogin, (req, res) =>  {
+  app.get("/admin", requireLogin, checkApprovedUser, (req, res) =>  {
     const loggedInName = req.session.name;
     res.render("admin", {loggedInName: loggedInName});
   });
 
   const membersPerPage = 15;
 
-  app.get("/claimants/:page", requireLogin, async (req, res) => {
+  app.get("/claimants/:page", requireLogin, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
       try {
           const currentPage = parseInt(req.params.page) || 1;
@@ -70,7 +70,7 @@ app.listen(8000, () => {
       }
   });
 
-app.get("/yearly-transactions/:year/:page", requireLogin, (req, res) => {
+app.get("/yearly-transactions/:year/:page", requireLogin, checkApprovedUser, (req, res) => {
   const year = req.params.year;
   const rowsPerPage = 100;
   let currentPage = parseInt(req.params.page) || 1;
@@ -143,12 +143,12 @@ app.post("/edit/:id", (req, res) => {
         }});
     });
 
-app.get("/create", requireLogin, (req, res) => {
+app.get("/create", requireLogin, checkApprovedUser, (req, res) => {
     const loggedInName = req.session.name;
     res.render("create", { member: {}, bank_account: {} , loggedInName: loggedInName });
   });
 
-app.post("/create", requireLogin, async (req, res) => {
+app.post("/create", requireLogin, checkApprovedUser, async (req, res) => {
   try {
     await dbHelper.addNewMember(req);
     req.flash('success', 'New member added successfully.');
@@ -162,7 +162,7 @@ app.post("/create", requireLogin, async (req, res) => {
     res.redirect("/claimants/:page");
   }});
 
-app.get("/delete/:id", requireLogin, checkUserRole, async (req, res) => {
+app.get("/delete/:id", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
     try {
       const loggedInName = req.session.name;
       const id = req.params.id;
@@ -173,7 +173,7 @@ app.get("/delete/:id", requireLogin, checkUserRole, async (req, res) => {
       return res.redirect("/claimants/:page")
     }});
 
-app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
+app.post("/delete/:id", requireLogin, checkUserRole, checkApprovedUser, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     const sql = "DELETE FROM members WHERE id = ?";
@@ -188,7 +188,7 @@ app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
         }});
     });
 
-    app.get("/all-donations/:page", requireLogin, (req, res) => {
+    app.get("/all-donations/:page", requireLogin, checkApprovedUser, (req, res) => {
       const donationsPerPage = 100;
         const loggedInName = req.session.name;
         const currentPage = parseInt(req.params.page) || 1;
@@ -213,7 +213,7 @@ app.post("/delete/:id", requireLogin, checkUserRole, (req, res) => {
             }});
     }); 
 
-app.get("/select-giver", requireLogin, async (req, res) => {
+app.get("/select-giver", requireLogin, checkApprovedUser, async (req, res) => {
   try {
     const loggedInName = req.session.name;
     const rows = await dbHelper.getAllMembers();
@@ -224,7 +224,7 @@ app.get("/select-giver", requireLogin, async (req, res) => {
     return res.redirect("/claimants/:page")
   }});
 
-app.get("/add-donation/:id", requireLogin, async (req, res) => {
+app.get("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
   try {
     const loggedInName = req.session.name;
     const id = req.params.id;
@@ -240,7 +240,7 @@ app.get("/add-donation/:id", requireLogin, async (req, res) => {
     return res.redirect("/claimants/:page")
   }});
 
-app.get("/edit-donation/:id", requireLogin, async (req, res) => {
+app.get("/edit-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
   try {
     const loggedInName = req.session.name;
     const id = req.params.id;
@@ -253,7 +253,7 @@ app.get("/edit-donation/:id", requireLogin, async (req, res) => {
     return res.redirect("/claimants/:page")
   }});
 
-app.post("/edit-donation/:id", requireLogin, (req, res) => {
+app.post("/edit-donation/:id", requireLogin, checkApprovedUser, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     const claimant_sql = "UPDATE donations SET date = ?, notes = ?, fund = ?, amount = ?, method = ? WHERE (id = ?)";
@@ -271,7 +271,7 @@ app.post("/edit-donation/:id", requireLogin, (req, res) => {
         }}); 
     });
 
-app.post("/add-donation/:id", requireLogin, (req, res) => {
+app.post("/add-donation/:id", requireLogin, checkApprovedUser, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     const payment_sql = "INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES (?,?,?,?,?,?,?,?,?)";
@@ -292,7 +292,7 @@ app.post("/add-donation/:id", requireLogin, (req, res) => {
         }});
     });
 
-app.get("/donations/:id", requireLogin, (req, res) => {
+app.get("/donations/:id", requireLogin, checkApprovedUser, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     const sql = "SELECT * FROM donations WHERE member_id = ? ORDER by date DESC";
@@ -313,7 +313,7 @@ app.get("/donations/:id", requireLogin, (req, res) => {
         }});
     });
 
-app.get("/no-donations/:id", requireLogin, (req, res) => {
+app.get("/no-donations/:id", requireLogin, checkApprovedUser, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     res.render("no-donations", { id: id, loggedInName: loggedInName });
@@ -324,12 +324,13 @@ app.get("/register", (req, res) =>  {
 });
 
 app.post("/register", (req, res) => {
-    const user_sql = "INSERT INTO user (name, email, password, role, security_question) VALUES (?, ?, ?, ?, ?)";
+    const user_sql = "INSERT INTO user (name, email, password, role, security_question, approval) VALUES (?, ?, ?, ?, ?, ?)";
     var password = req.body.password;
     bcrypt.genSalt(saltRounds, function(err, salt) {
         bcrypt.hash(password, salt, function(err, hash) {
             const role = "user";
-            const user = [req.body.username, req.body.email, hash, role, req.body.security_question];
+            const approval = "unapproved"
+            const user = [req.body.username, req.body.email, hash, role, req.body.security_question, approval];
             db.run(user_sql, user, err => {
                 if (err) {
                     req.flash('error', 'Error registering new account, try again.');
@@ -344,7 +345,7 @@ app.post("/register", (req, res) => {
     });
 });
 
-app.post("/save-transaction/:id", requireLogin, (req, res) => {
+app.post("/save-transaction/:id", requireLogin, checkApprovedUser, (req, res) => {
     const id = req.params.id;
     const type = req.body.type;
     const description = req.body.description;
@@ -396,6 +397,7 @@ app.post("/login", (req, res) =>  {
             req.session.email = email;
             req.session.name = row.name;
             req.session.role = row.role;
+            req.session.approval = row.approval;
             db.get("SELECT * FROM last_update ORDER BY id DESC LIMIT 1", (err, row) => {
                 if (err) {
                     throw err;
@@ -464,7 +466,7 @@ app.post("/forgot-password", (req, res) => {
 });
 
 
-app.get('/export-transactions', requireLogin, checkUserRole, async function(req, res) {
+app.get('/export-transactions', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
   db.all(`SELECT * FROM transactions`, function(err, rows) {
     if (err) {
@@ -495,7 +497,7 @@ app.get('/export-transactions', requireLogin, checkUserRole, async function(req,
     log(loggedInName + "Error sending transactions email" + error)
   }});
 
-app.get('/export-donations', requireLogin, checkUserRole, async function(req, res) {
+app.get('/export-donations', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
   try {
     await csvGenerator.exportDonationsCsv(req, res);
@@ -514,7 +516,7 @@ app.get('/export-donations', requireLogin, checkUserRole, async function(req, re
 });
 
 
-  app.get('/db-backup', requireLogin, checkUserRole, async (req, res) => {
+  app.get('/db-backup', requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
     try {
       await createAndEmailDBBackup();
@@ -540,7 +542,7 @@ schedule.scheduleJob(scheduledTime, async () => {
     log('Error sending scheduled database backup' + error.message)
   }});
 
-app.get("/export-totals", requireLogin, checkUserRole, async function(req, res) {
+app.get("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
     const sql = "SELECT * FROM transactions WHERE date >= '2023-01-01' AND date <= '2023-12-31'  ORDER BY type";
     db.all(sql, async function(err, rows) {
@@ -593,7 +595,7 @@ app.get("/export-totals", requireLogin, checkUserRole, async function(req, res) 
     });
 });
 
-app.get('/export-giftaid-claims', requireLogin, checkUserRole, async function(req, res) {
+app.get('/export-giftaid-claims', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
   try {
     await csvGenerator.exportGiftAidClaimCsv(req, res);
@@ -628,7 +630,7 @@ app.get('/logout', (req, res) => {
         res.redirect('/');
       });
 
-      app.get("/generate-donor-pdf/:id", requireLogin, checkUserRole, async (req, res) => {
+      app.get("/generate-donor-pdf/:id", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
         const loggedInName = req.session.name;
         try {
           const id = req.params.id;
@@ -682,7 +684,7 @@ app.get('/logout', (req, res) => {
           return res.redirect("/claimants/:page")
         }});
 
-        app.get("/generate-transaction-pdf", requireLogin, checkUserRole, (req, res) => {
+        app.get("/generate-transaction-pdf", requireLogin, checkUserRole, checkApprovedUser, (req, res) => {
           try {
             const loggedInName = req.session.name;
             res.render("generate-transaction-pdf", {loggedInName: loggedInName});
@@ -691,7 +693,7 @@ app.get('/logout', (req, res) => {
             return res.redirect("/admin")
           }});
 
-        app.post("/generate-transaction-pdf", requireLogin, checkUserRole, async (req, res) => {
+        app.post("/generate-transaction-pdf", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
           const loggedInName = req.session.name;
           try {
             const startDate = req.body.start_date;
@@ -718,7 +720,7 @@ app.get('/logout', (req, res) => {
         });
         
   
-  app.get("/import-transactions", requireLogin, checkUserRole, (req, res) => {
+  app.get("/import-transactions", requireLogin, checkUserRole, checkApprovedUser, (req, res) => {
     const loggedInName = req.session.name;
     res.render("import-transactions", {loggedInName: loggedInName });
   });
@@ -755,7 +757,7 @@ app.post("/membership", async (req, res) => {
     res.redirect("/membership");
   }});
 
-  app.get("/addnewtransactiontype", requireLogin, checkUserRole, async (req, res) => {
+  app.get("/addnewtransactiontype", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
     try {
       const types = await dbHelper.getAllTransactionTypes();
@@ -766,7 +768,7 @@ app.post("/membership", async (req, res) => {
       return res.redirect("/admin")
     }});
 
-app.post("/addnewtransactiontype", requireLogin, checkUserRole, async (req, res) => {
+app.post("/addnewtransactiontype", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
   const userInput = req.body.new_transaction_type;
   const loggedInName = req.session.name;
   try {
@@ -790,7 +792,7 @@ app.post("/addnewtransactiontype", requireLogin, checkUserRole, async (req, res)
     return res.redirect("/admin")
   }});
 
-app.get("/addnewdonationtype", requireLogin, checkUserRole, async (req, res) => {
+app.get("/addnewdonationtype", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
     const types = await dbHelper.getAllDonationTypes();
@@ -801,7 +803,7 @@ app.get("/addnewdonationtype", requireLogin, checkUserRole, async (req, res) => 
     return res.redirect("/admin")
   }});
 
-app.post("/addnewdonationtype", requireLogin, checkUserRole, async (req, res) => {
+app.post("/addnewdonationtype", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
 const userInput = req.body.new_donation_type;
 const loggedInName = req.session.name;
 try {
@@ -825,7 +827,7 @@ try {
   return res.redirect("/admin")
 }});
 
-  app.get("/send-update-request/:id", requireLogin, checkUserRole, async (req, res) => {
+  app.get("/send-update-request/:id", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
     const id = req.params.id;
     try {
@@ -853,7 +855,7 @@ try {
       return res.redirect("/claimants/:page")
     }});
 
-app.get("/update-users", requireLogin, checkUserRole, async (req, res) => {
+app.get("/update-users", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
     const users = await dbHelper.getAllUsers();
@@ -864,8 +866,9 @@ app.get("/update-users", requireLogin, checkUserRole, async (req, res) => {
     return res.redirect("/admin")
   }});
 
-app.post("/update-users", requireLogin, checkUserRole, async (req, res) => {
+app.post("/update-users", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
+  console.log(req.body.approval)
   try {
     const user = await dbHelper.getUserById(req.body.id);
     if (user.role === 'admin' && req.body.role === 'super admin') {
@@ -883,7 +886,7 @@ app.post("/update-users", requireLogin, checkUserRole, async (req, res) => {
     await dbHelper.updateUser(req);
     req.flash('success', 'User has been updated successfully');
     console.log("Updated user with first name: " + req.body.name + " and email: " + req.body.email + " and role: " + req.body.role)
-    log(loggedInName + ": Updated user with first name: " + req.body.name + " and email: " + req.body.email + " and role: " + req.body.role)
+    log(loggedInName + ": Updated user with first name: " + req.body.name + " and email: " + req.body.email + " and role: " + req.body.role + " and approval: " + req.body.approval) 
     res.redirect("/admin");
   } catch (error) {
     console.error('Error updating user. ' + error.message)
@@ -892,7 +895,7 @@ app.post("/update-users", requireLogin, checkUserRole, async (req, res) => {
     res.redirect("/update-users");
   }});
 
-  app.get("/software-logs/:page", requireLogin, checkSuperAdmin, async (req, res) => {
+  app.get("/software-logs/:page", requireLogin, checkSuperAdmin, checkApprovedUser, async (req, res) => {
     const rowsPerPage = 50;
     let currentPage = parseInt(req.params.page) || 1;
     if (currentPage < 1) {
@@ -917,12 +920,12 @@ app.post("/update-users", requireLogin, checkUserRole, async (req, res) => {
     }
 });
 
-app.get("/suggest-update", (req, res) => {
+app.get("/suggest-update", requireLogin, checkApprovedUser, (req, res) => {
   const loggedInName = req.session.name;
   res.render("suggest-update", { loggedInName });
 });
 
-app.post("/suggest-update", requireLogin, (req, res) => {
+app.post("/suggest-update", requireLogin, checkApprovedUser, (req, res) => {
   const loggedInName = req.session.name;
   const suggestion = req.body.update_suggestion;
   try {
@@ -934,8 +937,7 @@ app.post("/suggest-update", requireLogin, (req, res) => {
     req.flash('error', 'Error sending email to administrator, try again!.');
     log(loggedInName + ": Error sending update suggestion email - " + error)
     res.redirect("/admin");
-}}); 
-
+}}); requireLogin,
 
 // Default response for any other request
 app.use(function(req, res){

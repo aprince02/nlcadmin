@@ -107,6 +107,15 @@ function checkSuperAdmin(req, res, next) {
       res.redirect('/admin');
   }};
 
+  function checkApprovedUser(req, res, next) {
+    if (req.session.approval === 'approved') {
+        next();
+    } else {
+        req.flash('error', 'Only approved users are allowed to access the software.');
+        res.redirect('/login');
+    }};
+
+
 async function exportDonationsCsv(req, res) {
     const tableName = 'donations';
     db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
@@ -147,6 +156,7 @@ module.exports = {
     requireLogin,
     checkUserRole,
     exportDonationsCsv,
-    checkSuperAdmin
+    checkSuperAdmin,
+    checkApprovedUser
 }
 
