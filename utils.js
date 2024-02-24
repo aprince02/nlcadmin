@@ -60,9 +60,9 @@ function readCSVAndProcess(csvFilePath, req, res, next) {
                 const params = [row.Date, row.Type, null, row.Description, row['Paid Out'], row['Paid In'], row.Balance, null];
                 db.run(sql, params, (err) => {
                     if (err) {
-                        log("Error inserting row into the database: " + err.message);
+                        log("Error inserting row into the database: " + row.Description + " " + err.message);
                     } else {
-                        log("Row inserted successfully: " + row);
+                        log("Row inserted successfully: " + row.Description);
                     }});
             });
             fs.unlinkSync(csvFilePath);
