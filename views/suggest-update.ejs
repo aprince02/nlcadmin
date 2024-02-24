@@ -1,0 +1,20 @@
+<%- include("_loggedInHeader") -%>
+
+<h1 class="display-5">Suggest Update</h1>
+<br>
+
+<form method="POST" action="/suggest-update">
+  <div class="form-group row">
+    <label class="col-form-label col-sm-2" for="update_suggestion">Update Suggestion:</label>
+    <div class="col-sm-7">
+      <input required placeholder="Enter suggestion for next update" type="text" class="form-control" name="update_suggestion"/>
+    </div>
+  </div>
+  <div class="col-sm-10">
+    <button type="submit" class="btn btn-primary">Submit</button>
+    <a class="btn btn-outline-dark cancel" href="/admin">Return</a>
+  </div>
+  </form>
+  <br>
+  
+<%- include("_loggedInFooter") -%>

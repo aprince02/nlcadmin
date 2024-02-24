@@ -34,38 +34,40 @@ function log(update) {
     });
   }
 
-// Function to read the CSV file and process its contents
 function readCSVAndProcess(csvFilePath, req, res, next) {
-  
-    if (!fs.existsSync(csvFilePath)) {
-      log("CSV file not found. Process aborted.");
-      req.flash('error', 'CSV file not found');
-      return res.redirect('/admin');
+    if (!csvFilePath.toLowerCase().endsWith('.csv')) {
+        log("File is not a CSV. Process aborted.");
+        req.flash('error', 'File is not a CSV');
+        fs.unlinkSync(csvFilePath);
+        return res.redirect('/admin');
     }
-  
+
+    if (!fs.existsSync(csvFilePath)) {
+        log("CSV file not found. Process aborted.");
+        req.flash('error', 'CSV file not found');
+        return res.redirect('/admin');
+    }
     const results = [];
-  
     fs.createReadStream(csvFilePath)
-      .pipe(csv())
-      .on('data', (data) => {
-        data.Date = convertDateFormat(data.Date);
-        results.push(data);
-      })
-      .on('end', () => {
-        results.forEach(row => {
-          const sql = "INSERT INTO transactions (date, transaction_type, type, description, paid_out, paid_in, balance, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-          const params = [row.Date, row.Type, null, row.Description, row['Paid Out'], row['Paid In'], row.Balance, null];
-  
-          db.run(sql, params, (err) => {
-            if (err) {
-              log("Error inserting row into the database: " + err.message);
-            } else {
-              log("Row inserted successfully: " + row);
-            }
-          });
+        .pipe(csv())
+        .on('data', (data) => {
+            data.Date = convertDateFormat(data.Date);
+            results.push(data);
+        })
+        .on('end', () => {
+            results.forEach(row => {
+                const sql = "INSERT INTO transactions (date, transaction_type, type, description, paid_out, paid_in, balance, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                const params = [row.Date, row.Type, null, row.Description, row['Paid Out'], row['Paid In'], row.Balance, null];
+                db.run(sql, params, (err) => {
+                    if (err) {
+                        log("Error inserting row into the database: " + err.message);
+                    } else {
+                        log("Row inserted successfully: " + row);
+                    }});
+            });
+            fs.unlinkSync(csvFilePath);
         });
-      });
-  }
+}
 
   function convertDateFormat(dateString) {
     const months = {
@@ -94,8 +96,16 @@ function checkUserRole(req, res, next) {
       next();
     } else {
         req.flash('error', 'Only Admins are allowed to use this functionality.');
-        res.redirect('/claimants');
+        res.redirect('/claimants/:page');
     }};
+
+function checkSuperAdmin(req, res, next) {
+  if (req.session.role === 'super admin') {
+      next();
+  } else {
+      req.flash('error', 'Only Super Admins are allowed to use this functionality.');
+      res.redirect('/admin');
+  }};
 
 async function exportDonationsCsv(req, res) {
     const tableName = 'donations';
@@ -136,6 +146,7 @@ module.exports = {
     convertDateFormat,
     requireLogin,
     checkUserRole,
-    exportDonationsCsv
+    exportDonationsCsv,
+    checkSuperAdmin
 }
 

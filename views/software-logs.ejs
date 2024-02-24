@@ -1,0 +1,40 @@
+<%- include("_loggedInHeader") -%>
+
+<h1 class="display-5">Software Logs</h1>
+<div class="table-wrapper">
+  <div class="table-column">
+    <table class="table table-hover table-sm custom-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Timestamp</th>
+          <th>Log</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const log of logging) { %>
+          <tr>
+            <td><%= log.id %></td>
+            <td><%= log.timestamp %></td>
+            <td><%= log.log_message %></td>
+
+            
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<nav aria-label="Page navigation">
+  <ul class="pagination">
+    <% if (totalPages > 1) { %>
+      <% for (let i = 1; i <= totalPages; i++) { %>
+        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+          <a class="page-link" href="/software-logs/<%= i %>"><%= i %></a>
+        </li>
+      <% } %>
+    <% } %>
+  </ul>
+</nav>
+<%- include("_loggedInFooter") -%>

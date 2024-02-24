@@ -106,7 +106,7 @@ async function createAndEmailDBBackup() {
   const transporter = nodemailer.createTransport(emailConfig);
   const mailOptions = {
     from: emailConfig.auth.user,
-    to: 'mailer@probooksaccounting.co.uk',
+    to: 'albinm65@gmail.com',
     subject: 'ProBooks Accounting - Database Backup',
     text: 'Find attached the database backup.' + emailFooter,
     attachments: [
@@ -144,7 +144,23 @@ async function emailMemberForUpdate (row) {
   } catch (error) {
     console.error('Error sending email:', error);
   }
+}
 
+async function sendUpdateSuggestionEmail(suggestion, user) {
+  const transporter = nodemailer.createTransport(emailConfig);
+
+  const mailOptions = {
+    from: emailConfig.auth.user,
+    to: "albinm65@gmail.com",
+    subject: 'Update Suggestion from User',
+    text: user + ' Has suggested this update to the software: ' + suggestion + ". Please respond!" + emailFooter,
+  };
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    log("Update suggestion email sent by: " + user + ' ' + info.response);
+  } catch (error) {
+    log("'Error sending email: " + error)
+  }
 }
 
 module.exports = {
@@ -152,5 +168,6 @@ module.exports = {
   sendStatementByEmail,
   createAndEmailDBBackup,
   emailMemberForUpdate,
-  sendTransactionsEmail
+  sendTransactionsEmail,
+  sendUpdateSuggestionEmail
 };
