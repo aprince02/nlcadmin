@@ -16,7 +16,7 @@ const schedule = require('node-schedule');
 const { requireLogin, checkUserRole, readCSVAndProcess, log, checkSuperAdmin } = require('./utils');
 const dbHelper = require('./dbHelper')
 const csvGenerator = require('./csvGenerator')
-const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail } = require('./emailer');
+const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail, sendUpdateSuggestionEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
@@ -916,6 +916,25 @@ app.post("/update-users", requireLogin, checkUserRole, async (req, res) => {
         return res.redirect("/admin")
     }
 });
+
+app.get("/suggest-update", (req, res) => {
+  const loggedInName = req.session.name;
+  res.render("suggest-update", { loggedInName });
+});
+
+app.post("/suggest-update", requireLogin, (req, res) => {
+  const loggedInName = req.session.name;
+  const suggestion = req.body.update_suggestion;
+  try {
+    sendUpdateSuggestionEmail(suggestion, loggedInName);
+    log(loggedInName + ': Update suggestion email sent by user')
+    req.flash('success', 'Email sent successfully.');
+    res.redirect("/admin");
+} catch (error) {
+    req.flash('error', 'Error sending email to administrator, try again!.');
+    log(loggedInName + ": Error sending update suggestion email - " + error)
+    res.redirect("/admin");
+}}); 
 
 
 // Default response for any other request
