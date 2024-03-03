@@ -16,7 +16,7 @@ const schedule = require('node-schedule');
 const { requireLogin, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser } = require('./utils');
 const dbHelper = require('./dbHelper')
 const csvGenerator = require('./csvGenerator')
-const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail, sendUpdateSuggestionEmail, sendNewUserAddedEmail } = require('./emailer');
+const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail, sendUpdateSuggestionEmail, sendNewUserAddedEmail, sendDonationReceivedEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
@@ -142,6 +142,33 @@ app.post("/edit/:id", (req, res) => {
             res.redirect("/claimants/:page");
         }});
     });
+
+    app.get("/edit-member/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const row = await dbHelper.getMemberWithId(id);
+        res.render("edit-member", {member: row});
+      } catch (error) {
+        console.error('Error rendering edit member page:', error);
+        log(loggedInName + ': Error rendering edit member page:' + error)
+        return res.redirect("/edit-member/:id")
+      }});
+  
+  app.post("/edit-member/:id", (req, res) => {
+      const id = req.params.id;
+      const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
+      const sql = "UPDATE members SET first_name = ?, surname = ?, banking_name = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?, title = ?, house_number = ?, spouse_name = ?  WHERE (id = ?)";
+      db.run(sql, claimant, err => {
+          if (err) {
+              console.error(err.message);
+              log(err.message)
+          } else {
+              req.flash('success', 'Member details updated successfully.');
+              console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
+              log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
+              res.redirect("/edit-member/:id");
+          }});
+      });
 
 app.get("/create", requireLogin, checkApprovedUser, (req, res) => {
     const loggedInName = req.session.name;
@@ -271,26 +298,38 @@ app.post("/edit-donation/:id", requireLogin, checkApprovedUser, (req, res) => {
         }}); 
     });
 
-app.post("/add-donation/:id", requireLogin, checkApprovedUser, (req, res) => {
-    const id = req.params.id;
-    const loggedInName = req.session.name;
-    const payment_sql = "INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES (?,?,?,?,?,?,?,?,?)";
-    const status = "Unclaimed";
-    const bank = "Bank"
-    const payment = [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, bank, status, req.body.notes];
-    db.run(payment_sql, payment, err => {
-        if (err) {
+    app.post("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
+      try {
+          const id = req.params.id;
+          const loggedInName = req.session.name;
+          const payment_sql = "INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES (?,?,?,?,?,?,?,?,?)";
+          const status = "Unclaimed";
+          const bank = "Bank";
+          const payment = [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, bank, status, req.body.notes];
+  
+          db.run(payment_sql, payment, async (err) => {
+              if (err) {
+                  req.flash('error', 'Error adding donation, please try again!');
+                  console.error(err.message);
+                  log(loggedInName + ': Error adding donation: ' + err.message);
+                  return res.redirect("/select-giver");
+              } else {
+                  req.flash('success', 'Donation added successfully.');
+                  console.log("Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname);
+                  log(loggedInName + ": Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname);
+                  const member = await dbHelper.getMemberWithId(id);
+                  sendDonationReceivedEmail(member, req.body)
+                  return res.redirect("/select-giver");
+              }
+          });
+      } catch (error) {
           req.flash('error', 'Error adding donation, please try again!');
-            console.error(err.message);
-            log(loggedInName + ': Error adding donation: ' + err.message)
-            return res.redirect("/select-giver"); 
-        } else {
-            req.flash('success', 'Donation added successfully.');
-            console.log("Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname)
-            log(loggedInName + ": Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname)
-            return res.redirect("/select-giver"); 
-        }});
-    });
+          console.error('Error adding donation:', error.message);
+          log(`${loggedInName}: Error adding donation: ${error.message}`);
+          return res.redirect("/select-giver");
+      }
+  });
+  
 
 app.get("/donations/:id", requireLogin, checkApprovedUser, (req, res) => {
     const id = req.params.id;
