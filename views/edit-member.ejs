@@ -3,6 +3,7 @@
 <h1 class="display-5">Update Member</h1>
 
 <form action="/edit-member/<%= member.id %>" method="post">
+  <div class="container">
   <div class="form-horizontal">
 
     <%- include("_claimantEditor") -%>
@@ -14,6 +15,7 @@
         <input type="submit" value="Update" class="btn btn-default btn-warning" />
       </div>
     </div>
+  </div>
   </div>
 </form>
 
