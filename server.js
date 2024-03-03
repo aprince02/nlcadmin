@@ -150,8 +150,8 @@ app.post("/edit/:id", (req, res) => {
         res.render("edit-member", {member: row});
       } catch (error) {
         console.error('Error rendering edit member page:', error);
-        log(loggedInName + ': Error rendering edit member page:' + error)
-        return res.redirect("/edit-member/:id")
+        log('Error rendering edit member page:' + error)
+        res.redirect(`/edit-member/${id}`);
       }});
   
   app.post("/edit-member/:id", (req, res) => {
@@ -163,10 +163,11 @@ app.post("/edit/:id", (req, res) => {
               console.error(err.message);
               log(err.message)
           } else {
-              req.flash('success', 'Member details updated successfully.');
+              req.flash('success', 'Your details have been updated successfully.');
               console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
               log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
-              res.redirect("/edit-member/:id");
+              res.redirect(`/edit-member/${id}`);
+
           }});
       });
 
