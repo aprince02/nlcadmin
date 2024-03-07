@@ -7,8 +7,7 @@
       <thead>
         <tr>
           <th>Date</th>
-          <th>First Name</th>
-          <th>Surname</th>
+          <th>Donor Name</th>
           <th>Amount</th>
           <th>Fund</th>
           <th>Notes</th>
@@ -19,14 +18,14 @@
         <% for (const payments of model) { %>
           <tr>
             <td style="width: 100px;"><%= payments.date %></td>
-            <td ><%= payments.first_name %></td>
-            <td ><%= payments.surname %></td>
+            <td style="width: 200px" ><%= payments.first_name %> <%= payments.surname %></td>
             <td>£<%= payments.amount %></td>
-            <td><%= payments.fund %></td>
+            <td style="width: 175px" ><%= payments.fund %></td>
             <td><%= payments.notes %></td>
             <td><%= payments.gift_aid_status %></td>
             <td class="d-print-none">
-              <a class="btn btn-sm btn-warning" href="/edit-donation/<%= payments.id %>">Edit</a>
+              <a class="btn btn-sm btn-info" href="/edit-donation/<%= payments.id %>">Edit</a>
+              <a class="btn btn-sm btn-danger" href="/delete-donation/<%= payments.id %>">Delete</a>
             </td>
 
           </tr>

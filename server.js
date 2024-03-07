@@ -299,6 +299,23 @@ app.post("/edit-donation/:id", requireLogin, checkApprovedUser, (req, res) => {
         }}); 
     });
 
+    app.get("/delete-donation/:id", requireLogin, checkApprovedUser, (req, res) => {
+      const id = req.params.id;
+      const loggedInName = req.session.name;
+      const sql = "DELETE FROM donations WHERE (id = ?)";
+      db.run(sql, id, err => {
+          if (err) {
+              req.flash('error', 'Error deleting donation, please try again!')
+              console.error(err.message);
+              log(loggedInName + ': Error deleting donation: ' + err)
+          } else {
+            req.flash('success', 'Donation deleted successfully!')
+              console.log("Deleted donation with id: " + id)
+              log(loggedInName + ': deleted donation with id: ' + id)
+              res.redirect("/all-donations/:page");
+          }}); 
+      });
+
     app.post("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
       try {
           const id = req.params.id;
