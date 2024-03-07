@@ -18,7 +18,7 @@
         <% for (const payments of model) { %>
           <tr>
             <td style="width: 100px;"><%= payments.date %></td>
-            <td style="width: 200px" ><%= payments.first_name %> <%= payments.surname %></td>
+            <td ><%= payments.first_name %> <%= payments.surname %></td>
             <td>£<%= payments.amount %></td>
             <td style="width: 175px" ><%= payments.fund %></td>
             <td><%= payments.notes %></td>

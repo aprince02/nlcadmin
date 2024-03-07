@@ -191,7 +191,7 @@ async function sendDonationReceivedEmail(member, donation) {
   };
   try {
     const info = await transporter.sendMail(mailOptions);
-    log("New donation email:" + ' ' + info.response);
+    log("New donation email sent to: " + member.email + ' ' + info.response);
   } catch (error) {
     log("'Error sending email: " + error)
   }
