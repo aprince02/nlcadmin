@@ -138,10 +138,17 @@ async function generateTransactionPDF(transactions) {
     doc.setFontSize(4);
 
     const body = typeTransactions.map(transaction => {
-      const paidOut = transaction.paid_out ? `${transaction.paid_out}` : '';
-      const paidIn = transaction.paid_in ? `${transaction.paid_in}` : '';
+      const paidOut = typeof transaction.paid_out === 'number' ? transaction.paid_out : parseFloat(transaction.paid_out || 0);
+      const paidIn = typeof transaction.paid_in === 'number' ? transaction.paid_in : parseFloat(transaction.paid_in || 0);
       return [transaction.date, transaction.description, paidOut, paidIn];
-    });     
+    });
+    
+
+    // Calculate totals for Paid In and Paid Out
+    const totalPaidIn = body.reduce((total, [, , , paidIn]) => total + paidIn, 0);
+    const totalPaidOut = body.reduce((total, [, , paidOut]) => total + paidOut, 0);
+    const totalRow = ['', 'Total', totalPaidOut, totalPaidIn];
+    body.push(totalRow);
 
     const headers = ['Date', 'Description', 'Paid Out', 'Paid In'];
 
@@ -160,6 +167,7 @@ async function generateTransactionPDF(transactions) {
   console.log(`Statement of Transactions PDF generated`);
   return pdfPath;
 }
+
 
 
 

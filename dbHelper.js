@@ -173,7 +173,19 @@ async function getAllTransactionsWithOnly(startDate, endDate, exportOnly) {
           resolve(rows);
         }});
     });
-  } else {
+  } else if (exportOnly == 'ladiesFund') {
+    return new Promise((resolve, reject) => {
+      const typeName = 'Ladies Fund'
+      const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? AND type = ? ORDER BY date ASC";
+      db.all(sql, [startDate, endDate, typeName], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows);
+        }});
+    });
+  }
+   else {
     console.log('something went wrong with retrieving transactions: Incorrect type may have been requested')
   }};
 
