@@ -773,16 +773,16 @@ app.get('/logout', (req, res) => {
             log(loggedInName + ': Transactions PDF generated and sent successfully')
             return res.redirect('/admin');
           } catch (error) {
-            console.error('Error generating or sending transaction PDF:', error);
+            console.error('Error generating or sending transactions PDF:', error.message);
             req.flash('error', 'Error generating or sending transaction PDF.');
-            log(loggedInName + ': Error generating or sending transaction PDF:', error)
+            log(loggedInName + ': Error generating or sending transaction PDF:', error);
             return res.redirect('/admin');
-          }
-        });
+          }});
         
   
   app.get("/import-transactions", requireLogin, checkUserRole, checkApprovedUser, (req, res) => {
     const loggedInName = req.session.name;
+    
     res.render("import-transactions", {loggedInName: loggedInName });
   });
 
