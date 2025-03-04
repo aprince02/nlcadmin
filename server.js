@@ -407,32 +407,53 @@ app.post("/register", (req, res) => {
     });
 });
 
-app.post("/save-transaction/:id", requireLogin, checkApprovedUser, (req, res) => {
-    const id = req.params.id;
-    const type = req.body.type;
-    const description = req.body.description;
-    const loggedInName = req.session.name;
-    req.session.date = req.body.date;
-    req.session.description = req.body.description;
-    req.session.incoming = req.body.paid_in;
-    req.session.save((err) => {
-        if (err) {
-          console.error('Failed to save session:', err);
-        }});
-    const claimant_sql = "UPDATE transactions SET type = ?, description = ? WHERE (id = ?)";
-    const claimant = [type, description, id];
-    db.run(claimant_sql, claimant, err => {
-        if (err) {
-            req.flash('error', 'Error saving transaction, please try again!');
-            console.error(err.message);
-            log(loggedInName + ': Error saving transaction: ' + err.message)
-            return res.redirect("/yearly-transactions/:year/:page");
-        } else {
-            req.flash('success', 'Transaction type saved successfully.');
-            console.log("Transaction with id: " + id + " saved with type:" + type)
-            log(loggedInName + ": Transaction with id: " + id + " saved with type:" + type)
-        }}); 
-    });
+    app.post("/save-transaction/:id", requireLogin, checkApprovedUser, (req, res) => {
+      const id = req.params.id;
+      const type = req.body.type;
+      const description = req.body.description;
+      const loggedInName = req.session.name;
+      const date = req.body.date;
+      const paid_in = req.body.paid_in;
+      const unclaimed = "Unclaimed";
+  
+      req.session.date = date;
+      req.session.description = description;
+      req.session.incoming = paid_in;
+      req.session.save((err) => {
+          if (err) {
+              console.error('Failed to save session:', err);
+          }
+      });
+  
+      const updateTransactionSQL = "UPDATE transactions SET type = ?, description = ? WHERE id = ?";
+      db.run(updateTransactionSQL, [type, description, id], err => {
+          if (err) {
+              req.flash('error', 'Error saving transaction, please try again!');
+              console.error(err.message);
+              log(loggedInName + ': Error saving transaction: ' + err.message);
+              return res.redirect("/yearly-transactions/:year/:page");
+          } 
+          
+          console.log(`Transaction with ID: ${id} saved with type: ${type}`);
+          log(`${loggedInName}: Transaction with ID: ${id} saved with type: ${type}`);
+          req.flash('success', 'Transaction type saved successfully.');
+  
+          if (type === "Offering" || type === "Sunday School Offering") {
+              const insertOfferingSQL = `
+                  INSERT INTO offering_claim (transaction_id, type, date, description, amount, claimed)
+                  VALUES (?, ?, ?, ?, ?, ?) 
+                  ON CONFLICT(transaction_id) DO UPDATE SET date = excluded.date, type = excluded.type, amount = excluded.amount;
+              `;
+              db.run(insertOfferingSQL, [id, type, date, description, paid_in, unclaimed ], err => {
+                  if (err) {
+                      console.error(`Error inserting into offering_claim: ${err.message}`);
+                      log(`${loggedInName}: Error inserting into offering_claim: ${err.message}`);
+                  } else {
+                      console.log(`Transaction ID ${id} added to offering_claim table.`);
+                      log(`${loggedInName}: Transaction ID ${id} added to offering_claim table.`);
+                  }});
+          }});
+  });
 
 app.get("/release-notes", (req, res) =>  {
   res.render("release-notes");
@@ -605,7 +626,7 @@ schedule.scheduleJob(scheduledTime, async () => {
 
 app.get("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
-    const sql = "SELECT * FROM transactions WHERE date >= '2023-01-01' AND date <= '2023-12-31'  ORDER BY type";
+    const sql = "SELECT * FROM transactions WHERE date >= '2025-01-01' AND date <= '2025-12-31'  ORDER BY type";
     db.all(sql, async function(err, rows) {
         if (err) {
             req.flash('error', 'Error retrieving data for transactions.');
@@ -745,14 +766,18 @@ app.get('/logout', (req, res) => {
           return res.redirect("/claimants/:page")
         }});
 
-        app.get("/generate-transaction-pdf", requireLogin, checkUserRole, checkApprovedUser, (req, res) => {
+        app.get("/generate-transaction-pdf", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
           try {
             const loggedInName = req.session.name;
-            res.render("generate-transaction-pdf", {loggedInName: loggedInName});
+            const types = await dbHelper.getAllTransactionTypes(); // Add await
+            console.log(types);
+            res.render("generate-transaction-pdf", { loggedInName: loggedInName, types: types });
           } catch (error) {
-            console.error('Error rendering generate transactions page:', error);
-            return res.redirect("/admin")
-          }});
+            console.error("Error rendering generate transactions page:", error);
+            return res.redirect("/admin");
+          }
+        });
+        
 
         app.post("/generate-transaction-pdf", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
           const loggedInName = req.session.name;

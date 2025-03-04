@@ -132,62 +132,36 @@ async function getAllTransactionsForPeriod(startDate, endDate) {
   });
 }
 async function getAllTransactionsWithOnly(startDate, endDate, exportOnly) {
-  if (exportOnly == 'allPaidIn'){
-    return new Promise((resolve, reject) => {
-      const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? AND CAST(paid_in AS REAL) > 0 ORDER BY date ASC";
-      db.all(sql, [startDate, endDate], (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows);
-        }});
+  return new Promise((resolve, reject) => {
+    let sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ?";
+    let params = [startDate, endDate];
+
+    if (exportOnly === "allPaidIn") {
+      sql += " AND CAST(paid_in AS REAL) > 0";
+    } else if (exportOnly === "allPaidOut") {
+      sql += " AND CAST(paid_out AS REAL) > 0";
+    } else if (exportOnly === "allPaidOutOver£2000") {
+      sql += " AND CAST(paid_out AS REAL) >= 2000";
+    } else if (exportOnly) {
+      sql += " AND type = ?";
+      params.push(exportOnly); // Dynamically set any type
+    } else {
+      console.log("Error: Invalid transaction type requested.");
+      return reject(new Error("Invalid transaction type."));
+    }
+
+    sql += " ORDER BY date ASC";
+
+    db.all(sql, params, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
     });
-  } else if (exportOnly == 'allPaidOut') {
-    return new Promise((resolve, reject) => {
-      const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? AND CAST(paid_out AS REAL) > 0 ORDER BY date ASC";
-      db.all(sql, [startDate, endDate], (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows);
-        }});
-    });
-  } else if (exportOnly == 'allPaidOutOver£2000') {
-    return new Promise((resolve, reject) => {
-      const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? AND CAST(paid_out AS REAL) >= 2000 ORDER BY date ASC";
-      db.all(sql, [startDate, endDate], (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows);
-        }});
-    });
-  } else if (exportOnly == 'support&charity') {
-    return new Promise((resolve, reject) => {
-      const typeName = 'Support & Charity'
-      const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? AND type = ? ORDER BY date ASC";
-      db.all(sql, [startDate, endDate, typeName], (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows);
-        }});
-    });
-  } else if (exportOnly == 'ladiesFund') {
-    return new Promise((resolve, reject) => {
-      const typeName = 'Ladies Fund'
-      const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? AND type = ? ORDER BY date ASC";
-      db.all(sql, [startDate, endDate, typeName], (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows);
-        }});
-    });
-  }
-   else {
-    console.log('something went wrong with retrieving transactions: Incorrect type may have been requested')
-  }};
+  });
+}
+
 
 async function getAllUsers() {
   return new Promise((resolve, reject) => {

@@ -48,6 +48,8 @@ async function exportDonationsCsv(req, res) {
           { id: 'surname', title: 'Surname' },
           { id: 'house_number', title: 'House Number' },
           { id: 'postcode', title: 'Postcode' },
+          { id: 'aggregated_donations', title: 'Aggregated donations' },
+          { id: 'sponsored', title: 'Sponsored' },
           { id: 'date', title: 'Date' },
           { id: 'amount', title: 'Amount' }
         ]

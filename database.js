@@ -159,7 +159,24 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                 console.log('donation_types table created')
             }
         });
-        
+        db.run(`CREATE TABLE offering_claim (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id INTEGER UNIQUE,
+            type text,
+            date date,
+            description text,
+            amount text,
+            claimed text
+        )`,
+        (err) => {
+            if (err) {
+                // Table already created
+                console.log('offering_claim table already exists')
+            }else{
+                // Table just created
+                console.log('offering_claim table created')
+            }
+        });    
     }
 });
 
