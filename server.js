@@ -244,7 +244,7 @@ app.post("/delete/:id", requireLogin, checkUserRole, checkApprovedUser, (req, re
 app.get("/select-giver", requireLogin, checkApprovedUser, async (req, res) => {
   try {
     const loggedInName = req.session.name;
-    const rows = await dbHelper.getAllMembers();
+    const rows = await dbHelper.getAllActiveMembers();
     res.render("select-giver", {row: rows, loggedInName: loggedInName});
   } catch (error) {
     console.error('Error rendering select-giver page:', error);
@@ -990,8 +990,8 @@ app.post("/update-users", requireLogin, checkUserRole, checkApprovedUser, async 
     const loggedInName = req.session.name;
     try {
         const logging = await dbHelper.getLogsPaginated(startIndex, rowsPerPage);
-        const totalRows = await dbHelper.getLogsCount();
-        const totalPages = Math.ceil(totalRows / rowsPerPage);
+        //const totalRows = await dbHelper.getLogsCount();
+        const totalPages = Math.ceil(500 / rowsPerPage);
         res.render("software-logs", { 
             loggedInName, 
             logging,
@@ -1009,6 +1009,77 @@ app.get("/suggest-update", requireLogin, checkApprovedUser, (req, res) => {
   const loggedInName = req.session.name;
   res.render("suggest-update", { loggedInName });
 });
+
+app.get("/select-inactive", requireLogin, checkApprovedUser, (req, res) => {
+  const loggedInName = req.session.name;
+
+  const sql = "SELECT * FROM members ORDER BY first_name ASC";
+
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      console.error("Error fetching donors:", err);
+      return res.status(500).send("Database error.");
+    }
+
+    res.render("select-inactive", {
+      loggedInName,
+      row: rows
+    });
+  });
+});
+
+
+app.post('/deactivate-donors', (req, res) => {
+  const selectedIds = req.body.selectedIds || []; // could be string or array or undefined
+
+  // Normalize to array of IDs to deactivate
+  const deactivateIds = Array.isArray(selectedIds) ? selectedIds : [selectedIds];
+
+  // First, get all members IDs (you can limit it to members currently shown on page if you want)
+  db.all('SELECT id FROM members', (err, rows) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Database error');
+    }
+
+    const allIds = rows.map(row => row.id.toString()); // array of all member ids as strings
+    // IDs to activate = allIds - deactivateIds
+    const activateIds = allIds.filter(id => !deactivateIds.includes(id));
+
+    // Build queries to update is_active:
+    // Set is_active = 0 for deactivateIds
+    // Set is_active = 1 for activateIds
+
+    // Wrap updates in transaction for safety
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+
+      if (deactivateIds.length > 0) {
+        const placeholders = deactivateIds.map(() => '?').join(',');
+        db.run(`UPDATE members SET is_active = 0 WHERE id IN (${placeholders})`, deactivateIds, function(err) {
+          if (err) console.error('Deactivate error:', err);
+        });
+      }
+
+      if (activateIds.length > 0) {
+        const placeholders = activateIds.map(() => '?').join(',');
+        db.run(`UPDATE members SET is_active = 1 WHERE id IN (${placeholders})`, activateIds, function(err) {
+          if (err) console.error('Activate error:', err);
+        });
+      }
+
+      db.run('COMMIT', (err) => {
+        if (err) {
+          console.error('Commit error:', err);
+          return res.status(500).send('Database error');
+        }
+        res.redirect('/admin'); // success redirect
+      });
+    });
+  });
+});
+
+
 
 app.post("/suggest-update", requireLogin, checkApprovedUser, (req, res) => {
   const loggedInName = req.session.name;

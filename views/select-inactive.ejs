@@ -1,0 +1,66 @@
+<%- include("_loggedInHeader") -%>
+
+<h1 class="display-5">Deactivate Donors</h1>
+
+<form method="POST" action="/deactivate-donors">
+  <button type="submit" class="btn btn-danger btn-sm mb-3">Mark Selected as Inactive</button>
+
+  <div class="table-wrapper">
+    <div class="table-column">
+      <table class="table table-hover table-sm custom-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Name</th>
+            <th>Spouse Name</th>
+            <th>Banking Name</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% const halfwayIndex = Math.ceil(row.length / 2); %>
+          <% for (let i = 0; i < halfwayIndex; i++) { %>
+            <tr class="<%= row[i].is_active === 0 ? 'table-secondary' : '' %>">
+              <td>
+                <input type="checkbox" name="selectedIds" value="<%= row[i].id %>"
+                  <%= row[i].is_active === 0 ? 'checked' : '' %>>
+              </td>
+              <td><%= row[i].first_name %> <%= row[i].surname %></td>
+              <td><%= row[i].spouse_name %></td>
+              <td><%= row[i].banking_name %></td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-column">
+      <table class="table table-hover table-sm custom-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Name</th>
+            <th>Spouse Name</th>
+            <th>Banking Name</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for (let i = halfwayIndex; i < row.length; i++) { %>
+            <tr class="<%= row[i].is_active === 0 ? 'table-secondary' : '' %>">
+              <td>
+                <input type="checkbox" name="selectedIds" value="<%= row[i].id %>"
+                  <%= row[i].is_active === 0 ? 'checked' : '' %>>
+              </td>
+              <td><%= row[i].first_name %> <%= row[i].surname %></td>
+              <td><%= row[i].spouse_name %></td>
+              <td><%= row[i].banking_name %></td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-danger btn-sm mt-3">Mark Selected as Inactive</button>
+</form>
+
+<%- include("_loggedInFooter") -%>

@@ -66,6 +66,22 @@ async function insertTransactionType(type) {
       });
     }
 
+    async function getAllActiveMembers() {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT * FROM members
+      WHERE is_active != 0 OR is_active IS NULL
+      ORDER BY first_name ASC
+    `;
+    db.all(sql, function (err, rows) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }});
+  });
+}
+
     async function getMemberWithId(id) {
       return new Promise((resolve, reject) => {
         const sql = 'SELECT * FROM members WHERE id = ?';
@@ -283,5 +299,6 @@ module.exports = {
   getLogsPaginated,
   getLogsCount,
   getMembersCount,
-  getMembersPaginated
+  getMembersPaginated,
+  getAllActiveMembers
 };
