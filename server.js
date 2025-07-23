@@ -717,8 +717,8 @@ app.get('/logout', (req, res) => {
         try {
           const id = req.params.id;
           const donor = await dbHelper.getMemberWithId(id);
-          const titheSql = "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund = 'Tithe' ORDER BY date ASC";
-          const donationSql = "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2021-01-01' AND '2023-12-31' AND fund != 'Tithe' ORDER BY date ASC";
+          const titheSql = "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2024-01-01' AND '2024-12-31' AND fund = 'Tithe' ORDER BY date ASC";
+          const donationSql = "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2024-01-01' AND '2024-12-31' AND fund != 'Tithe' ORDER BY date ASC";
           Promise.all([
             new Promise((resolve, reject) => {
               db.all(titheSql, [id], (err, tithe) => {
@@ -743,9 +743,9 @@ app.get('/logout', (req, res) => {
               try {
                 const pdfPath = await pdfGenerator.generatePDF(donor, tithe, donations);
                 await sendStatementByEmail(pdfPath);
+                req.flash('sucess', 'Statement of donations sent');
                 console.log("Statement of donations sent for: " + donor.first_name);
                 log(loggedInName + ": Statement of donations sent for: " + donor.first_name)
-                req.flash('sucess', 'Statement of donations sent');
                 return res.redirect('/claimants/:page');
               } catch (err) {
                 console.error("Error generating or sending the statement of donations for donor: " + donor.first_name + err);
@@ -770,7 +770,6 @@ app.get('/logout', (req, res) => {
           try {
             const loggedInName = req.session.name;
             const types = await dbHelper.getAllTransactionTypes(); // Add await
-            console.log(types);
             res.render("generate-transaction-pdf", { loggedInName: loggedInName, types: types });
           } catch (error) {
             console.error("Error rendering generate transactions page:", error);

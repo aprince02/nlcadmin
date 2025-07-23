@@ -5,7 +5,7 @@ const { autoTable } = require("jspdf-autotable");
 const { log } = require('./utils');
 
 async function generatePDF(donor, tithe, donations) {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ compress: true });
 
   const logoPath = "css/logo.png";
   const logoData = fs.readFileSync(logoPath);
@@ -47,7 +47,7 @@ async function generatePDF(donor, tithe, donations) {
   doc.text("Statement of Tithe/Donations", 10, 65)
   doc.setFontSize(10);
   doc.text("Period:", 10, 70)
-  doc.text("01/01/2023 - 31/12/2023", 90, 70)
+  doc.text("01/01/2024 - 31/12/2024", 90, 70)
   doc.text("Total Tithe/Donations:", 10, 75)
   doc.text(totalDonation, 90, 75)
   doc.text("Gift Aid Claimed:", 10, 80)
@@ -96,7 +96,7 @@ async function generatePDF(donor, tithe, donations) {
 
   doc.setFontSize(10)
   doc.text("Thank you for your generous support, May God Bless You.", 10, donationTableEndY + 15)
-  doc.text("Shinu Yohannan", 10, donationTableEndY + 25)
+  doc.text("Rejoy Varghese", 10, donationTableEndY + 25)
   doc.setFontSize(9)
   doc.text("Treasurer", 10, donationTableEndY + 30)
 
