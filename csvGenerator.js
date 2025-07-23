@@ -28,39 +28,102 @@ async function exportDonationsCsv(req, res) {
 
   async function exportGiftAidClaimCsv(req, res) {
     try {
-      const rows = await new Promise((resolve, reject) => {
-        db.all(`SELECT members.first_name, members.surname, donations.amount, donations.date, 
-                members.title, members.house_number, members.postcode
-                FROM donations 
-                INNER JOIN members ON donations.member_id = members.id 
-                WHERE donations.gift_aid_status = 'Unclaimed'`, function(err, rows) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(rows);
-          }});
-      });
-      const csvWrite = csvWriter({
-        path: 'giftaid_claim.csv',
-        header: [
-          { id: 'title', title: 'Title' },  
-          { id: 'first_name', title: 'First Name' },
-          { id: 'surname', title: 'Surname' },
-          { id: 'house_number', title: 'House Number' },
-          { id: 'postcode', title: 'Postcode' },
-          { id: 'aggregated_donations', title: 'Aggregated donations' },
-          { id: 'sponsored', title: 'Sponsored' },
-          { id: 'date', title: 'Date' },
-          { id: 'amount', title: 'Amount' }
-        ]
-      });
-      await csvWrite.writeRecords(rows);
-      console.log('Gift Aid Claim CSV successfully exported');
+        // Exporting Donations data
+        const donationsData = await new Promise((resolve, reject) => {
+            db.all(`
+                SELECT 
+                    members.title, 
+                    members.first_name, 
+                    members.surname AS last_name, 
+                    members.house_number AS house_name_or_number, 
+                    members.postcode, 
+                    donations.amount AS donation_amount, 
+                    donations.date AS donation_date
+                FROM donations
+                INNER JOIN members ON donations.member_id = members.id
+                WHERE donations.gift_aid_status = 'Unclaimed'
+            `, function(err, rows) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(rows);
+                }
+            });
+        });
+
+        // Exporting Offering Claim data
+        const offeringClaimData = await new Promise((resolve, reject) => {
+            db.all(`
+                SELECT 
+                    offering_claim.date AS offering_date, 
+                    offering_claim.amount AS offering_amount
+                FROM offering_claim
+            `, function(err, rows) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(rows);
+                }
+            });
+        });
+
+        // Prepare CSV data with donations first, followed by offering claims
+        const csvData = [];
+
+        // Add Donations Data first
+        donationsData.forEach(donation => {
+            csvData.push({
+                title: donation.title,
+                first_name: donation.first_name,
+                last_name: donation.last_name,
+                house_name_or_number: donation.house_name_or_number,
+                postcode: donation.postcode,
+                aggregated_donations: donation.donation_amount || 0,
+                sponsored_event: '',  // Placeholder for sponsored event
+                donation_date: donation.donation_date,
+                amount: donation.donation_amount || 0
+            });
+        });
+
+        // Then, add Offering Claim Data with the required format
+        offeringClaimData.forEach(claim => {
+            csvData.push({
+                title: '',  // Empty for offerings
+                first_name: '',  // Empty for offerings
+                last_name: '',  // Empty for offerings
+                house_name_or_number: '',  // Empty for offerings
+                postcode: '',  // Empty for offerings
+                aggregated_donations: "Sunday Collection Bucket",  // Fixed value
+                sponsored_event: '',  // Empty for offerings
+                donation_date: claim.offering_date,  // Use offering date
+                amount: claim.offering_amount  // Use offering amount
+            });
+        });
+
+        // Writing merged data to CSV
+        const csvWrite = csvWriter({
+            path: 'giftaid_claim.csv',
+            header: [
+                { id: 'title', title: 'Title' },
+                { id: 'first_name', title: 'First name' },
+                { id: 'last_name', title: 'Last name' },
+                { id: 'house_name_or_number', title: 'House name or number' },
+                { id: 'postcode', title: 'Postcode' },
+                { id: 'aggregated_donations', title: 'Aggregated donations' },
+                { id: 'sponsored_event', title: 'Sponsored event' },
+                { id: 'donation_date', title: 'Donation date' },
+                { id: 'amount', title: 'Amount' }
+            ]
+        });
+
+        await csvWrite.writeRecords(csvData);
+        console.log('Gift Aid Claim CSV successfully exported');
+        req.flash('success', 'Gift Aid Claim CSV successfully exported');
     } catch (error) {
-      console.error('Error exporting gift aid claim CSV:', error);
-      req.flash('error', 'Error generating CSV file for gift aid claim.');
+        console.error('Error exporting gift aid claim CSV:', error);
+        req.flash('error', 'Error generating CSV file for gift aid claim.');
     }
-  }
+}
 
 async function writeTotalPaidInOutCsv(types, totalPaidInByType, totalPaidOutByType) {
     const csvFilePath = "total_paid_in_out.csv";
