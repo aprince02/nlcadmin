@@ -13,16 +13,16 @@
 </div>
 
 <div class="form-group row">
-    <label class="col-form-label col-sm-2" for="amount">Amount</label>
-    <div class="col-sm-5">
-      <input class="form-control" name="amount" style="max-width: fit-content;" placeholder="Enter amount e.g: 12.79" value="<%= row.amount %>"/>
-    </div>
+  <label for="donationAmount" class="col-sm-2 col-form-label">Amount</label>
+  <div class="col-sm-10">
+    <input type="number" step="0.01" name="amount" id="donationAmount" style="max-width: fit-content;" class="form-control" value="<%= donationAmount || '' %>" required>
+  </div>
 </div>
 
 <div class="form-group row">
-  <label class="col-form-label col-sm-2" for="date">Date of Donation</label>
-  <div class="col-sm-5">
-    <input type="date" style="max-width: fit-content;" class="form-control" cols="20" name="date" maxlength="32000" value="<%= row.date %>" />
+  <label for="donationDate" class="col-sm-2 col-form-label">Date of Donation</label>
+  <div class="col-sm-10">
+    <input type="date" name="date" id="donationDate" style="max-width: fit-content;" class="form-control" value="<%= donationDate || '' %>" required>
   </div>
 </div>
 
@@ -31,11 +31,12 @@
   <div class="col-sm-5">
     <select required class="form-control" style="max-width: fit-content;" name="fund" id="fund">
       <% types.forEach(type => { %>
-        <option value="<%= type %>" <%= row.fund === type ? 'selected' : '' %>><%= type %></option>
+        <option value="<%= type %>" <%= typeof preselectedFund !== 'undefined' && preselectedFund === type ? 'selected' : '' %>><%= type %></option>
       <% }); %>
     </select>
   </div>  
 </div>
+
 
 <div class="form-group row">
   <label class="col-form-label col-sm-2" for="notes">Note</label>

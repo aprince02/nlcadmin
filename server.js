@@ -252,6 +252,22 @@ app.get("/select-giver", requireLogin, checkApprovedUser, async (req, res) => {
     return res.redirect("/claimants/:page")
   }});
 
+  function guessFundFromDescription(description, types) {
+  if (!description) return null;
+
+  const lowerDesc = description.toLowerCase();
+
+  // Try partial match
+  for (const type of types) {
+    if (lowerDesc.includes(type.toLowerCase())) {
+      return type;
+    }
+  }
+
+  // Optional: fallback to first type
+  return null;
+}
+
 app.get("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
   try {
     const loggedInName = req.session.name;
@@ -261,12 +277,25 @@ app.get("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) =
     const donationAmount = req.session.incoming;
     const row = await dbHelper.getMemberWithId(id);
     const types = await dbHelper.getAllDonationTypes();
-    res.render("add-donation", { row: row, loggedInName: loggedInName, donationDate: donationDate, donationAmount: donationAmount, donationDescription: donationDescription, types: types});
+
+    const preselectedFund = guessFundFromDescription(donationDescription, types);
+    console.log("Preselected fund based on description: " + preselectedFund);
+
+    res.render("add-donation", {
+      row,
+      loggedInName,
+      donationDate,
+      donationAmount,
+      donationDescription,
+      types,
+      preselectedFund
+    });
   } catch (error) {
-    console.error('Error rendering delete member page:', error);
-    log(loggedInName + ': Error rendering delete member page: ' + error )
-    return res.redirect("/claimants/:page")
-  }});
+    console.error('Error rendering add donation page:', error);
+    return res.redirect("/claimants/1");
+  }
+});
+
 
 app.get("/edit-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
   try {
