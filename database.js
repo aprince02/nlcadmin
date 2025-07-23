@@ -52,7 +52,8 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
             emergency_contact_2_name text,
             occupation_studies text,
             spouse_name text,
-            banking_name text
+            banking_name text,
+            is_active INTEGER DEFAULT 1,
             )`,
         (err) => {
             if (err) {
