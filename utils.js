@@ -55,18 +55,55 @@ function readCSVAndProcess(csvFilePath, req, res, next) {
             results.push(data);
         })
         .on('end', () => {
-            results.forEach(row => {
-                const sql = "INSERT INTO transactions (date, transaction_type, type, description, paid_out, paid_in, balance, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-                const params = [row.Date, row.Type, null, row.Description, row['Paid Out'], row['Paid In'], row.Balance, null];
-                db.run(sql, params, (err) => {
-                    if (err) {
-                        log("Error inserting row into the database: " + row.Description + " " + err.message);
-                    } else {
-                        log("Row inserted successfully: " + row.Description);
-                    }});
-            });
-            fs.unlinkSync(csvFilePath);
+    results.forEach(row => {
+        // Default to null
+        let inferredType = null;
+
+        // Normalize description for case-insensitive matching
+        const description = row.Description?.toLowerCase() || "";
+
+        if (description.includes("offering")) {
+            inferredType = "Offering";
+        } else if (description.includes("zoom")) {
+            inferredType = "Audio/Visual/Licenses";
+        } else if (description.includes("food")) {
+            inferredType = "Food";
+        } else if (description.includes("hmrc charities")) {
+            inferredType = "Gift Aid Claim";
+        } else if (description.includes("snacks")) {
+            inferredType = "Food";
+        } else if (description.includes("total charges")) {
+            inferredType = "Bank Charges";
+        }
+
+        const sql = `
+            INSERT INTO transactions (
+                date, transaction_type, type, description, paid_out, paid_in, balance, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        const params = [
+            row.Date,
+            row.Type,
+            inferredType,
+            row.Description,
+            row['Paid Out'],
+            row['Paid In'],
+            row.Balance,
+            null
+        ];
+
+        db.run(sql, params, (err) => {
+            if (err) {
+                log("Error inserting row into the database: " + row.Description + " " + err.message);
+            } else {
+                log("Row inserted successfully: " + row.Description);
+            }
         });
+    });
+
+    fs.unlinkSync(csvFilePath);
+});
 }
 
   function convertDateFormat(dateString) {
