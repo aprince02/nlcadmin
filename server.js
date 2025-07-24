@@ -10,11 +10,13 @@ const saltRounds = 10;
 const csvWriter = require('csv-writer').createObjectCsvWriter;
 const pdfGenerator = require('./pdf-generator');
 const { exec } = require('child_process');
+const dayjs = require('dayjs');
 const path = require('path');
 const multer = require('multer');
 const schedule = require('node-schedule');
 const { requireLogin, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser } = require('./utils');
 const dbHelper = require('./dbHelper')
+const currentYear = new Date().getFullYear();
 const csvGenerator = require('./csvGenerator')
 const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail, sendUpdateSuggestionEmail, sendNewUserAddedEmail, sendDonationReceivedEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
@@ -1108,7 +1110,39 @@ app.post('/deactivate-donors', (req, res) => {
   });
 });
 
+app.get('/dashboard', requireLogin, checkApprovedUser, async (req, res) => {
+  const loggedInName = req.session.name;
+  try {
+    const currentYear = new Date().getFullYear();
 
+    const [transactions, donations] = await Promise.all([
+      dbHelper.getAllTransactionsForYear(currentYear),
+      dbHelper.getAllDonationsForYear(currentYear)
+    ]);
+
+    const monthlyData = dbHelper.generateMonthlyData(transactions);
+    const fundBreakdown = dbHelper.generateFundBreakdown(donations);
+
+    // Prepare your chart data
+    const barChartData = JSON.stringify(monthlyData);
+    const pieChartData = JSON.stringify(fundBreakdown);
+
+    console.log("monthlyData:", monthlyData);
+    console.log("fundBreakdown:", fundBreakdown);
+
+    res.render('dashboard', {
+      monthlyData,
+      fundBreakdown,
+      barChartData,
+      pieChartData,
+      currentYear,
+      loggedInName
+    });
+  } catch (err) {
+    console.error("Error rendering dashboard:", err);
+    res.status(500).send('Server error');
+  }
+});
 
 app.post("/suggest-update", requireLogin, checkApprovedUser, (req, res) => {
   const loggedInName = req.session.name;

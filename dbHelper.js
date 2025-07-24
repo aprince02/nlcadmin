@@ -280,6 +280,89 @@ async function getMembersCount() {
   });
 }
 
+async function getMonthlyTransactionAndDonationSums() {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT strftime('%Y-%m', date) AS month,
+             SUM(CASE WHEN paid_in IS NOT NULL THEN paid_in ELSE 0 END) AS total_in,
+             SUM(CASE WHEN paid_out IS NOT NULL THEN paid_out ELSE 0 END) AS total_out
+      FROM transactions
+      GROUP BY month
+      ORDER BY month ASC
+    `;
+    db.all(sql, [], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
+async function getFundDistribution() {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT fund, SUM(amount) AS total
+      FROM donations
+      GROUP BY fund
+    `;
+    db.all(sql, [], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
+function generateMonthlyData(transactions) {
+  const data = {};
+
+  transactions.forEach(tx => {
+    const date = new Date(tx.date);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    if (!data[monthKey]) {
+      data[monthKey] = { paidIn: 0, paidOut: 0 };
+    }
+
+    data[monthKey].paidIn += parseFloat(tx.paid_in || 0);
+    data[monthKey].paidOut += parseFloat(tx.paid_out || 0);
+  });
+
+  return Object.entries(data).sort().map(([month, values]) => ({
+    month,
+    ...values
+  }));
+}
+
+function generateFundBreakdown(donations) {
+  const breakdown = {};
+
+  donations.forEach(d => {
+    const fund = d.fund || "Uncategorised";
+    const amount = parseFloat(d.amount || 0);
+    breakdown[fund] = (breakdown[fund] || 0) + amount;
+  });
+
+  return Object.entries(breakdown).map(([fund, total]) => ({
+    fund,
+    total
+  }));
+}
+
+async function getAllDonationsForYear(year) {
+  return new Promise((resolve, reject) => {
+    const sql = "SELECT * FROM donations WHERE date >= ? AND date <= ? ORDER BY date ASC";
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+    db.all(sql, [startDate, endDate], (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+}
+
+
 module.exports = {
   getAllTransactionTypes,
   insertTransactionType,
@@ -300,5 +383,10 @@ module.exports = {
   getLogsCount,
   getMembersCount,
   getMembersPaginated,
-  getAllActiveMembers
+  getAllActiveMembers,
+  getMonthlyTransactionAndDonationSums,
+  getFundDistribution,
+  generateFundBreakdown,
+  generateMonthlyData,
+  getAllDonationsForYear
 };

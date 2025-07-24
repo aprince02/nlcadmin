@@ -1,0 +1,101 @@
+<%- include("_loggedInHeader") -%>
+
+<div class="container mt-5">
+  <h1 class="display-4 text-center mb-4">📊 Dashboard</h1>
+
+  <div class="row g-4">
+    <!-- Monthly Transactions Bar Chart -->
+    <div class="col-lg-6">
+      <div class="card shadow rounded-3">
+        <div class="card-body">
+          <h5 class="card-title text-center mb-3">📅 Monthly Transactions</h5>
+          <canvas id="barChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Donations by Fund Pie Chart -->
+    <div class="col-lg-6">
+      <div class="card shadow rounded-3">
+        <div class="card-body">
+          <h5 class="card-title text-center mb-3">🎯 Donations by Fund</h5>
+          <canvas id="pieChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const barData = <%- barChartData %>;
+  const pieData = <%- pieChartData %>;
+
+  // Bar Chart
+  const barCtx = document.getElementById('barChart').getContext('2d');
+  new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels: barData.map(row => row.month),
+      datasets: [
+        {
+          label: 'Paid In',
+          data: barData.map(row => row.paidIn),
+          backgroundColor: '#4bc0c0'
+        },
+        {
+          label: 'Paid Out',
+          data: barData.map(row => row.paidOut),
+          backgroundColor: '#ff6384'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'top'
+        }
+      },
+      scales: {
+        x: {
+          ticks: { maxRotation: 90, minRotation: 45 }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return value.toLocaleString();
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Pie Chart
+  const pieCtx = document.getElementById('pieChart').getContext('2d');
+  new Chart(pieCtx, {
+    type: 'pie',
+    data: {
+      labels: pieData.map(row => row.fund || 'Unspecified'),
+      datasets: [{
+        data: pieData.map(row => row.total),
+        backgroundColor: [
+          '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+          '#F67019', '#00A36C', '#8B0000', '#C71585', '#808080'
+        ]
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'right'
+        }
+      }
+    }
+  });
+</script>
+
+<%- include("_loggedInFooter") -%>
