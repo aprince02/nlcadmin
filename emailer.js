@@ -4,14 +4,19 @@ const fs = require('fs');
 const nodemailer = require('nodemailer');
 
 const emailConfig = {
-  host: 'smtp.zoho.eu',
-  port: '465',
-  secure: true,
+  host: "smtp.zoho.eu",
+  port: 465,            // use number, not string
+  secure: true,         // Zoho requires SSL on port 465
   auth: {
-    user: 'mailer@probooksaccounting.co.uk',
-    pass: 'ZAmBWUPFDEwz',
+    user: "mailer@probooksaccounting.co.uk",
+    pass: "ZAmBWUPFDEwz",
   },
+  pool: true,           // keep a connection pool
+  rateLimit: true,      // enable built-in rate limiting
+  maxConnections: 1,    // only 1 active SMTP connection at a time
+  maxMessages: 5,       // max 5 messages per connection
 };
+
 const sender = '"ProBooks Accounting" <mailer@probooksaccounting.co.uk>'
 const receiver = 'albinm65@gmail.com';
 const emailFooter = "\n\n\n\nThank you for using our services!\n\nIf you have any doubts using our services, please reply to this email\n\n\n\n Probooks Accounting © - Alpha Media Productions Ltd."
