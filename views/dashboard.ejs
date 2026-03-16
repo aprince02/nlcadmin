@@ -1,29 +1,247 @@
 <%- include("_loggedInHeader") -%>
 
-<div class="container mt-5">
-  <h1 class="display-4 text-center mb-4">📊 Dashboard</h1>
+<div class="pb-page">
 
-  <div class="row g-4">
-    <!-- Monthly Transactions Bar Chart -->
+  <!-- Page Header -->
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Dashboard</h1>
+      <p class="pb-page-subtitle"><%= currentYear %> Overview</p>
+    </div>
+    <div class="pb-page-actions d-print-none">
+      <div class="pb-year-switcher">
+        <a class="pb-year-btn" href="/dashboard?year=<%= currentYear - 1 %>" aria-label="Previous year">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+        <span class="pb-year-label"><%= currentYear %></span>
+        <a class="pb-year-btn <%= isCurrentYear ? 'disabled' : '' %>"
+           href="<%= isCurrentYear ? '#' : '/dashboard?year=' + (currentYear + 1) %>"
+           aria-label="Next year"
+           aria-disabled="<%= isCurrentYear %>">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      </div>
+      <a class="btn btn-primary btn-sm" href="/select-giver">
+        <i class="bi bi-plus-circle" aria-hidden="true"></i> Add Donation
+      </a>
+      <a class="btn btn-outline-secondary btn-sm" href="/all-donations/1">All Donations</a>
+    </div>
+  </div>
+
+  <!-- ── Section 1: This Month KPIs ── -->
+  <p class="pb-dash-section"><%= isCurrentYear ? 'This Month' : currentYear + ' — Full Year' %></p>
+  <div class="pb-kpi-grid mb-4">
+
+    <div class="pb-kpi-card pb-kpi-card--income">
+      <span class="pb-kpi-label">Paid In</span>
+      <span class="pb-kpi-value">£<%= currentMonthTotals.paidIn.toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}) %></span>
+      <% if (paidInChange !== null) { %>
+        <span class="pb-kpi-change <%= paidInChange >= 0 ? 'up' : 'down' %>">
+          <i class="bi bi-arrow-<%= paidInChange >= 0 ? 'up' : 'down' %>-short"></i>
+          <%= Math.abs(paidInChange) %>% vs last month
+        </span>
+      <% } else { %>
+        <span class="pb-kpi-change neutral">No prior data</span>
+      <% } %>
+    </div>
+
+    <div class="pb-kpi-card pb-kpi-card--expense">
+      <span class="pb-kpi-label">Paid Out</span>
+      <span class="pb-kpi-value">£<%= currentMonthTotals.paidOut.toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}) %></span>
+      <% if (paidOutChange !== null) { %>
+        <span class="pb-kpi-change <%= paidOutChange > 0 ? 'down' : 'up' %>">
+          <i class="bi bi-arrow-<%= paidOutChange > 0 ? 'up' : 'down' %>-short"></i>
+          <%= Math.abs(paidOutChange) %>% vs last month
+        </span>
+      <% } else { %>
+        <span class="pb-kpi-change neutral">No prior data</span>
+      <% } %>
+    </div>
+
+    <div class="pb-kpi-card pb-kpi-card--net">
+      <span class="pb-kpi-label">Net Position</span>
+      <span class="pb-kpi-value pb-kpi-value--<%= currentMonthTotals.net >= 0 ? 'positive' : 'negative' %>">
+        <%= currentMonthTotals.net >= 0 ? '+' : '' %>£<%= Math.abs(currentMonthTotals.net).toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}) %>
+      </span>
+      <span class="pb-kpi-change neutral">Income minus expenses</span>
+    </div>
+
+    <div class="pb-kpi-card pb-kpi-card--stat">
+      <span class="pb-kpi-label">Donations Recorded</span>
+      <span class="pb-kpi-value"><%= monthlyDonationCount %></span>
+      <span class="pb-kpi-change neutral">this month</span>
+    </div>
+
+  </div>
+
+  <!-- ── Section 2: Year to Date KPIs ── -->
+  <p class="pb-dash-section">Year to Date — <%= currentYear %></p>
+  <div class="pb-kpi-grid pb-kpi-grid--2 mb-4">
+
+    <div class="pb-kpi-card pb-kpi-card--income">
+      <span class="pb-kpi-label">Total Donations</span>
+      <span class="pb-kpi-value">£<%= parseFloat(ytdDonationTotal).toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}) %></span>
+      <span class="pb-kpi-change neutral"><%= currentYear %> year to date</span>
+    </div>
+
+    <div class="pb-kpi-card pb-kpi-card--stat">
+      <span class="pb-kpi-label">Active Members</span>
+      <span class="pb-kpi-value"><%= activeMembers %></span>
+      <span class="pb-kpi-change neutral">on the membership register</span>
+    </div>
+
+  </div>
+
+  <!-- ── Section 3: Charts ── -->
+  <p class="pb-dash-section">Trends</p>
+  <div class="row g-4 mb-4">
+    <div class="col-lg-7">
+      <div class="pb-chart-card h-100">
+        <p class="pb-chart-title">Monthly Paid In vs Paid Out — <%= currentYear %></p>
+        <canvas id="barChart"></canvas>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="pb-chart-card h-100">
+        <p class="pb-chart-title">Donations by Fund — <%= currentYear %></p>
+        <canvas id="pieChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Section 4: Recent Activity ── -->
+  <p class="pb-dash-section">Recent Activity</p>
+  <div class="row g-4 mb-4">
+
     <div class="col-lg-6">
-      <div class="card shadow rounded-3">
-        <div class="card-body">
-          <h5 class="card-title text-center mb-3">📅 Monthly Transactions</h5>
-          <canvas id="barChart" height="250"></canvas>
+      <div class="pb-table-card">
+        <div class="pb-admin-section-header d-flex justify-content-between align-items-center">
+          <span>Recent Transactions</span>
+          <a href="/yearly-transactions/<%= currentYear %>/1" class="pb-view-all-link">View All →</a>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Paid In</th>
+                <th>Paid Out</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (recentTransactions.length === 0) { %>
+                <tr><td colspan="4" class="text-center text-muted py-3">No transactions found</td></tr>
+              <% } else { %>
+                <% for (const tx of recentTransactions) { %>
+                  <tr>
+                    <td><%= tx.date ? tx.date.split('-').reverse().join('-') : '—' %></td>
+                    <td class="text-truncate pb-truncate-col" title="<%= tx.description %>"><%= tx.description || '—' %></td>
+                    <td class="<%= parseFloat(tx.paid_in) > 0 ? 'pb-amt-in' : 'text-muted' %>">
+                      <%= parseFloat(tx.paid_in) > 0 ? '£' + parseFloat(tx.paid_in).toFixed(2) : '—' %>
+                    </td>
+                    <td class="<%= parseFloat(tx.paid_out) > 0 ? 'pb-amt-out' : 'text-muted' %>">
+                      <%= parseFloat(tx.paid_out) > 0 ? '£' + parseFloat(tx.paid_out).toFixed(2) : '—' %>
+                    </td>
+                  </tr>
+                <% } %>
+              <% } %>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
 
-    <!-- Donations by Fund Pie Chart -->
     <div class="col-lg-6">
-      <div class="card shadow rounded-3">
-        <div class="card-body">
-          <h5 class="card-title text-center mb-3">🎯 Donations by Fund</h5>
-          <canvas id="pieChart" height="250"></canvas>
+      <div class="pb-table-card">
+        <div class="pb-admin-section-header d-flex justify-content-between align-items-center">
+          <span>Recent Donations</span>
+          <a href="/all-donations/1" class="pb-view-all-link">View All</a>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Donor</th>
+                <th>Fund</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (recentDonations.length === 0) { %>
+                <tr><td colspan="4" class="text-center text-muted py-3">No donations found</td></tr>
+              <% } else { %>
+                <% for (const d of recentDonations) { %>
+                  <tr>
+                    <td><%= d.date ? d.date.split('-').reverse().join('-') : '—' %></td>
+                    <td><%= d.first_name %> <%= d.surname %></td>
+                    <td><%= d.fund || '—' %></td>
+                    <td class="pb-amt-in">£<%= parseFloat(d.amount).toFixed(2) %></td>
+                  </tr>
+                <% } %>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Section 5: Top Donors ── -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="pb-table-card">
+        <div class="pb-admin-section-header d-flex justify-content-between align-items-center">
+          <span>Top Donors — <%= currentYear %></span>
+          <a href="/all-donations/1" class="pb-view-all-link">View All</a>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Total Given</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (topDonors.length === 0) { %>
+                <tr><td colspan="3" class="text-center text-muted py-3">No donation data</td></tr>
+              <% } else { %>
+                <% topDonors.forEach(function(donor, i) { %>
+                  <tr>
+                    <td><span class="pb-rank-badge"><%= i + 1 %></span></td>
+                    <td><%= donor.first_name %> <%= donor.surname %></td>
+                    <td class="pb-amt-in fw-semibold">£<%= parseFloat(donor.total).toFixed(2) %></td>
+                  </tr>
+                <% }) %>
+              <% } %>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- ── Section 6: Quick Actions ── -->
+  <p class="pb-dash-section">Quick Actions</p>
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <a class="btn btn-primary" href="/select-giver">
+      <i class="bi bi-plus-circle" aria-hidden="true"></i> Add Donation
+    </a>
+    <a class="btn btn-outline-secondary" href="/all-donations/1">
+      <i class="bi bi-list-ul" aria-hidden="true"></i> All Donations
+    </a>
+    <a class="btn btn-outline-secondary" href="/claimants/1">
+      <i class="bi bi-people" aria-hidden="true"></i> Members
+    </a>
+    <a class="btn btn-outline-secondary" href="/admin">
+      <i class="bi bi-gear" aria-hidden="true"></i> Admin Console
+    </a>
+  </div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -31,70 +249,91 @@
   const barData = <%- barChartData %>;
   const pieData = <%- pieChartData %>;
 
-  // Bar Chart
-  const barCtx = document.getElementById('barChart').getContext('2d');
-  new Chart(barCtx, {
+  // Bar chart — Paid In vs Paid Out
+  new Chart(document.getElementById('barChart').getContext('2d'), {
     type: 'bar',
     data: {
-      labels: barData.map(row => row.month),
+      labels: barData.map(r => r.month),
       datasets: [
         {
           label: 'Paid In',
-          data: barData.map(row => row.paidIn),
-          backgroundColor: '#4bc0c0'
+          data: barData.map(r => r.paidIn),
+          backgroundColor: 'rgba(47, 158, 68, 0.8)',
+          borderColor: 'rgba(47, 158, 68, 1)',
+          borderWidth: 1,
+          borderRadius: 3
         },
         {
           label: 'Paid Out',
-          data: barData.map(row => row.paidOut),
-          backgroundColor: '#ff6384'
+          data: barData.map(r => r.paidOut),
+          backgroundColor: 'rgba(201, 42, 42, 0.7)',
+          borderColor: 'rgba(201, 42, 42, 1)',
+          borderWidth: 1,
+          borderRadius: 3
         }
       ]
     },
     options: {
       responsive: true,
       plugins: {
-        legend: {
-          position: 'top'
+        legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' £' + ctx.parsed.y.toLocaleString('en-GB', { minimumFractionDigits: 2 })
+          }
         }
       },
       scales: {
-        x: {
-          ticks: { maxRotation: 90, minRotation: 45 }
-        },
+        x: { ticks: { maxRotation: 45, minRotation: 45 } },
         y: {
           beginAtZero: true,
-          ticks: {
-            callback: function(value) {
-              return value.toLocaleString();
-            }
-          }
+          ticks: { callback: v => '£' + v.toLocaleString('en-GB') }
         }
       }
     }
   });
 
-  // Pie Chart
-  const pieCtx = document.getElementById('pieChart').getContext('2d');
-  new Chart(pieCtx, {
-    type: 'pie',
+  // Doughnut chart — Donations by Fund
+  const totalDonations = pieData.reduce((sum, r) => sum + r.total, 0);
+  new Chart(document.getElementById('pieChart').getContext('2d'), {
+    type: 'doughnut',
     data: {
-      labels: pieData.map(row => row.fund || 'Unspecified'),
+      labels: pieData.map(r => r.fund || 'Unspecified'),
       datasets: [{
-        data: pieData.map(row => row.total),
+        data: pieData.map(r => r.total),
         backgroundColor: [
-          '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-          '#F67019', '#00A36C', '#8B0000', '#C71585', '#808080'
-        ]
+          '#36A2EB', '#4BC0C0', '#2f9e44', '#FFCE56', '#9966FF',
+          '#FF6384', '#F67019', '#00A36C', '#8B0000', '#808080'
+        ],
+        borderWidth: 2,
+        borderColor: '#fff'
       }]
     },
     options: {
       responsive: true,
+      cutout: '62%',
       plugins: {
-        legend: {
-          position: 'right'
+        legend: { position: 'right' },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' £' + ctx.parsed.toLocaleString('en-GB', { minimumFractionDigits: 2 })
+          }
         }
       }
-    }
+    },
+    plugins: [{
+      id: 'centerText',
+      beforeDraw(chart) {
+        const { width, height, ctx } = chart;
+        ctx.save();
+        ctx.font = 'bold 13px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#212529';
+        ctx.fillText('£' + totalDonations.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), width / 2, height / 2);
+        ctx.restore();
+      }
+    }]
   });
 </script>
 

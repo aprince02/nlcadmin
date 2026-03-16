@@ -8,17 +8,6 @@
     <label class="col-form-label col-sm-2" for="password">Password</label>
     <div class="col-sm-7">
       <input required aria-describedby="passwordHelpBlock" id="password" placeholder="Enter password" minlength="8" type="password" class="form-control" name="password"/>
-      <input type="checkbox" onclick="myFunction()"> Show Password
-
-      <script>
-      function myFunction() {
-        var x = document.getElementById("password");
-        if (x.type === "password") {
-          x.type = "text";
-        } else {
-          x.type = "password";
-        }
-      }
-      </script>
+      <input type="checkbox" onclick="togglePasswordVisibility()"> Show Password
     </div>
 </div>

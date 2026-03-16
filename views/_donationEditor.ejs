@@ -1,46 +1,35 @@
-<div class="form-group row">
-  <label class="col-form-label col-sm-2" for="first_name">First Name</label>
+<div class="row g-3 mb-3">
   <div class="col-sm-5">
-    <input  class="form-control" name="first_name" style="max-width: fit-content;" value="<%= row.first_name %>"/>
+    <label class="form-label" for="first_name">First Name</label>
+    <input class="form-control pb-field-natural" name="first_name" id="first_name" value="<%= row.first_name %>"/>
   </div>
-</div>
-
-<div class="form-group row">
-  <label class="col-form-label col-sm-2" for="surname">Surname</label>
   <div class="col-sm-5">
-    <input  class="form-control" name="surname" style="max-width: fit-content;" value="<%= row.surname %>"/>
+    <label class="form-label" for="surname">Surname</label>
+    <input class="form-control pb-field-natural" name="surname" id="surname" value="<%= row.surname %>"/>
   </div>
 </div>
 
-<div class="form-group row">
-  <label for="donationAmount" class="col-sm-2 col-form-label">Amount</label>
-  <div class="col-sm-10">
-    <input type="number" step="0.01" name="amount" id="donationAmount" style="max-width: fit-content;" class="form-control" value="<%= donationAmount || '' %>" required>
+<div class="row g-3 mb-3">
+  <div class="col-sm-4">
+    <label class="form-label" for="donationAmount">Amount (£)</label>
+    <input type="number" step="0.01" name="amount" id="donationAmount" class="form-control pb-field-natural" value="<%= typeof donationAmount !== 'undefined' ? donationAmount : (row.amount || '') %>" required>
+  </div>
+  <div class="col-sm-4">
+    <label class="form-label" for="donationDate">Date of Donation</label>
+    <input type="date" name="date" id="donationDate" class="form-control pb-field-natural" value="<%= typeof donationDate !== 'undefined' ? donationDate : (row.date || '') %>" required>
   </div>
 </div>
 
-<div class="form-group row">
-  <label for="donationDate" class="col-sm-2 col-form-label">Date of Donation</label>
-  <div class="col-sm-10">
-    <input type="date" name="date" id="donationDate" style="max-width: fit-content;" class="form-control" value="<%= donationDate || '' %>" required>
-  </div>
+<div class="mb-3">
+  <label class="form-label" for="fund">Fund</label>
+  <select required class="form-select pb-field-natural" name="fund" id="fund">
+    <% types.forEach(type => { %>
+      <option value="<%= type %>" <%= typeof preselectedFund !== 'undefined' && preselectedFund === type ? 'selected' : '' %>><%= type %></option>
+    <% }); %>
+  </select>
 </div>
 
-<div class="form-group row">
-  <label class="col-form-label col-sm-2" for="fund">Fund</label>
-  <div class="col-sm-5">
-    <select required class="form-control" style="max-width: fit-content;" name="fund" id="fund">
-      <% types.forEach(type => { %>
-        <option value="<%= type %>" <%= typeof preselectedFund !== 'undefined' && preselectedFund === type ? 'selected' : '' %>><%= type %></option>
-      <% }); %>
-    </select>
-  </div>  
-</div>
-
-
-<div class="form-group row">
-  <label class="col-form-label col-sm-2" for="notes">Note</label>
-  <div class="col-sm-5">
-    <input class="form-control" name="notes" value="<%= row.notes %>"/>
-  </div>
+<div class="mb-3">
+  <label class="form-label" for="notes">Notes</label>
+  <input class="form-control pb-field-full" name="notes" id="notes" value="<%= row.notes %>"/>
 </div>

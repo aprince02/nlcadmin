@@ -1,26 +1,43 @@
 <%- include("_loggedInHeader") -%>
 
-<h1 class="display-5">Add New Donation Type</h1>
-
-<div>
-    <h3>Existing Donation Types:</h3>
-    <ul>
-      <% for (const type of types) { %>
-        <li><%= type %></li>
-      <% } %>
-    </ul>
+<div class="pb-page">
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Add New Donation Type</h1>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item"><a href="/admin">Admin Console</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Donation Types</li>
+        </ol>
+      </nav>
+    </div>
   </div>
-  
-<form action="/addnewdonationtype" method="post">
-    <div class="form-group row">
-        <label class="col-form-label col-sm-2" for="new_donation_type">New Donation Label</label>
-        <div class="col-sm-7">
-        <input type="text" style="max-width: fit-content;" class="form-control" name="new_donation_type"/>
+
+  <div class="pb-table-card mb-4">
+    <div class="pb-admin-section-header">Existing Types</div>
+    <div class="pb-type-tags">
+      <% for (const type of types) { %>
+        <span class="pb-type-tag"><%= type %></span>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="pb-table-card">
+    <div class="pb-admin-section-header">Add New Type</div>
+    <div class="p-4">
+      <form action="/addnewdonationtype" method="post">
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="new_donation_type">Label</label>
+          <input type="text" id="new_donation_type" name="new_donation_type"
+                 class="form-control pb-field-natural" placeholder="e.g. Mission Support" required>
         </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-success">Save</button>
+          <a class="btn btn-outline-secondary" href="/admin">Cancel</a>
+        </div>
+      </form>
     </div>
-    <div class="col-sm-10">
-        <input type="submit" value="Save" class="btn btn-default btn-success" />
-        <a class="btn btn-outline-dark cancel" href="/admin">Cancel</a>
-    </div>
-</form>
+  </div>
+</div>
+
 <%- include("_loggedInFooter") -%>

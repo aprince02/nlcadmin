@@ -1,43 +1,53 @@
 <%- include("_loggedInHeader") -%>
 
-<h1 class="display-5">All Donations</h1>
-
-<div class="table-responsive-sm">
-    <table class="table table-hover">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Donor Name</th>
-          <th>Amount</th>
-          <th>Fund</th>
-          <th>Notes</th>
-          <th>Gift Aid Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% for (const payments of model) { %>
-          <tr>
-            <td style="width: 100px;"><%= payments.date %></td>
-            <td ><%= payments.first_name %> <%= payments.surname %></td>
-            <td>£<%= payments.amount %></td>
-            <td style="width: 175px" ><%= payments.fund %></td>
-            <td><%= payments.notes %></td>
-            <td><%= payments.gift_aid_status %></td>
-            <td class="d-print-none">
-              <a class="btn btn-sm btn-info" href="/edit-donation/<%= payments.id %>">Edit</a>
-              <a class="btn btn-sm btn-danger" href="/delete-donation/<%= payments.id %>">Delete</a>
-            </td>
-
-          </tr>
-        <% } %>
-        <a class="btn btn-default btn-success" href="/select-giver">Add</a>
-        <a class="btn btn-outline-dark cancel" href="/claimants/:page">Return</a>
-      </tbody>
-    </table>
+<div class="pb-page">
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">All Donations</h1>
+    </div>
+    <div class="pb-page-actions d-print-none">
+      <a class="btn btn-primary btn-sm" href="/select-giver">
+        <i class="bi bi-plus-circle" aria-hidden="true"></i> Add Donation
+      </a>
+    </div>
   </div>
 
-  <nav aria-label="Page navigation">
-    <ul class="pagination">
+  <div class="pb-table-card">
+    <div class="table-responsive-sm">
+      <table class="table table-hover table-striped">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Donor Name</th>
+            <th>Amount</th>
+            <th>Fund</th>
+            <th>Notes</th>
+            <th>Gift Aid Status</th>
+            <th class="d-print-none text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for (const payments of model) { %>
+            <tr>
+              <td><%= payments.date ? payments.date.split('-').reverse().join('-') : '' %></td>
+              <td><%= payments.first_name %> <%= payments.surname %></td>
+              <td>£<%= payments.amount %></td>
+              <td><%= payments.fund %></td>
+              <td><%= payments.notes %></td>
+              <td><%= payments.gift_aid_status %></td>
+              <td class="d-print-none text-end">
+                <a class="btn btn-sm btn-info" href="/edit-donation/<%= payments.id %>">Edit</a>
+                <a class="btn btn-sm btn-danger" href="/delete-donation/<%= payments.id %>">Delete</a>
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <nav aria-label="Page navigation" class="mt-3">
+    <ul class="pagination justify-content-center">
       <% if (totalPages > 1) { %>
         <% for (let i = 1; i <= totalPages; i++) { %>
           <li class="page-item <%= currentPage === i ? 'active' : '' %>">
@@ -47,5 +57,6 @@
       <% } %>
     </ul>
   </nav>
-  
-  <%- include("_loggedInFooter") -%>
+</div>
+
+<%- include("_loggedInFooter") -%>

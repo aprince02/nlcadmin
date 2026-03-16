@@ -1,92 +1,111 @@
 
-  <div>
-    <label class="col-form-label" for="title">Title</label>
-      <select required class="form-control" name="title" id="title" style="max-width: fit-content;">
-        <option selected value="<%= member.title %>"><%= member.title %></option>
-        <option value="Mr">Mr</option>
-        <option value="Mrs">Mrs</option>
-        <option value="Miss">Miss</option>
-        <option value="Ms">Ms</option>
-        <option value="Dr">Dr</option>
-      </select>
+<!-- Personal Details -->
+<div class="pb-table-card mb-4">
+  <div class="pb-admin-section-header">Personal Details</div>
+  <div class="p-4">
+    <div class="row g-3 mb-3">
+      <div class="col-sm-3">
+        <label class="form-label" for="title">Title</label>
+        <select required class="form-select" name="title" id="title">
+          <option selected value="<%= member.title %>"><%= member.title %></option>
+          <option value="Mr">Mr</option>
+          <option value="Mrs">Mrs</option>
+          <option value="Miss">Miss</option>
+          <option value="Ms">Ms</option>
+          <option value="Dr">Dr</option>
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label" for="first_name">First Name</label>
+        <input required type="text" class="form-control" name="first_name" id="first_name" value="<%= member.first_name %>" />
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label" for="surname">Surname</label>
+        <input required type="text" class="form-control" name="surname" id="surname" value="<%= member.surname %>" />
+      </div>
     </div>
-    <div class="form-group row">
-  <div class="col-sm-5">
-    <label class="col-form-label" for="first_name">First Name</label>
-    <input required type="text" style="max-width: fit-content;" class="form-control" name="first_name" value="<%= member.first_name %>" />
+    <div class="row g-3 mb-3">
+      <div class="col-sm-4">
+        <label class="form-label" for="sex">Sex</label>
+        <select required class="form-select" name="sex" id="sex">
+          <option selected value="<%= member.sex %>"><%= member.sex %></option>
+          <option value="MALE">MALE</option>
+          <option value="FEMALE">FEMALE</option>
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label" for="date_of_birth">Date of Birth</label>
+        <input required type="date" class="form-control" name="date_of_birth" id="date_of_birth" value="<%= member.date_of_birth %>" />
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-sm-5">
+        <label class="form-label" for="spouse_name">Name of Spouse</label>
+        <input type="text" class="form-control" name="spouse_name" id="spouse_name" value="<%= member.spouse_name %>" />
+      </div>
+    </div>
+  </div>
+</div>
 
-  </div>
-  <div class="col-sm-6">
-    <label class="col-form-label" for="surname">Surname</label>
-    <input required type="text" style="max-width: fit-content;" class="form-control" name="surname" value="<%= member.surname %>" />
-    
-  </div>
-  </div>
-  
-  <div class="form-group row">
-    <div class="col-sm-5">
-    <label class="col-form-label" for="sex">SEX</label>
-      <select required class="form-control" name="sex" id="sex" style="max-width: fit-content;">
-        <option selected value="<%= member.sex %>"><%= member.sex %></option>
-        <option value="MALE">MALE</option>
-        <option value="FEMALE">FEMALE</option>
-      </select>
-    </div>
-    <div class="col-sm-5">
-      <label class="col-form-label" for="date_of_birth">Date of Birth</label>
-      <input required type="date" class="form-control" cols="20" name="date_of_birth" style="max-width: fit-content;" maxlength="32000" value="<%= member.date_of_birth %>" />
+<!-- Contact -->
+<div class="pb-table-card mb-4">
+  <div class="pb-admin-section-header">Contact</div>
+  <div class="p-4">
+    <div class="row g-3">
+      <div class="col-sm-5">
+        <label class="form-label" for="email">Email</label>
+        <input required type="email" class="form-control" name="email" id="email" value="<%= member.email %>" />
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label" for="phone_number">Phone Number</label>
+        <input required type="text" class="form-control" name="phone_number" id="phone_number" value="<%= member.phone_number %>" />
+      </div>
     </div>
   </div>
+</div>
 
-  <div class="form-group row">
-    <div class="col-sm-5">
-      <label class="col-form-label" for="email">Email</label>
-      <input required type="email" class="form-control" style="max-width: fit-content;" name="email" value="<%= member.email %>" />
+<!-- Address -->
+<div class="pb-table-card mb-4">
+  <div class="pb-admin-section-header">Address</div>
+  <div class="p-4">
+    <div class="row g-3 mb-3">
+      <div class="col-sm-2">
+        <label class="form-label" for="house_number">House No.</label>
+        <input type="text" class="form-control" name="house_number" id="house_number" value="<%= member.house_number %>" />
+      </div>
+      <div class="col-sm-5">
+        <label class="form-label" for="address_line_1">Address Line 1</label>
+        <input type="text" class="form-control" name="address_line_1" id="address_line_1" value="<%= member.address_line_1 %>" />
+      </div>
+      <div class="col-sm-5">
+        <label class="form-label" for="address_line_2">Address Line 2</label>
+        <input type="text" class="form-control" name="address_line_2" id="address_line_2" value="<%= member.address_line_2 %>" />
+      </div>
     </div>
-    <div class="col-sm-5">
-      <label class="col-form-label" for="phone_number">Phone Number</label>
-      <input required type="text" class="form-control" style="max-width: fit-content;" name="phone_number" value="<%= member.phone_number %>" />
-
-    </div>
-  </div>
-  <div class="form-group row">
-    <div class="col-sm-5">
-      <label class="col-form-label" for="spouse_name">Name of Spouse</label>
-      <input type="spouse" class="form-control" style="max-width: fit-content;" name="spouse_name" value="<%= member.spouse_name %>" />
-    </div>
-  </div>
-
-  <div class="form-group row">
-    <div class="col-sm-5">
-      <label class="col-form-label" for="house_number">House Number</label>
-      <input type="text" class="form-control" style="max-width: fit-content;" name="house_number" value="<%= member.house_number %>" />
-    </div>
-    <div class="col-sm-5">
-      <label class="col-form-label" for="address_line_1">Address Line 1</label>
-      <input type="text" class="form-control" style="max-width: fit-content;" name="address_line_1" value="<%= member.address_line_1 %>" />
-    </div>
-    <div class="col-sm-5">
-      <label class="col-form-label" for="address_line_2">Address Line 2</label>
-      <input type="text" class="form-control" style="max-width: fit-content;" name="address_line_2" value="<%= member.address_line_2 %>" />
-      
+    <div class="row g-3">
+      <div class="col-sm-5">
+        <label class="form-label" for="city">City</label>
+        <input type="text" class="form-control" name="city" id="city" value="<%= member.city %>" />
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label" for="postcode">Postcode</label>
+        <input type="text" class="form-control" name="postcode" id="postcode" value="<%= member.postcode %>" />
+      </div>
     </div>
   </div>
+</div>
 
-  <div class="form-group row">
-    <div class="col-sm-5">
-      <label class="col-form-label" for="city">City</label>
-      <input type="text" class="form-control" style="max-width: fit-content;" name="city" value="<%= member.city %>" />
-    </div>
-    <div class="col-sm-5">
-      <label class="col-form-label" for="postcode">Postcode</label>
-      <input type="text" class="form-control" style="max-width: fit-content;" name="postcode" value="<%= member.postcode %>" />
-    </div>
-  </div>
-
-  <div class="form-group row">
-    <label class="col-form-label" for="banking_name">Banking Name - ADMIN USE ONLY</label>
-    <div class="col-sm-6">
-      <input type="text" style="max-width: fit-content;" class="form-control" name="banking_name" value="<%= member.banking_name %>" />
+<!-- Admin -->
+<div class="pb-table-card mb-4">
+  <div class="pb-admin-section-header">Admin</div>
+  <div class="p-4">
+    <div class="row g-3">
+      <div class="col-sm-5">
+        <label class="form-label" for="banking_name">
+          Banking Name <small class="text-muted fw-normal">(Admin use only)</small>
+        </label>
+        <input type="text" class="form-control" name="banking_name" id="banking_name" value="<%= member.banking_name %>" />
+      </div>
     </div>
   </div>
-
+</div>

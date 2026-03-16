@@ -1,22 +1,29 @@
 <%- include("_loggedInHeader") -%>
 
-<h1 class="display-5">Add New Donation</h1><br>
-<h4><u>Last Saved Transaction Details</u> </h4><h6> Date: <%= donationDate %><br> Description: <%= donationDescription %><br> Amount: <%= donationAmount %></h6>
+<nav aria-label="breadcrumb" class="mt-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/claimants/1">Members</a></li>
+    <li class="breadcrumb-item"><a href="/select-giver">Select Donor</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Add Donation</li>
+  </ol>
+</nav>
+
+<h1 class="display-5">Add New Donation</h1>
+<div class="card card-body bg-light mb-3 mt-2">
+  <h6 class="card-title fw-semibold">Last Saved Transaction Details</h6>
+  <p class="mb-0">Date: <%= donationDate %><br>Description: <%= donationDescription %><br>Amount: <%= donationAmount %></p>
+</div>
 
 <form action="/add-donation/<%= row.id %>" method="post">
+  <input type="hidden" name="autoclose" value="<%= autoclose || '' %>">
   <div class="form-horizontal">
-    <br>
-    <br>
-
     <%- include("_donationEditor") -%>
-  
-    <br>
-    <br>
-    <div class="form-group row">
+
+    <div class="form-group row mt-3">
       <label class="col-form-label col-sm-2"></label>
       <div class="col-sm-10">
-        <input type="submit" value="Add Donation" class="btn btn-default btn-success" />
-        <a class="btn btn-outline-dark cancel" href="/select-giver">Cancel</a>
+        <input type="submit" value="Add Donation" class="btn btn-success" />
+        <a class="btn btn-outline-secondary" href="/select-giver">Cancel</a>
       </div>
     </div>
   </div>

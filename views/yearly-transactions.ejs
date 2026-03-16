@@ -1,66 +1,78 @@
 <%- include("_loggedInHeader") -%>
 
-<h1 class="display-5">Bank Transactions</h1>
+<div class="pb-page">
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Bank Transactions</h1>
+      <p class="pb-page-subtitle"><%= year %></p>
+    </div>
+  </div>
 
-<div class="table-responsive-sm">
-  <table class="table table-hover">
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Description</th>
-        <th>Paid Out</th>
-        <th>Paid In</th>
-        <th>Type</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% for (const each of row) { %>
-        <tr>
-          <form action="/save-transaction/<%= each.id %>" method="post">
-            <td><input readonly type="text" style="width: 95px; font-size: 0.8rem;" autofocus class="form-control" name="date" value="<%= each.date %>" /></td>
+  <div class="pb-table-card">
+    <div class="table-responsive-sm">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Paid Out</th>
+            <th>Paid In</th>
+            <th>Type</th>
+            <th class="d-print-none">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for (const each of row) { %>
+            <tr>
+              <form action="/save-transaction/<%= each.id %>" method="post">
+                <td>
+                  <input type="hidden" name="date" value="<%= each.date %>" />
+                  <input readonly type="text" class="form-control pb-input-year" value="<%= each.date ? each.date.split('-').reverse().join('-') : '' %>" />
+                </td>
+                <td>
+                  <input type="text" class="form-control pb-field-lg" name="description" value="<%= each.description %>" />
+                </td>
+                <td>
+                  <input readonly type="text" class="form-control pb-input-sm" name="paid_out" value="<%= each.paid_out %>"/>
+                </td>
+                <td>
+                  <input readonly type="text" class="form-control pb-input-sm" name="paid_in" value="<%= each.paid_in %>"/>
+                </td>
+                <td>
+                  <select required class="form-select pb-field-natural" name="type">
+                    <option value="" <%= !each.type ? 'selected' : '' %>></option>
+                    <% types.forEach(typeObj => { %>
+                      <option value="<%= typeObj.type %>" <%= each.type === typeObj.type ? 'selected' : '' %>><%= typeObj.type %></option>
+                    <% }); %>
+                  </select>
+                </td>
+                <td class="d-print-none">
+                  <a class="btn btn-sm btn-info" href="/select-giver?autoclose=1" target="_blank"
+                     data-date="<%= each.date %>"
+                     data-description="<%= each.description %>"
+                     data-paid-out="<%= each.paid_out %>"
+                     data-paid-in="<%= each.paid_in %>">Add Donation</a>
+                  <input type="submit" value="Save" class="btn btn-sm btn-success" />
+                </td>
+              </form>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
 
-            <td><input type="text" style="width: 325px; font-size: 0.7rem;" autofocus class="form-control" name="description" value="<%= each.description %>" /></td>  
-
-            <td><input readonly type="text" style="width: 70px; font-size: 0.8rem;" id="paid_out" name="paid_out" class="form-control" value="<%= each.paid_out %>"/></td>
-
-            <td><input readonly type="text" style="width: 70px; font-size: 0.8rem;" id="paid_in" name="paid_in" class="form-control" value="<%= each.paid_in %>"/></td>
-
-            <td>
-              <select style="font-size: 0.8rem;" required class="form-control" style="max-width: fit-content;" name="type" id="type">
-                <option value="" <%= !each.type ? 'selected' : '' %>></option> <!-- Add this line for default empty selection -->
-                <% types.forEach(typeObj => { %>
-                    <option value="<%= typeObj.type %>" <%= each.type === typeObj.type ? 'selected' : '' %>><%= typeObj.type %></option>
-                <% }); %>
-            </select>            
-            </td>
-            <td><a class="btn btn-sm btn-info" style="font-size: 0.7rem;" href="/select-giver" target="_blank" data-date="<%= each.date %>" data-description="<%= each.description %>" data-paid-out="<%= each.paid_out %>" data-paid-in="<%= each.paid_in %>">Add Donation</a></td>
-            <td>
-              <div class="form-horizontal">
-                <div class="form-group row">
-                  <div class="col-sm-10">
-                    <input type="submit" style="font-size: 0.7rem;" value="Save" class="btn btn-default btn-success" />
-                  </div>
-                </div>
-              </div>
-            </td>
-          </form>
-        </tr>
+  <nav aria-label="Page navigation" class="mt-3">
+    <ul class="pagination justify-content-center">
+      <% if (totalPages > 1) { %>
+        <% for (let i = 1; i <= totalPages; i++) { %>
+          <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+            <a class="page-link" href="/yearly-transactions/<%= year %>/<%= i %>"><%= i %></a>
+          </li>
+        <% } %>
       <% } %>
-    </tbody>
-  </table>
+    </ul>
+  </nav>
 </div>
-
-<nav aria-label="Page navigation">
-  <ul class="pagination">
-    <% if (totalPages > 1) { %>
-      <% for (let i = 1; i <= totalPages; i++) { %>
-        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
-          <a class="page-link" href="/yearly-transactions/<%= year %>/<%= i %>"><%= i %></a>
-        </li>
-      <% } %>
-    <% } %>
-  </ul>
-</nav>
-
 
 <%- include("_loggedInFooter") -%>

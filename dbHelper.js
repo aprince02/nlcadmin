@@ -280,6 +280,31 @@ async function getMembersCount() {
   });
 }
 
+async function searchMembers(query, startIndex, rowsPerPage) {
+  return new Promise((resolve, reject) => {
+    const like = `%${query}%`;
+    const sql = `SELECT * FROM members WHERE is_active = 1
+                 AND (first_name LIKE ? OR surname LIKE ? OR (first_name || ' ' || surname) LIKE ?)
+                 ORDER BY first_name ASC LIMIT ? OFFSET ?`;
+    db.all(sql, [like, like, like, rowsPerPage, startIndex], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
+async function searchMembersCount(query) {
+  return new Promise((resolve, reject) => {
+    const like = `%${query}%`;
+    const sql = `SELECT COUNT(*) AS totalRows FROM members WHERE is_active = 1
+                 AND (first_name LIKE ? OR surname LIKE ? OR (first_name || ' ' || surname) LIKE ?)`;
+    db.get(sql, [like, like, like], (err, row) => {
+      if (err) reject(err);
+      else resolve(row.totalRows);
+    });
+  });
+}
+
 async function getMonthlyTransactionAndDonationSums() {
   return new Promise((resolve, reject) => {
     const sql = `
@@ -362,6 +387,83 @@ async function getAllDonationsForYear(year) {
   });
 }
 
+async function getMonthlyTotals(yearMonth) {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT
+        COALESCE(SUM(CAST(paid_in  AS REAL)), 0) AS paidIn,
+        COALESCE(SUM(CAST(paid_out AS REAL)), 0) AS paidOut
+      FROM transactions
+      WHERE strftime('%Y-%m', date) = ?
+    `;
+    db.get(sql, [yearMonth], (err, row) => {
+      if (err) reject(err);
+      else resolve({
+        paidIn:  row.paidIn  || 0,
+        paidOut: row.paidOut || 0,
+        net:     (row.paidIn || 0) - (row.paidOut || 0)
+      });
+    });
+  });
+}
+
+async function getYTDDonationTotal(year) {
+  return new Promise((resolve, reject) => {
+    const sql = `SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE strftime('%Y', date) = ?`;
+    db.get(sql, [String(year)], (err, row) => {
+      if (err) reject(err);
+      else resolve(row.total || 0);
+    });
+  });
+}
+
+async function getMonthlyDonationCount(yearMonth) {
+  return new Promise((resolve, reject) => {
+    const sql = `SELECT COUNT(*) AS count FROM donations WHERE strftime('%Y-%m', date) = ?`;
+    db.get(sql, [yearMonth], (err, row) => {
+      if (err) reject(err);
+      else resolve(row.count || 0);
+    });
+  });
+}
+
+async function getRecentTransactions(limit) {
+  return new Promise((resolve, reject) => {
+    const sql = `SELECT * FROM transactions ORDER BY date DESC LIMIT ?`;
+    db.all(sql, [limit], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
+async function getRecentDonations(limit) {
+  return new Promise((resolve, reject) => {
+    const sql = `SELECT * FROM donations ORDER BY date DESC LIMIT ?`;
+    db.all(sql, [limit], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
+async function getTopDonors(year, limit) {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT first_name, surname, SUM(amount) AS total
+      FROM donations
+      WHERE strftime('%Y', date) = ?
+      GROUP BY member_id
+      ORDER BY total DESC
+      LIMIT ?
+    `;
+    db.all(sql, [String(year), limit], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
 
 module.exports = {
   getAllTransactionTypes,
@@ -383,10 +485,18 @@ module.exports = {
   getLogsCount,
   getMembersCount,
   getMembersPaginated,
+  searchMembers,
+  searchMembersCount,
   getAllActiveMembers,
   getMonthlyTransactionAndDonationSums,
   getFundDistribution,
   generateFundBreakdown,
   generateMonthlyData,
-  getAllDonationsForYear
+  getAllDonationsForYear,
+  getMonthlyTotals,
+  getYTDDonationTotal,
+  getMonthlyDonationCount,
+  getRecentTransactions,
+  getRecentDonations,
+  getTopDonors
 };

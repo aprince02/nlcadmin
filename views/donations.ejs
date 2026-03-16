@@ -1,39 +1,54 @@
 <%- include("_loggedInHeader") -%>
 
-<h1 class="display-5">All Donations For: <%= firstName %> <%= surname %></h1>
-<br><h5>Total Giving: £<%= totalAmount %></h5>
+<div class="pb-page">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="/claimants/1">Members</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Donations</li>
+    </ol>
+  </nav>
 
-<div class="table-responsive-sm">
-    <table class="table table-hover">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Amount</th>
-          <th>Date</th>
-          <th>Fund</th>
-          <th>Method</th>
-          <th>Gift Aid Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% for (const payments of model) { %>
-          <tr>
-            <td ><%= payments.id %></td>
-            <td>£<%= payments.amount %></td>
-            <td><%= payments.date %></td>
-            <td><%= payments.fund %></td>
-            <td><%= payments.method %></td>
-            <td><%= payments.gift_aid_status %></td>
-
-          </tr>
-        <% } %>
-        <a class="btn btn-default btn-success" href="/add-donation/<%= id %>">Add Donation</a>
-        <a class="btn btn-default btn-secondary" href="/generate-donor-pdf/<%= id %>">Generate PDF</a>
-        <a class="btn btn-default btn-info" href="/send-update-request/<%= id %>">Request Member to update details</a>
-        <a class="btn btn-default btn-warning" href="/claimants/:page">Return</a>
-      </tbody>
-    </table>
-    
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Donations for <%= firstName %> <%= surname %></h1>
+      <p class="pb-page-subtitle">Total giving: £<%= totalAmount %></p>
+    </div>
+    <div class="pb-page-actions d-print-none">
+      <a class="btn btn-primary btn-sm" href="/add-donation/<%= id %>">Add Donation</a>
+      <a class="btn btn-secondary btn-sm" href="/generate-donor-pdf/<%= id %>">Generate PDF</a>
+      <a class="btn btn-secondary btn-sm" href="/send-update-request/<%= id %>">Request Update</a>
+      <a class="btn btn-outline-secondary btn-sm" href="/claimants/1">Return</a>
+    </div>
   </div>
-  
-  <%- include("_loggedInFooter") -%>
+
+  <div class="pb-table-card">
+    <div class="table-responsive-sm">
+      <table class="table table-hover table-striped">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Amount</th>
+            <th>Date</th>
+            <th>Fund</th>
+            <th>Method</th>
+            <th>Gift Aid Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for (const payments of model) { %>
+            <tr>
+              <td><%= payments.id %></td>
+              <td>£<%= payments.amount %></td>
+              <td><%= payments.date ? payments.date.split('-').reverse().join('-') : '' %></td>
+              <td><%= payments.fund %></td>
+              <td><%= payments.method %></td>
+              <td><%= payments.gift_aid_status %></td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<%- include("_loggedInFooter") -%>

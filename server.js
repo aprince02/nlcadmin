@@ -23,7 +23,7 @@ const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
-app.use(express.static("public"));
+app.use(express.static("public", { maxAge: "7d" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(session({
@@ -61,10 +61,17 @@ app.listen(8000, () => {
       try {
           const currentPage = parseInt(req.params.page) || 1;
           const startIndex = (currentPage - 1) * membersPerPage;
-          const rows = await dbHelper.getMembersPaginated(startIndex, membersPerPage);
-          const totalCount = await dbHelper.getMembersCount();
+          const search = (req.query.search || '').trim();
+          let rows, totalCount;
+          if (search) {
+            rows = await dbHelper.searchMembers(search, startIndex, membersPerPage);
+            totalCount = await dbHelper.searchMembersCount(search);
+          } else {
+            rows = await dbHelper.getMembersPaginated(startIndex, membersPerPage);
+            totalCount = await dbHelper.getMembersCount();
+          }
           const totalPages = Math.ceil(totalCount / membersPerPage);
-          res.render("claimants", { model: rows, loggedInName: loggedInName, currentPage: currentPage, totalPages: totalPages });
+          res.render("claimants", { model: rows, loggedInName: loggedInName, currentPage: currentPage, totalPages: totalPages, search: search });
       } catch (error) {
           console.error('Error rendering claimants page:', error);
           log(loggedInName + ': Error rendering claimants page: ' + error);
@@ -247,7 +254,8 @@ app.get("/select-giver", requireLogin, checkApprovedUser, async (req, res) => {
   try {
     const loggedInName = req.session.name;
     const rows = await dbHelper.getAllActiveMembers();
-    res.render("select-giver", {row: rows, loggedInName: loggedInName});
+    const autoclose = req.query.autoclose === '1' ? '1' : '';
+    res.render("select-giver", {row: rows, loggedInName: loggedInName, autoclose});
   } catch (error) {
     console.error('Error rendering select-giver page:', error);
     log(loggedInName + ': Error rendering select-giver page: ' + error )
@@ -270,6 +278,12 @@ app.get("/select-giver", requireLogin, checkApprovedUser, async (req, res) => {
   return null;
 }
 
+app.get("/donation-added", requireLogin, checkApprovedUser, (req, res) => {
+  const loggedInName = req.session.name;
+  const autoclose = req.query.autoclose === '1';
+  res.render("donation-added", { loggedInName, autoclose });
+});
+
 app.get("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
   try {
     const loggedInName = req.session.name;
@@ -283,6 +297,7 @@ app.get("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) =
     const preselectedFund = guessFundFromDescription(donationDescription, types);
     console.log("Preselected fund based on description: " + preselectedFund);
 
+    const autoclose = req.query.autoclose === '1' ? '1' : '';
     res.render("add-donation", {
       row,
       loggedInName,
@@ -290,7 +305,8 @@ app.get("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) =
       donationAmount,
       donationDescription,
       types,
-      preselectedFund
+      preselectedFund,
+      autoclose
     });
   } catch (error) {
     console.error('Error rendering add donation page:', error);
@@ -374,7 +390,8 @@ app.post("/edit-donation/:id", requireLogin, checkApprovedUser, (req, res) => {
                         console.error('Error sending donation added email:', emailError.message);
                         log(loggedInName + ": Error sending donation added email: " + emailError.message);
                     }
-                    return res.redirect("/select-giver");
+                    const dest = req.body.autoclose === '1' ? '/donation-added?autoclose=1' : '/select-giver';
+                    return res.redirect(dest);
                 }});
         } catch (error) {
             req.flash('error', 'Error adding donation, please try again!');
@@ -1113,30 +1130,62 @@ app.post('/deactivate-donors', (req, res) => {
 app.get('/dashboard', requireLogin, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
-    const currentYear = new Date().getFullYear();
+    const now = new Date();
+    const todayYear = now.getFullYear();
+    const selectedYear = parseInt(req.query.year) || todayYear;
+    const currentYear = selectedYear;
 
-    const [transactions, donations] = await Promise.all([
+    // For "this month" KPIs we always use today's actual month, but scoped to the selected year
+    // If viewing a past year, show full-year totals in the KPI instead of a partial month
+    const isCurrentYear = selectedYear === todayYear;
+    const kpiMonth = isCurrentYear ? now.getMonth() + 1 : 12;
+    const currentYM = `${currentYear}-${String(kpiMonth).padStart(2, '0')}`;
+    const prevDate = new Date(currentYear, kpiMonth - 2, 1);
+    const prevYM = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+
+    const [
+      transactions, donations,
+      currentMonthTotals, prevMonthTotals,
+      ytdDonationTotal, monthlyDonationCount,
+      activeMembers,
+      recentTransactions, recentDonations, topDonors
+    ] = await Promise.all([
       dbHelper.getAllTransactionsForYear(currentYear),
-      dbHelper.getAllDonationsForYear(currentYear)
+      dbHelper.getAllDonationsForYear(currentYear),
+      dbHelper.getMonthlyTotals(currentYM),
+      dbHelper.getMonthlyTotals(prevYM),
+      dbHelper.getYTDDonationTotal(currentYear),
+      dbHelper.getMonthlyDonationCount(currentYM),
+      dbHelper.getMembersCount(),
+      dbHelper.getRecentTransactions(5),
+      dbHelper.getRecentDonations(5),
+      dbHelper.getTopDonors(currentYear, 5)
     ]);
+
+    const pctChange = (curr, prev) => {
+      if (!prev || prev === 0) return null;
+      return Math.round(((curr - prev) / prev) * 100);
+    };
 
     const monthlyData = dbHelper.generateMonthlyData(transactions);
     const fundBreakdown = dbHelper.generateFundBreakdown(donations);
 
-    // Prepare your chart data
-    const barChartData = JSON.stringify(monthlyData);
-    const pieChartData = JSON.stringify(fundBreakdown);
-
-    console.log("monthlyData:", monthlyData);
-    console.log("fundBreakdown:", fundBreakdown);
-
     res.render('dashboard', {
-      monthlyData,
-      fundBreakdown,
-      barChartData,
-      pieChartData,
+      loggedInName,
       currentYear,
-      loggedInName
+      todayYear,
+      isCurrentYear,
+      currentMonthTotals,
+      paidInChange:  pctChange(currentMonthTotals.paidIn,  prevMonthTotals.paidIn),
+      paidOutChange: pctChange(currentMonthTotals.paidOut, prevMonthTotals.paidOut),
+      ytdDonationTotal,
+      monthlyDonationCount,
+      activeMembers,
+      recentTransactions,
+      recentDonations,
+      topDonors,
+      barChartData: JSON.stringify(monthlyData),
+      pieChartData: JSON.stringify(fundBreakdown)
     });
   } catch (err) {
     console.error("Error rendering dashboard:", err);

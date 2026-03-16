@@ -21,7 +21,7 @@
             <td><%= row[i].spouse_name %></td>
             <td><%= row[i].banking_name %></td>
             <td class="d-print-none">
-              <a class="btn btn-sm btn-info" href="/add-donation/<%= row[i].id %>">Add</a>
+              <a class="btn btn-sm btn-info" href="/add-donation/<%= row[i].id %><%= autoclose ? '?autoclose=1' : '' %>">Add</a>
             </td>
           </tr>
         <% } %>
@@ -45,7 +45,7 @@
             <td><%= row[i].spouse_name %></td>
             <td><%= row[i].banking_name %></td>
             <td class="d-print-none">
-              <a class="btn btn-sm btn-info" href="/add-donation/<%= row[i].id %>">Add</a>
+              <a class="btn btn-sm btn-info" href="/add-donation/<%= row[i].id %><%= autoclose ? '?autoclose=1' : '' %>">Add</a>
             </td>
           </tr>
         <% } %>

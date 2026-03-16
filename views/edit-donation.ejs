@@ -1,21 +1,23 @@
 <%- include("_loggedInHeader") -%>
 
+<nav aria-label="breadcrumb" class="mt-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/all-donations/1">All Donations</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Edit Donation</li>
+  </ol>
+</nav>
+
 <h1 class="display-5">Edit Donation</h1>
 
 <form action="/edit-donation/<%= row.id %>" method="post">
   <div class="form-horizontal">
-    <br>
-    <br>
-
     <%- include("_donationEditor") -%>
-  
-    <br>
-    <br>
-    <div class="form-group row">
+
+    <div class="form-group row mt-3">
       <label class="col-form-label col-sm-2"></label>
       <div class="col-sm-10">
-        <input type="submit" value="Update Donation" class="btn btn-default btn-success" />
-        <a class="btn btn-outline-dark cancel" href="/all-donations/:page">Cancel</a>
+        <input type="submit" value="Update Donation" class="btn btn-success" />
+        <a class="btn btn-outline-secondary" href="/all-donations/1">Cancel</a>
       </div>
     </div>
   </div>

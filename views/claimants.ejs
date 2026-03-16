@@ -1,46 +1,123 @@
 <%- include("_loggedInHeader") -%>
 
-<h1 class="display-5">Members</h1>
+<div class="pb-page">
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Members</h1>
+    </div>
+    <div class="pb-page-actions d-print-none">
+      <a class="btn btn-primary btn-sm" href="/create">
+        <i class="bi bi-person-plus-fill" aria-hidden="true"></i> Add Member
+      </a>
+    </div>
+  </div>
 
-<div class="table-responsive-sm">
-  <table class="table table-hover">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>First Name</th>
-        <th>Surname</th>
-        <th class="d-print-none">
-          <a class="btn btn-sm btn-success" href="/create">Add</a>
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      <% for (const member of model) { %>
-        <tr>
-          <td ><a href="/edit/<%= member.id %>"><%= member.id %></a></td>
-          <td><a href="/edit/<%= member.id %>"><%= member.first_name %></a></td>
-          <td><a href="/edit/<%= member.id %>"><%= member.surname %></a></td>
-          <td class="d-print-none">
-            <a class="btn btn-sm btn-info" href="/donations/<%= member.id %>">View Giving</a>
-            <a class="btn btn-sm btn-warning" href="/edit/<%= member.id %>">Edit</a>
-            <a class="btn btn-sm btn-danger" href="/delete/<%= member.id %>">Delete</a>
-          </td>
-        </tr>
+  <!-- Search bar -->
+  <form method="GET" action="/claimants/1" class="mb-4">
+    <div class="pb-members-search-wrap">
+      <i class="bi bi-search pb-members-search-icon"></i>
+      <input
+        type="text"
+        name="search"
+        class="pb-members-search"
+        placeholder="Search by name..."
+        value="<%= search %>"
+        autocomplete="off"
+      >
+      <% if (search) { %>
+        <a href="/claimants/1" class="pb-members-search-clear" aria-label="Clear search">
+          <i class="bi bi-x-lg"></i>
+        </a>
       <% } %>
-    </tbody>
-  </table>
+    </div>
+  </form>
+
+  <div class="pb-table-card">
+    <div class="table-responsive-sm">
+      <table class="table pb-members-table">
+        <thead>
+          <tr>
+            <th>MEMBER</th>
+            <th>CONTACT INFO</th>
+            <th>ADDRESS</th>
+            <th class="d-print-none text-end">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for (const member of model) { %>
+            <tr>
+              <!-- Member avatar + name + id -->
+              <td>
+                <div class="pb-member-row">
+                  <div class="pb-member-avatar"><%= (member.first_name || '?')[0].toUpperCase() %></div>
+                  <div>
+                    <div class="pb-member-name"><%= member.first_name %> <%= member.surname %></div>
+                    <div class="pb-member-id">ID: <%= member.id %></div>
+                  </div>
+                </div>
+              </td>
+
+              <!-- Contact info -->
+              <td>
+                <div class="pb-contact-info">
+                  <% if (member.email) { %>
+                    <div><i class="bi bi-envelope pb-contact-icon"></i><%= member.email %></div>
+                  <% } %>
+                  <% if (member.phone_number) { %>
+                    <div><i class="bi bi-telephone pb-contact-icon"></i><%= member.phone_number %></div>
+                  <% } %>
+                  <% if (!member.email && !member.phone_number) { %>
+                    <span class="pb-no-data">No contact info</span>
+                  <% } %>
+                </div>
+              </td>
+
+              <!-- Address -->
+              <td>
+                <% const hasAddress = member.address_line_1 || member.city || member.postcode; %>
+                <% if (hasAddress) { %>
+                  <div class="pb-address">
+                    <% if (member.house_number || member.address_line_1) { %><div><%= [member.house_number, member.address_line_1].filter(Boolean).join(' ') %></div><% } %>
+                    <% if (member.address_line_2) { %><div><%= member.address_line_2 %></div><% } %>
+                    <% if (member.city || member.postcode) { %><div><%= [member.city, member.postcode].filter(Boolean).join(', ') %></div><% } %>
+                  </div>
+                <% } else { %>
+                  <span class="pb-no-data">No address provided</span>
+                <% } %>
+              </td>
+
+              <!-- Actions -->
+              <td class="d-print-none text-end">
+                <a class="btn btn-sm btn-info" href="/donations/<%= member.id %>">View Giving</a>
+                <a class="btn btn-sm btn-warning" href="/edit/<%= member.id %>">Edit</a>
+                <a class="btn btn-sm btn-danger" href="/delete/<%= member.id %>">Delete</a>
+              </td>
+            </tr>
+          <% } %>
+
+          <% if (model.length === 0) { %>
+            <tr>
+              <td colspan="4" class="text-center py-4 text-muted">
+                No members found<% if (search) { %> matching "<%= search %>"<% } %>.
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <nav aria-label="Page navigation" class="mt-3">
+    <ul class="pagination justify-content-center">
+      <% if (totalPages > 1) { %>
+        <% for (let i = 1; i <= totalPages; i++) { %>
+          <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+            <a class="page-link" href="/claimants/<%= i %><%= search ? '?search=' + encodeURIComponent(search) : '' %>"><%= i %></a>
+          </li>
+        <% } %>
+      <% } %>
+    </ul>
+  </nav>
 </div>
-
-<nav aria-label="Page navigation">
-  <ul class="pagination">
-    <% if (totalPages > 1) { %>
-      <% for (let i = 1; i <= totalPages; i++) { %>
-        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
-          <a class="page-link" href="/claimants/<%= i %>"><%= i %></a>
-        </li>
-      <% } %>
-    <% } %>
-  </ul>
-</nav>
 
 <%- include("_loggedInFooter") -%>

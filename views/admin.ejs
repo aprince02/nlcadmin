@@ -1,68 +1,79 @@
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 <%- include("_loggedInHeader") -%>
 
-<div class="container text-center">
-  <h1 class="display-2">Admin Console</h1>
-  <br>
-
-  <!-- Group 1: Add -->
-  <div class="button-group">
-    <a class="btn btn-lg btn-secondary" href="/addnewtransactiontype">
-      <i class="bi bi-plus-circle"></i> Add New Transaction Type
-    </a>
-    <a class="btn btn-lg btn-secondary" href="/addnewdonationtype">
-      <i class="bi bi-plus-circle"></i> Add New Donation Type
-    </a>
+<div class="pb-page">
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Admin Console</h1>
+      <p class="pb-page-subtitle">System configuration and management</p>
+    </div>
   </div>
-  <br>
 
-  <!-- Group 2: Export -->
-  <div class="button-group">
-    <a class="btn btn-lg btn-secondary" href="/generate-transaction-pdf">
-      <i class="bi bi-file-earmark-arrow-down-fill"></i> Export Transactions
-    </a>
-    <a class="btn btn-lg btn-secondary" href="/export-donations">
-      <i class="bi bi-file-earmark-arrow-down-fill"></i> Export Donations
-    </a>
-    <a class="btn btn-lg btn-secondary" href="/export-giftaid-claims">
-      <i class="bi bi-file-earmark-arrow-down-fill"></i> Claim Gift Aid
-    </a>
-    <a class="btn btn-lg btn-secondary" href="/export-totals">
-      <i class="bi bi-file-earmark-arrow-down-fill"></i> Export Totals
-    </a>
-  </div>
-  <br>
+  <div class="pb-admin-grid">
 
-  <!-- Group 3: Import Transactions -->
-  <div class="button-group">
-    <a class="btn btn-lg btn-secondary" href="/import-transactions">
-      <i class="bi bi-file-earmark-arrow-up-fill"></i> Import Transactions
-    </a>
-  </div>
-  <br>
+    <div class="pb-admin-section">
+      <div class="pb-admin-section-header">Configuration</div>
+      <div class="pb-admin-section-body">
+        <a href="/addnewtransactiontype" class="pb-admin-btn">
+          <i class="bi bi-plus-circle pb-admin-btn-icon" aria-hidden="true"></i>Add New Transaction Type
+        </a>
+        <a href="/addnewdonationtype" class="pb-admin-btn">
+          <i class="bi bi-plus-circle pb-admin-btn-icon" aria-hidden="true"></i>Add New Donation Type
+        </a>
+      </div>
+    </div>
 
-  <!-- Group 4: Other Actions -->
-  <div class="button-group">
-    <a class="btn btn-lg btn-secondary" href="/update-users">
-      <i class="bi bi-people-fill"></i> Update Users
-    </a>
-    <a class="btn btn-lg btn-secondary" href="/select-inactive">
-      <i class="bi bi-person-dash"></i> Select Inactive Donors
-    </a>
-    <a class="btn btn-lg btn-secondary" href="/db-backup">
-      <i class="bi bi-database-down"></i> Backup Database
-    </a>
-    <a class="btn btn-lg btn-secondary" href="/software-logs/1">
-      <i class="bi bi-code-slash"></i> Logs
-    </a>
-    <a class="btn btn-lg btn-secondary" href="/suggest-update">
-      <i class="bi bi-pencil-square"></i> Suggest Update
-    </a>
-    <a class="btn btn-lg btn-secondary" href="/dashboard">
-      <i class="bi bi-bar-chart"></i> View Dashboard
-    </a>
+    <div class="pb-admin-section">
+      <div class="pb-admin-section-header">Export</div>
+      <div class="pb-admin-section-body">
+        <a href="/generate-transaction-pdf" class="pb-admin-btn">
+          <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Transactions
+        </a>
+        <a href="/export-donations" class="pb-admin-btn">
+          <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Donations
+        </a>
+        <a href="/export-giftaid-claims" class="pb-admin-btn">
+          <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Claim Gift Aid
+        </a>
+        <a href="/export-totals" class="pb-admin-btn">
+          <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Totals
+        </a>
+      </div>
+    </div>
+
+    <div class="pb-admin-section">
+      <div class="pb-admin-section-header">Import</div>
+      <div class="pb-admin-section-body">
+        <a href="/import-transactions" class="pb-admin-btn">
+          <i class="bi bi-file-earmark-arrow-up-fill pb-admin-btn-icon" aria-hidden="true"></i>Import Transactions
+        </a>
+      </div>
+    </div>
+
+    <div class="pb-admin-section">
+      <div class="pb-admin-section-header">System</div>
+      <div class="pb-admin-section-body">
+        <a href="/update-users" class="pb-admin-btn">
+          <i class="bi bi-people-fill pb-admin-btn-icon" aria-hidden="true"></i>Update Users
+        </a>
+        <a href="/select-inactive" class="pb-admin-btn">
+          <i class="bi bi-person-dash pb-admin-btn-icon" aria-hidden="true"></i>Select Inactive Donors
+        </a>
+        <a href="/db-backup" class="pb-admin-btn">
+          <i class="bi bi-database-down pb-admin-btn-icon" aria-hidden="true"></i>Backup Database
+        </a>
+        <a href="/software-logs/1" class="pb-admin-btn">
+          <i class="bi bi-code-slash pb-admin-btn-icon" aria-hidden="true"></i>Logs
+        </a>
+        <a href="/suggest-update" class="pb-admin-btn">
+          <i class="bi bi-pencil-square pb-admin-btn-icon" aria-hidden="true"></i>Suggest Update
+        </a>
+        <a href="/dashboard" class="pb-admin-btn">
+          <i class="bi bi-bar-chart pb-admin-btn-icon" aria-hidden="true"></i>View Dashboard
+        </a>
+      </div>
+    </div>
+
   </div>
-  <br>
 </div>
 
 <%- include("_loggedInFooter") -%>
