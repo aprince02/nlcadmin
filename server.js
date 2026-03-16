@@ -1,3 +1,4 @@
+require('dotenv').config();
 var express = require("express")
 const fs = require('fs');
 var app = express()
@@ -18,6 +19,8 @@ const { requireLogin, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, ch
 const dbHelper = require('./dbHelper')
 const currentYear = new Date().getFullYear();
 const csvGenerator = require('./csvGenerator')
+const bankRouter   = require('./routes/bank')
+const tlSync       = require('./truelayer/sync')
 const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail, sendUpdateSuggestionEmail, sendNewUserAddedEmail, sendDonationReceivedEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
@@ -36,6 +39,7 @@ app.use(function(req, res, next){
     res.locals.message = req.flash();
     next();
 });
+app.use(bankRouter);
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
@@ -660,6 +664,16 @@ app.get('/export-donations', requireLogin, checkUserRole, checkApprovedUser, asy
       log(loggedInName + ': Error sending database backup' + error.message)
       return res.redirect('/admin');
     }});
+
+// TrueLayer bank sync — runs every 6 hours
+schedule.scheduleJob('0 */6 * * *', async () => {
+  try {
+    await tlSync.syncAll();
+  } catch (err) {
+    console.error('[TrueLayer] Scheduled sync failed:', err.message);
+    log('TrueLayer scheduled sync failed: ' + err.message);
+  }
+});
 
 const scheduledTime = '59 23 * * 0'; // '59 23 * * 0' represents every Sunday at 23:59
 schedule.scheduleJob(scheduledTime, async () => {

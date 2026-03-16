@@ -1175,7 +1175,18 @@ a:hover {
 .pb-kpi-change.down    { background: var(--pb-danger-light);  color: var(--pb-danger); }
 .pb-kpi-change.neutral { background: var(--pb-gray-100);      color: var(--pb-gray-600); }
 
-/* ── Dashboard year switcher ────────────────────────────── */
+/* ── Bank connection status dot ─────────────────────────── */
+.pb-bank-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.pb-bank-status-dot--connected    { background: var(--pb-accent); box-shadow: 0 0 0 3px var(--pb-accent-light); }
+.pb-bank-status-dot--disconnected { background: var(--pb-gray-400); }
+
+/* ── Dashboard year switcher ─────────────────────────────── */
 .pb-year-switcher {
   display: flex;
   align-items: center;

@@ -153,12 +153,76 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
         )`,
         (err) => {
             if (err) {
-                // Table already created
                 console.log('donation_types table already exists')
             }else{
-                // Table just created
                 console.log('donation_types table created')
             }
+        });
+        db.run(`CREATE TABLE IF NOT EXISTS bank_connections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id TEXT UNIQUE NOT NULL,
+            account_name TEXT,
+            account_type TEXT,
+            account_number TEXT,
+            sort_code TEXT,
+            currency TEXT DEFAULT 'GBP',
+            provider_id TEXT,
+            access_token_enc TEXT,
+            refresh_token_enc TEXT,
+            token_expires_at TEXT,
+            consent_expires_at TEXT,
+            last_synced_at TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now'))
+        )`,
+        (err) => {
+            if (err) console.log('bank_connections table already exists');
+            else console.log('bank_connections table created');
+        });
+        db.run(`CREATE TABLE IF NOT EXISTS bank_balances (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id TEXT NOT NULL,
+            current REAL,
+            available REAL,
+            currency TEXT DEFAULT 'GBP',
+            recorded_at TEXT DEFAULT (datetime('now'))
+        )`,
+        (err) => {
+            if (err) console.log('bank_balances table already exists');
+            else console.log('bank_balances table created');
+        });
+        db.run(`CREATE TABLE IF NOT EXISTS bank_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id TEXT NOT NULL,
+            provider_transaction_id TEXT UNIQUE,
+            date TEXT,
+            description TEXT,
+            amount REAL,
+            currency TEXT DEFAULT 'GBP',
+            transaction_type TEXT,
+            merchant_name TEXT,
+            category TEXT,
+            status TEXT DEFAULT 'posted',
+            raw_payload TEXT,
+            imported_at TEXT DEFAULT (datetime('now'))
+        )`,
+        (err) => {
+            if (err) console.log('bank_transactions table already exists');
+            else console.log('bank_transactions table created');
+        });
+        db.run(`CREATE TABLE IF NOT EXISTS bank_sync_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id TEXT,
+            sync_type TEXT,
+            status TEXT,
+            records_fetched INTEGER DEFAULT 0,
+            records_inserted INTEGER DEFAULT 0,
+            error_message TEXT,
+            synced_at TEXT DEFAULT (datetime('now'))
+        )`,
+        (err) => {
+            if (err) console.log('bank_sync_log table already exists');
+            else console.log('bank_sync_log table created');
         });
         db.run(`CREATE TABLE offering_claim (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
