@@ -23,7 +23,12 @@ jobs:
           wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
-          pg_dump --version
+
+      - name: Check pg_dump versions
+        run: |
+          which pg_dump || true
+          pg_dump --version || true
+          /usr/lib/postgresql/17/bin/pg_dump --version || true
 
       - name: Set backup filename
         id: vars
@@ -33,11 +38,11 @@ jobs:
           if [ -z "$REASON" ]; then REASON="scheduled"; fi
           echo "filename=backup_${TS}_${REASON}.dump" >> $GITHUB_OUTPUT
 
-      - name: Run pg_dump
+      - name: Run pg_dump with Postgres 17
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          pg_dump -Fc "$DATABASE_URL" -f "${{ steps.vars.outputs.filename }}"
+          /usr/lib/postgresql/17/bin/pg_dump -Fc "$DATABASE_URL" -f "${{ steps.vars.outputs.filename }}"
 
       - name: Confirm backup file exists
         run: |
