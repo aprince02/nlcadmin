@@ -447,6 +447,56 @@ async function getRecentDonations(limit) {
   });
 }
 
+async function getDistinctYears() {
+  return new Promise((resolve, reject) => {
+    const sql = `SELECT DISTINCT strftime('%Y', date) AS year FROM transactions WHERE date IS NOT NULL ORDER BY year DESC`;
+    db.all(sql, [], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows.map(r => r.year));
+    });
+  });
+}
+
+async function importBankTransaction({ date, description, transactionType, paidIn, paidOut, sourceRef }) {
+  // Infer type from description (same logic as CSV import)
+  let inferredType = null;
+  const desc = (description || '').toLowerCase();
+  if (desc.includes('offering')) {
+    inferredType = 'Offering';
+  } else if (desc.includes('zoom')) {
+    inferredType = 'Audio/Visual/Licenses';
+  } else if (desc.includes('food')) {
+    inferredType = 'Food';
+  } else if (desc.includes('hmrc charities')) {
+    inferredType = 'Gift Aid Claim';
+  } else if (desc.includes('snacks')) {
+    inferredType = 'Food';
+  } else if (desc.includes('total charges')) {
+    inferredType = 'Bank Charges';
+  }
+
+  return new Promise((resolve, reject) => {
+    db.get(`SELECT id, type FROM transactions WHERE notes = ?`, [sourceRef], (err, existing) => {
+      if (err) return reject(err);
+      if (existing) {
+        // Update type if it was not previously inferred
+        if (inferredType && !existing.type) {
+          db.run(`UPDATE transactions SET type = ? WHERE id = ?`, [inferredType, existing.id]);
+        }
+        return resolve(false);
+      }
+      db.run(
+        `INSERT INTO transactions (date, transaction_type, type, description, paid_in, paid_out, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [date, transactionType, inferredType, description, paidIn || null, paidOut || null, sourceRef],
+        function(err) {
+          if (err) reject(err);
+          else resolve(true);
+        }
+      );
+    });
+  });
+}
+
 async function getTopDonors(year, limit) {
   return new Promise((resolve, reject) => {
     const sql = `
@@ -498,5 +548,7 @@ module.exports = {
   getMonthlyDonationCount,
   getRecentTransactions,
   getRecentDonations,
-  getTopDonors
+  getTopDonors,
+  getDistinctYears,
+  importBankTransaction,
 };

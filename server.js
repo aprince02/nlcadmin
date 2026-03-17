@@ -37,7 +37,13 @@ app.use(session({
 app.use(flash());
 app.use(function(req, res, next){
     res.locals.message = req.flash();
-    next();
+    dbHelper.getDistinctYears().then(years => {
+      res.locals.availableYears = years;
+      next();
+    }).catch(() => {
+      res.locals.availableYears = [];
+      next();
+    });
 });
 app.use(bankRouter);
 const storage = multer.diskStorage({

@@ -38,9 +38,13 @@
                 Bank Transactions
               </a>
               <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="/yearly-transactions/2025/1">2025</a></li>
-                <li><a class="dropdown-item" href="/yearly-transactions/2024/1">2024</a></li>
-                <li><a class="dropdown-item" href="/yearly-transactions/2023/1">2023</a></li>
+                <% if (availableYears && availableYears.length) { %>
+                  <% for (const year of availableYears) { %>
+                    <li><a class="dropdown-item" href="/yearly-transactions/<%= year %>/1"><%= year %></a></li>
+                  <% } %>
+                <% } else { %>
+                  <li><span class="dropdown-item text-muted">No data yet</span></li>
+                <% } %>
               </ul>
             </li>
             <li class="nav-item">

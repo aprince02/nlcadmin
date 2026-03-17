@@ -6,6 +6,7 @@
  * and writes a sync log entry for every run.
  */
 const tlDb   = require('./dbHelper');
+const mainDb = require('../dbHelper');
 const api    = require('./api');
 const tlAuth = require('./auth');
 const { encrypt, decrypt } = require('./crypto');
@@ -75,10 +76,10 @@ async function syncBalance(accessToken, accountId) {
  * Returns { fetched, inserted } counts.
  */
 async function syncTransactions(accessToken, accountId, lastSyncedAt) {
-  // On first sync pull 90 days; after that pull since last sync with a 1-day buffer
+  // On first sync pull 12 months; after that pull since last sync with a 1-day buffer
   const from = lastSyncedAt
     ? new Date(new Date(lastSyncedAt).getTime() - 86_400_000).toISOString().split('T')[0]
-    : new Date(Date.now() - 90 * 86_400_000).toISOString().split('T')[0];
+    : new Date(Date.now() - 365 * 86_400_000).toISOString().split('T')[0];
 
   const rawTxns = await api.getTransactions(accessToken, accountId, from);
   let inserted = 0;
@@ -88,10 +89,11 @@ async function syncTransactions(accessToken, accountId, lastSyncedAt) {
     // Falls back to transaction_id if not present.
     const providerTxnId = txn.normalised_provider_transaction_id || txn.transaction_id;
 
+    const txnDate = txn.timestamp ? txn.timestamp.split('T')[0] : null;
     const isNew = await tlDb.insertTransaction({
       accountId,
       providerTransactionId: providerTxnId,
-      date:              txn.timestamp ? txn.timestamp.split('T')[0] : null,
+      date:              txnDate,
       description:       txn.description,
       amount:            txn.amount,         // negative = out, positive = in
       currency:          txn.currency,
@@ -102,7 +104,17 @@ async function syncTransactions(accessToken, accountId, lastSyncedAt) {
       rawPayload:        JSON.stringify(txn),
     });
 
-    if (isNew) inserted++;
+    if (isNew) {
+      inserted++;
+      await mainDb.importBankTransaction({
+        date:            txnDate,
+        description:     txn.description,
+        transactionType: txn.transaction_type,
+        paidIn:          txn.amount > 0 ? txn.amount.toFixed(2) : null,
+        paidOut:         txn.amount < 0 ? Math.abs(txn.amount).toFixed(2) : null,
+        sourceRef:       `bank:${providerTxnId}`,
+      });
+    }
   }
 
   await tlDb.insertSyncLog({
@@ -173,6 +185,23 @@ async function syncAll() {
       status: 'error',
       errorMessage: err.message,
     });
+  }
+
+  // Backfill: ensure all bank_transactions are present in the main transactions table
+  try {
+    const allBankTxns = await tlDb.getAllBankTransactions();
+    for (const row of allBankTxns) {
+      await mainDb.importBankTransaction({
+        date:            row.date,
+        description:     row.description,
+        transactionType: row.transaction_type,
+        paidIn:          row.amount > 0 ? Math.abs(row.amount).toFixed(2) : null,
+        paidOut:         row.amount < 0 ? Math.abs(row.amount).toFixed(2) : null,
+        sourceRef:       `bank:${row.provider_transaction_id}`,
+      });
+    }
+  } catch (err) {
+    console.warn('[TrueLayer] Backfill warning:', err.message);
   }
 
   await tlDb.updateLastSynced(connection.account_id);

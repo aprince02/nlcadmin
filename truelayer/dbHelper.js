@@ -138,6 +138,13 @@ function getRecentBankTransactions(limit = 10) {
   });
 }
 
+function getAllBankTransactions() {
+  return new Promise((resolve, reject) => {
+    db.all(`SELECT * FROM bank_transactions ORDER BY date ASC`,
+    (err, rows) => (err ? reject(err) : resolve(rows)));
+  });
+}
+
 // ── bank_sync_log ────────────────────────────────────────────────
 
 function insertSyncLog({ accountId, syncType, status, recordsFetched, recordsInserted, errorMessage }) {
@@ -170,6 +177,7 @@ module.exports = {
   getLatestBalance,
   insertTransaction,
   getRecentBankTransactions,
+  getAllBankTransactions,
   insertSyncLog,
   getRecentSyncLogs,
 };
