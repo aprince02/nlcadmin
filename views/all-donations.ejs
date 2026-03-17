@@ -29,7 +29,7 @@
         <tbody>
           <% for (const payments of model) { %>
             <tr>
-              <td><%= payments.date ? payments.date.split('-').reverse().join('-') : '' %></td>
+              <td><%= payments.date ? new Date(payments.date).toLocaleDateString('en-GB') : '' %></td>
               <td><%= payments.first_name %> <%= payments.surname %></td>
               <td>£<%= payments.amount %></td>
               <td><%= payments.fund %></td>

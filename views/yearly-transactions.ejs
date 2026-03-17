@@ -27,7 +27,8 @@
               <form action="/save-transaction/<%= each.id %>" method="post">
                 <td>
                   <input type="hidden" name="date" value="<%= each.date %>" />
-                  <input readonly type="text" class="form-control pb-input-year" value="<%= each.date ? each.date.split('-').reverse().join('-') : '' %>" />
+                  <input readonly type="text" class="form-control pb-input-year"
+                    value="<%= each.date ? new Date(each.date).toLocaleDateString('en-GB') : '' %>" />
                 </td>
                 <td>
                   <input type="text" class="form-control pb-field-lg" name="description" value="<%= each.description %>" />

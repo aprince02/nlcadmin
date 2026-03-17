@@ -1,21 +1,13 @@
 const os = require('os');
-var db = require("./database.js")
+const pool = require("./database.js")
 const csv = require('csv-parser');
 const fs = require('fs');
 const csvWriter = require('csv-writer').createObjectCsvWriter;
 
 async function exportDonationsCsv(req, res) {
-  const tableName = 'donations';
   try {
-      const rows = await new Promise((resolve, reject) => {
-          db.all(`SELECT * FROM ${tableName}`, function(err, rows) {
-              if (err) {
-                  console.error('Error retrieving data to export donations:', err);
-                  reject(err);
-              } else {
-                  resolve(rows);
-              }});
-      });
+      const result = await pool.query('SELECT * FROM donations');
+      const rows = result.rows;
       const csvWrite = csvWriter({
           path: 'donations.csv',
           header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
@@ -29,43 +21,29 @@ async function exportDonationsCsv(req, res) {
   async function exportGiftAidClaimCsv(req, res) {
     try {
         // Exporting Donations data
-        const donationsData = await new Promise((resolve, reject) => {
-            db.all(`
-                SELECT 
-                    members.title, 
-                    members.first_name, 
-                    members.surname AS last_name, 
-                    members.house_number AS house_name_or_number, 
-                    members.postcode, 
-                    donations.amount AS donation_amount, 
-                    donations.date AS donation_date
-                FROM donations
-                INNER JOIN members ON donations.member_id = members.id
-                WHERE donations.gift_aid_status = 'Unclaimed'
-            `, function(err, rows) {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(rows);
-                }
-            });
-        });
+        const donationsResult = await pool.query(`
+            SELECT
+                members.title,
+                members.first_name,
+                members.surname AS last_name,
+                members.house_number AS house_name_or_number,
+                members.postcode,
+                donations.amount AS donation_amount,
+                donations.date AS donation_date
+            FROM donations
+            INNER JOIN members ON donations.member_id = members.id
+            WHERE donations.gift_aid_status = 'Unclaimed'
+        `);
+        const donationsData = donationsResult.rows;
 
         // Exporting Offering Claim data
-        const offeringClaimData = await new Promise((resolve, reject) => {
-            db.all(`
-                SELECT 
-                    offering_claim.date AS offering_date, 
-                    offering_claim.amount AS offering_amount
-                FROM offering_claim
-            `, function(err, rows) {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(rows);
-                }
-            });
-        });
+        const offeringResult = await pool.query(`
+            SELECT
+                offering_claim.date AS offering_date,
+                offering_claim.amount AS offering_amount
+            FROM offering_claim
+        `);
+        const offeringClaimData = offeringResult.rows;
 
         // Prepare CSV data with donations first, followed by offering claims
         const csvData = [];

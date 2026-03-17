@@ -1,248 +1,201 @@
-var sqlite3 = require('sqlite3').verbose()
-const DBSOURCE = "db.sqlite"
+const { Pool } = require('pg');
 
-let db = new sqlite3.Database(DBSOURCE, (err) => {
-    if (err) {
-      // Cannot open database
-      console.error(err.message)
-      throw err
-    }else{
-        console.log('Connected to the SQLite database.')
-        db.run(`CREATE TABLE user (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name text, 
-            email text UNIQUE, 
-            password text, 
-            role text,
-            security_question text,
-            approval text,
-            CONSTRAINT email_unique UNIQUE (email)
-            )`,
-        (err) => {
-            if (err) {
-                // Table already created
-                console.log('user table already exists')
-            }else{
-                // Table just created
-                console.log('user table created')
-            }
-        }); 
-        db.run(`CREATE TABLE members (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title text,
-            first_name text,
-            surname text,
-            sex text,
-            email text,
-            phone_number text,
-            house_number INTEGER,
-            address_line_1 text,
-            address_line_2 text,
-            city text, 
-            postcode text,
-            date_of_birth date,
-            baptised text,
-            baptised_date date,
-            holy_spirit text, 
-            native_church text, 
-            children_details text,
-            emergency_contact_1 INTEGER,
-            emergency_contact_1_name text, 
-            emergency_contact_2 INTEGER,
-            emergency_contact_2_name text,
-            occupation_studies text,
-            spouse_name text,
-            banking_name text,
-            is_active INTEGER DEFAULT 1,
-            )`,
-        (err) => {
-            if (err) {
-                // Table already created
-                console.log('members table already exists')
-            }else{
-                // Table just created
-                console.log('members table created')
-            }
-        });
-        db.run(`CREATE TABLE donations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            member_id INTEGER,
-            first_name text,
-            surname text,
-            amount text,
-            date date,
-            fund text,
-            method text,
-            gift_aid_status text,
-            notes text
-        )`,
-        (err) => {
-            if (err) {
-                // Table already created
-                console.log('donations table already exists')
-            }else{
-                // Table just created
-                console.log('donations table created')
-            }
-        });
-        db.run(`CREATE TABLE transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date date,
-            transaction_type text,
-            type text,
-            description text,
-            paid_out text,
-            paid_in text,
-            balance text,
-            notes text
-        )`,
-        (err) => {
-            if (err) {
-                // Table already created
-                console.log('transactions table already exists')
-            }else{
-                // Table just created
-                console.log('transactions table created')
-            }
-        })
-        db.run(`CREATE TABLE last_update (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp text,
-            user text
-        )`,
-        (err) => {
-            if (err) {
-                // Table already created
-                console.log('last_update table already exists')
-            }else{
-                // Table just created
-                console.log('last_update table created')
-            }
-        })
-        db.run(`CREATE TABLE console_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp text,
-            user text,
-            log_message text
-        )`,
-        (err) => {
-            if (err) {
-                // Table already created
-                console.log('logs table already exists')
-            }else{
-                // Table just created
-                console.log('logs table created')
-            }
-        });
-        db.run(`CREATE TABLE transaction_types (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type text UNIQUE NOT NULL
-        )`,
-        (err) => {
-            if (err) {
-                // Table already created
-                console.log('transaction_types table already exists')
-            }else{
-                // Table just created
-                console.log('transaction_types table created')
-            }
-        });
-        db.run(`CREATE TABLE donation_types (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type text UNIQUE NOT NULL
-        )`,
-        (err) => {
-            if (err) {
-                console.log('donation_types table already exists')
-            }else{
-                console.log('donation_types table created')
-            }
-        });
-        db.run(`CREATE TABLE IF NOT EXISTS bank_connections (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            account_id TEXT UNIQUE NOT NULL,
-            account_name TEXT,
-            account_type TEXT,
-            account_number TEXT,
-            sort_code TEXT,
-            currency TEXT DEFAULT 'GBP',
-            provider_id TEXT,
-            access_token_enc TEXT,
-            refresh_token_enc TEXT,
-            token_expires_at TEXT,
-            consent_expires_at TEXT,
-            last_synced_at TEXT,
-            is_active INTEGER DEFAULT 1,
-            created_at TEXT DEFAULT (datetime('now'))
-        )`,
-        (err) => {
-            if (err) console.log('bank_connections table already exists');
-            else console.log('bank_connections table created');
-        });
-        db.run(`CREATE TABLE IF NOT EXISTS bank_balances (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            account_id TEXT NOT NULL,
-            current REAL,
-            available REAL,
-            currency TEXT DEFAULT 'GBP',
-            recorded_at TEXT DEFAULT (datetime('now'))
-        )`,
-        (err) => {
-            if (err) console.log('bank_balances table already exists');
-            else console.log('bank_balances table created');
-        });
-        db.run(`CREATE TABLE IF NOT EXISTS bank_transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            account_id TEXT NOT NULL,
-            provider_transaction_id TEXT UNIQUE,
-            date TEXT,
-            description TEXT,
-            amount REAL,
-            currency TEXT DEFAULT 'GBP',
-            transaction_type TEXT,
-            merchant_name TEXT,
-            category TEXT,
-            status TEXT DEFAULT 'posted',
-            raw_payload TEXT,
-            imported_at TEXT DEFAULT (datetime('now'))
-        )`,
-        (err) => {
-            if (err) console.log('bank_transactions table already exists');
-            else console.log('bank_transactions table created');
-        });
-        db.run(`CREATE TABLE IF NOT EXISTS bank_sync_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            account_id TEXT,
-            sync_type TEXT,
-            status TEXT,
-            records_fetched INTEGER DEFAULT 0,
-            records_inserted INTEGER DEFAULT 0,
-            error_message TEXT,
-            synced_at TEXT DEFAULT (datetime('now'))
-        )`,
-        (err) => {
-            if (err) console.log('bank_sync_log table already exists');
-            else console.log('bank_sync_log table created');
-        });
-        db.run(`CREATE TABLE offering_claim (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            transaction_id INTEGER UNIQUE,
-            type text,
-            date date,
-            description text,
-            amount text,
-            claimed text
-        )`,
-        (err) => {
-            if (err) {
-                // Table already created
-                console.log('offering_claim table already exists')
-            }else{
-                // Table just created
-                console.log('offering_claim table created')
-            }
-        });    
-    }
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost')
+    ? { rejectUnauthorized: false }
+    : false,
 });
 
-module.exports = db
+async function initDb() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name TEXT,
+        email TEXT UNIQUE,
+        password TEXT,
+        role TEXT,
+        security_question TEXT,
+        approval TEXT
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS members (
+        id SERIAL PRIMARY KEY,
+        title TEXT,
+        first_name TEXT,
+        surname TEXT,
+        sex TEXT,
+        email TEXT,
+        phone_number TEXT,
+        house_number INTEGER,
+        address_line_1 TEXT,
+        address_line_2 TEXT,
+        city TEXT,
+        postcode TEXT,
+        date_of_birth DATE,
+        baptised TEXT,
+        baptised_date DATE,
+        holy_spirit TEXT,
+        native_church TEXT,
+        children_details TEXT,
+        emergency_contact_1 INTEGER,
+        emergency_contact_1_name TEXT,
+        emergency_contact_2 INTEGER,
+        emergency_contact_2_name TEXT,
+        occupation_studies TEXT,
+        spouse_name TEXT,
+        banking_name TEXT,
+        is_active INTEGER DEFAULT 1
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS donations (
+        id SERIAL PRIMARY KEY,
+        member_id INTEGER,
+        first_name TEXT,
+        surname TEXT,
+        amount TEXT,
+        date DATE,
+        fund TEXT,
+        method TEXT,
+        gift_aid_status TEXT,
+        notes TEXT
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id SERIAL PRIMARY KEY,
+        date DATE,
+        transaction_type TEXT,
+        type TEXT,
+        description TEXT,
+        paid_out TEXT,
+        paid_in TEXT,
+        balance TEXT,
+        notes TEXT
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS last_update (
+        id SERIAL PRIMARY KEY,
+        timestamp TEXT,
+        "user" TEXT
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS console_logs (
+        id SERIAL PRIMARY KEY,
+        timestamp TEXT,
+        "user" TEXT,
+        log_message TEXT
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS transaction_types (
+        id SERIAL PRIMARY KEY,
+        type TEXT UNIQUE NOT NULL
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS donation_types (
+        id SERIAL PRIMARY KEY,
+        type TEXT UNIQUE NOT NULL
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bank_connections (
+        id SERIAL PRIMARY KEY,
+        account_id TEXT UNIQUE NOT NULL,
+        account_name TEXT,
+        account_type TEXT,
+        account_number TEXT,
+        sort_code TEXT,
+        currency TEXT DEFAULT 'GBP',
+        provider_id TEXT,
+        access_token_enc TEXT,
+        refresh_token_enc TEXT,
+        token_expires_at TEXT,
+        consent_expires_at TEXT,
+        last_synced_at TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bank_balances (
+        id SERIAL PRIMARY KEY,
+        account_id TEXT NOT NULL,
+        current REAL,
+        available REAL,
+        currency TEXT DEFAULT 'GBP',
+        recorded_at TEXT DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bank_transactions (
+        id SERIAL PRIMARY KEY,
+        account_id TEXT NOT NULL,
+        provider_transaction_id TEXT UNIQUE,
+        date TEXT,
+        description TEXT,
+        amount REAL,
+        currency TEXT DEFAULT 'GBP',
+        transaction_type TEXT,
+        merchant_name TEXT,
+        category TEXT,
+        status TEXT DEFAULT 'posted',
+        raw_payload TEXT,
+        imported_at TEXT DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bank_sync_log (
+        id SERIAL PRIMARY KEY,
+        account_id TEXT,
+        sync_type TEXT,
+        status TEXT,
+        records_fetched INTEGER DEFAULT 0,
+        records_inserted INTEGER DEFAULT 0,
+        error_message TEXT,
+        synced_at TEXT DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS offering_claim (
+        id SERIAL PRIMARY KEY,
+        transaction_id INTEGER UNIQUE,
+        type TEXT,
+        date DATE,
+        description TEXT,
+        amount TEXT,
+        claimed TEXT
+      )
+    `);
+
+    console.log('Database schema initialised.');
+  } catch (err) {
+    console.error('Error initialising database schema:', err.message);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+initDb().catch(console.error);
+
+module.exports = pool;

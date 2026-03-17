@@ -1,339 +1,219 @@
-const db = require('./database.js');
+const pool = require('./database.js');
 
 async function getAllTransactionTypes() {
-  return new Promise((resolve, reject) => {
-    const sql = 'SELECT * FROM transaction_types';
-    db.all(sql, (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows.map(row => row.type));
-      }
-    });
-  });
+  const result = await pool.query('SELECT * FROM transaction_types');
+  return result.rows.map(row => row.type);
 }
 
 async function insertTransactionType(type) {
-    return new Promise((resolve, reject) => {
-      const sql = 'INSERT INTO transaction_types (type) VALUES (?)';
-      db.run(sql, [type], function (err) {
-        if (err) {
-          reject(err);
-        } else {
-          console.log(`Inserted new transaction type: ${type}, ID: ${this.lastID}`);
-          resolve(this.lastID);
-        }
-      });
-    });
-  }
-
-  async function getAllDonationTypes() {
-    return new Promise((resolve, reject) => {
-      const sql = 'SELECT * FROM donation_types';
-      db.all(sql, (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows.map(row => row.type));
-        }
-      });
-    });
-  }
-  
-  async function insertDonationType(type) {
-      return new Promise((resolve, reject) => {
-        const sql = 'INSERT INTO donation_types (type) VALUES (?)';
-        db.run(sql, [type], function (err) {
-          if (err) {
-            reject(err);
-          } else {
-            console.log(`Inserted new donation type: ${type}, ID: ${this.lastID}`);
-            resolve(this.lastID);
-          }
-        });
-      });
-    }
-
-    async function getAllMembers() {
-      return new Promise((resolve, reject) => {
-        const sql = 'SELECT * FROM members ORDER BY first_name ASC';
-        db.all(sql, function (err, rows) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(rows);
-          }});
-      });
-    }
-
-    async function getAllActiveMembers() {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      SELECT * FROM members
-      WHERE is_active != 0 OR is_active IS NULL
-      ORDER BY first_name ASC
-    `;
-    db.all(sql, function (err, rows) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }});
-  });
+  const result = await pool.query(
+    'INSERT INTO transaction_types (type) VALUES ($1) RETURNING id',
+    [type]
+  );
+  const id = result.rows[0].id;
+  console.log(`Inserted new transaction type: ${type}, ID: ${id}`);
+  return id;
 }
 
-    async function getMemberWithId(id) {
-      return new Promise((resolve, reject) => {
-        const sql = 'SELECT * FROM members WHERE id = ?';
-        db.get(sql, [id], function (err, row) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(row);
-          }
-        });
-      })};
+async function getAllDonationTypes() {
+  const result = await pool.query('SELECT * FROM donation_types');
+  return result.rows.map(row => row.type);
+}
 
-      async function addNewMember(req) {
-        return new Promise((resolve, reject) => {
-          const member = [req.body.first_name, req.body.surname, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number,];
-          const sql = 'INSERT INTO members (first_name, surname, sex, email, phone_number, address_line_1, address_line_2, city, postcode, date_of_birth, baptised, baptised_date, holy_spirit, native_church, children_details, emergency_contact_1, emergency_contact_1_name, emergency_contact_2, emergency_contact_2_name, occupation_studies, title, house_number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
-          db.run(sql, member, function (err) {
-            if (err) {
-              reject(err);
-            } else {
-              console.log(`Inserted new member, ID: ${this.lastID}`);
-              resolve(this.lastID);
-            }});
-        });
-      }
+async function insertDonationType(type) {
+  const result = await pool.query(
+    'INSERT INTO donation_types (type) VALUES ($1) RETURNING id',
+    [type]
+  );
+  const id = result.rows[0].id;
+  console.log(`Inserted new donation type: ${type}, ID: ${id}`);
+  return id;
+}
 
-      async function getDonationWithId(id) {
-        return new Promise((resolve, reject) => {
-          const sql = 'SELECT * FROM donations WHERE id = ?';
-          db.get(sql, [id], function (err, row) {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(row);
-            }
-          });
-        })};
+async function getAllMembers() {
+  const result = await pool.query('SELECT * FROM members ORDER BY first_name ASC');
+  return result.rows;
+}
+
+async function getAllActiveMembers() {
+  const result = await pool.query(`
+    SELECT * FROM members
+    WHERE is_active != 0 OR is_active IS NULL
+    ORDER BY first_name ASC
+  `);
+  return result.rows;
+}
+
+async function getMemberWithId(id) {
+  const result = await pool.query('SELECT * FROM members WHERE id = $1', [id]);
+  return result.rows[0];
+}
+
+async function addNewMember(req) {
+  const member = [
+    req.body.first_name, req.body.surname, req.body.sex, req.body.email,
+    req.body.phone_number, req.body.address_line_1, req.body.address_line_2,
+    req.body.city, req.body.postcode, req.body.date_of_birth, req.body.baptised,
+    req.body.baptised_date, req.body.holy_spirit, req.body.native_church,
+    req.body.children_details, req.body.emergency_contact_1,
+    req.body.emergency_contact_1_name, req.body.emergency_contact_2,
+    req.body.emergency_contact_2_name, req.body.occupation_studies,
+    req.body.title, req.body.house_number,
+  ];
+  const result = await pool.query(
+    `INSERT INTO members (first_name, surname, sex, email, phone_number, address_line_1,
+      address_line_2, city, postcode, date_of_birth, baptised, baptised_date, holy_spirit,
+      native_church, children_details, emergency_contact_1, emergency_contact_1_name,
+      emergency_contact_2, emergency_contact_2_name, occupation_studies, title, house_number)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+     RETURNING id`,
+    member
+  );
+  const id = result.rows[0].id;
+  console.log(`Inserted new member, ID: ${id}`);
+  return id;
+}
+
+async function getDonationWithId(id) {
+  const result = await pool.query(`
+    SELECT
+      *,
+      TO_CHAR(date, 'YYYY-MM-DD') AS date_input
+    FROM donations
+    WHERE id = $1
+  `, [id]);
+
+  return result.rows[0];
+}
 
 async function getAllTransactionsForYear(year) {
-  return new Promise((resolve, reject) => {
-    const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date ASC";
-    const startDate = `${year}-01-01`;
-    const endDate = `${year}-12-31`;
-    db.all(sql, [startDate, endDate], (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }
-    });
-  });
+  const result = await pool.query(
+    'SELECT * FROM transactions WHERE date >= $1 AND date <= $2 ORDER BY date ASC',
+    [`${year}-01-01`, `${year}-12-31`]
+  );
+  return result.rows;
 }
 
 async function getAllTransactionsForPeriod(startDate, endDate) {
-  return new Promise((resolve, reject) => {
-    const sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date ASC";
-    db.all(sql, [startDate, endDate], (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }
-    });
-  });
+  const result = await pool.query(
+    'SELECT * FROM transactions WHERE date >= $1 AND date <= $2 ORDER BY date ASC',
+    [startDate, endDate]
+  );
+  return result.rows;
 }
+
 async function getAllTransactionsWithOnly(startDate, endDate, exportOnly) {
-  return new Promise((resolve, reject) => {
-    let sql = "SELECT * FROM transactions WHERE date >= ? AND date <= ?";
-    let params = [startDate, endDate];
+  let sql = 'SELECT * FROM transactions WHERE date >= $1 AND date <= $2';
+  let params = [startDate, endDate];
 
-    if (exportOnly === "allPaidIn") {
-      sql += " AND CAST(paid_in AS REAL) > 0";
-    } else if (exportOnly === "allPaidOut") {
-      sql += " AND CAST(paid_out AS REAL) > 0";
-    } else if (exportOnly === "allPaidOutOver£2000") {
-      sql += " AND CAST(paid_out AS REAL) >= 2000";
-    } else if (exportOnly) {
-      sql += " AND type = ?";
-      params.push(exportOnly); // Dynamically set any type
-    } else {
-      console.log("Error: Invalid transaction type requested.");
-      return reject(new Error("Invalid transaction type."));
-    }
+  if (exportOnly === 'allPaidIn') {
+    sql += ' AND CAST(paid_in AS FLOAT) > 0';
+  } else if (exportOnly === 'allPaidOut') {
+    sql += ' AND CAST(paid_out AS FLOAT) > 0';
+  } else if (exportOnly === 'allPaidOutOver£2000') {
+    sql += ' AND CAST(paid_out AS FLOAT) >= 2000';
+  } else if (exportOnly) {
+    sql += ' AND type = $3';
+    params.push(exportOnly);
+  } else {
+    console.log('Error: Invalid transaction type requested.');
+    throw new Error('Invalid transaction type.');
+  }
 
-    sql += " ORDER BY date ASC";
-
-    db.all(sql, params, (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }
-    });
-  });
+  sql += ' ORDER BY date ASC';
+  const result = await pool.query(sql, params);
+  return result.rows;
 }
-
 
 async function getAllUsers() {
-  return new Promise((resolve, reject) => {
-    const sql = "SELECT * FROM user";
-    db.all(sql,(err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }});
-  });
+  const result = await pool.query('SELECT * FROM users');
+  return result.rows;
 }
 
 async function getUserById(id) {
-  return new Promise((resolve, reject) => {
-    const sql = "SELECT * FROM user WHERE (id = ?)";
-    db.get(sql, [id], (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(row);
-      }});
-  });
+  const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+  return result.rows[0];
 }
 
 async function updateUser(req) {
-return new Promise((resolve, reject) => {
-  const user = [req.body.name, req.body.email, req.body.role, req.body.approval, req.body.id];
-  const sql = 'UPDATE user set name = ?, email = ?, role = ?, approval = ? WHERE (id = ?)';
-  db.run(sql, user, function (err) {
-    if (err) {
-      reject(err);
-    } else {
-      resolve(this.lastID);
-    }});
-  });
+  const result = await pool.query(
+    'UPDATE users SET name = $1, email = $2, role = $3, approval = $4 WHERE id = $5 RETURNING id',
+    [req.body.name, req.body.email, req.body.role, req.body.approval, req.body.id]
+  );
+  return result.rows[0]?.id;
 }
 
 async function getAllLogs() {
-  return new Promise((resolve, reject) => {
-    const sql = "SELECT * FROM console_logs ORDER BY ID DESC";
-    db.all(sql,(err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }});
-  });
+  const result = await pool.query('SELECT * FROM console_logs ORDER BY id DESC');
+  return result.rows;
 }
 
 async function getLogsPaginated(startIndex, rowsPerPage) {
-  return new Promise((resolve, reject) => {
-      const sql = "SELECT * FROM console_logs ORDER BY ID DESC LIMIT ? OFFSET ?";
-      db.all(sql, [rowsPerPage, startIndex], (err, rows) => {
-          if (err) {
-              reject(err);
-          } else {
-              resolve(rows);
-          }
-      });
-  });
+  const result = await pool.query(
+    'SELECT * FROM console_logs ORDER BY id DESC LIMIT $1 OFFSET $2',
+    [rowsPerPage, startIndex]
+  );
+  return result.rows;
 }
 
 async function getLogsCount() {
-  return new Promise((resolve, reject) => {
-      const sql = "SELECT COUNT(*) AS totalRows FROM console_logs";
-      db.get(sql, (err, row) => {
-          if (err) {
-              reject(err);
-          } else {
-              resolve(row.totalRows);
-          }
-      });
-  });
+  const result = await pool.query('SELECT COUNT(*) AS totalrows FROM console_logs');
+  return parseInt(result.rows[0].totalrows, 10);
 }
 
 async function getMembersPaginated(startIndex, rowsPerPage) {
-  return new Promise((resolve, reject) => {
-    const sql = "SELECT * FROM members WHERE is_active = 1 ORDER BY first_name ASC LIMIT ? OFFSET ?";
-    db.all(sql, [rowsPerPage, startIndex], (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }
-    });
-  });
+  const result = await pool.query(
+    'SELECT * FROM members WHERE is_active = 1 ORDER BY first_name ASC LIMIT $1 OFFSET $2',
+    [rowsPerPage, startIndex]
+  );
+  return result.rows;
 }
 
 async function getMembersCount() {
-  return new Promise((resolve, reject) => {
-    const sql = "SELECT COUNT(*) AS totalRows FROM members WHERE is_active = 1";
-    db.get(sql, (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(row.totalRows);
-      }
-    });
-  });
+  const result = await pool.query('SELECT COUNT(*) AS totalrows FROM members WHERE is_active = 1');
+  return parseInt(result.rows[0].totalrows, 10);
 }
 
 async function searchMembers(query, startIndex, rowsPerPage) {
-  return new Promise((resolve, reject) => {
-    const like = `%${query}%`;
-    const sql = `SELECT * FROM members WHERE is_active = 1
-                 AND (first_name LIKE ? OR surname LIKE ? OR (first_name || ' ' || surname) LIKE ?)
-                 ORDER BY first_name ASC LIMIT ? OFFSET ?`;
-    db.all(sql, [like, like, like, rowsPerPage, startIndex], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+  const like = `%${query}%`;
+  const result = await pool.query(
+    `SELECT * FROM members WHERE is_active = 1
+     AND (first_name ILIKE $1 OR surname ILIKE $2 OR (first_name || ' ' || surname) ILIKE $3)
+     ORDER BY first_name ASC LIMIT $4 OFFSET $5`,
+    [like, like, like, rowsPerPage, startIndex]
+  );
+  return result.rows;
 }
 
 async function searchMembersCount(query) {
-  return new Promise((resolve, reject) => {
-    const like = `%${query}%`;
-    const sql = `SELECT COUNT(*) AS totalRows FROM members WHERE is_active = 1
-                 AND (first_name LIKE ? OR surname LIKE ? OR (first_name || ' ' || surname) LIKE ?)`;
-    db.get(sql, [like, like, like], (err, row) => {
-      if (err) reject(err);
-      else resolve(row.totalRows);
-    });
-  });
+  const like = `%${query}%`;
+  const result = await pool.query(
+    `SELECT COUNT(*) AS totalrows FROM members WHERE is_active = 1
+     AND (first_name ILIKE $1 OR surname ILIKE $2 OR (first_name || ' ' || surname) ILIKE $3)`,
+    [like, like, like]
+  );
+  return parseInt(result.rows[0].totalrows, 10);
 }
 
 async function getMonthlyTransactionAndDonationSums() {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      SELECT strftime('%Y-%m', date) AS month,
-             SUM(CASE WHEN paid_in IS NOT NULL THEN paid_in ELSE 0 END) AS total_in,
-             SUM(CASE WHEN paid_out IS NOT NULL THEN paid_out ELSE 0 END) AS total_out
-      FROM transactions
-      GROUP BY month
-      ORDER BY month ASC
-    `;
-    db.all(sql, [], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+  const result = await pool.query(`
+    SELECT TO_CHAR(date::date, 'YYYY-MM') AS month,
+           SUM(CASE WHEN paid_in IS NOT NULL THEN paid_in::FLOAT ELSE 0 END) AS total_in,
+           SUM(CASE WHEN paid_out IS NOT NULL THEN paid_out::FLOAT ELSE 0 END) AS total_out
+    FROM transactions
+    GROUP BY month
+    ORDER BY month ASC
+  `);
+  return result.rows;
 }
 
 async function getFundDistribution() {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      SELECT fund, SUM(amount) AS total
-      FROM donations
-      GROUP BY fund
-    `;
-    db.all(sql, [], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+  const result = await pool.query(`
+    SELECT fund, SUM(amount::FLOAT) AS total
+    FROM donations
+    GROUP BY fund
+  `);
+  return result.rows;
 }
 
 function generateMonthlyData(transactions) {
@@ -361,7 +241,7 @@ function generateFundBreakdown(donations) {
   const breakdown = {};
 
   donations.forEach(d => {
-    const fund = d.fund || "Uncategorised";
+    const fund = d.fund || 'Uncategorised';
     const amount = parseFloat(d.amount || 0);
     breakdown[fund] = (breakdown[fund] || 0) + amount;
   });
@@ -373,92 +253,69 @@ function generateFundBreakdown(donations) {
 }
 
 async function getAllDonationsForYear(year) {
-  return new Promise((resolve, reject) => {
-    const sql = "SELECT * FROM donations WHERE date >= ? AND date <= ? ORDER BY date ASC";
-    const startDate = `${year}-01-01`;
-    const endDate = `${year}-12-31`;
-    db.all(sql, [startDate, endDate], (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }
-    });
-  });
+  const result = await pool.query(
+    'SELECT * FROM donations WHERE date >= $1 AND date <= $2 ORDER BY date ASC',
+    [`${year}-01-01`, `${year}-12-31`]
+  );
+  return result.rows;
 }
 
 async function getMonthlyTotals(yearMonth) {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      SELECT
-        COALESCE(SUM(CAST(paid_in  AS REAL)), 0) AS paidIn,
-        COALESCE(SUM(CAST(paid_out AS REAL)), 0) AS paidOut
-      FROM transactions
-      WHERE strftime('%Y-%m', date) = ?
-    `;
-    db.get(sql, [yearMonth], (err, row) => {
-      if (err) reject(err);
-      else resolve({
-        paidIn:  row.paidIn  || 0,
-        paidOut: row.paidOut || 0,
-        net:     (row.paidIn || 0) - (row.paidOut || 0)
-      });
-    });
-  });
+  const result = await pool.query(`
+    SELECT
+      COALESCE(SUM(CAST(paid_in AS FLOAT)), 0) AS "paidIn",
+      COALESCE(SUM(CAST(paid_out AS FLOAT)), 0) AS "paidOut"
+    FROM transactions
+    WHERE TO_CHAR(date::date, 'YYYY-MM') = $1
+  `, [yearMonth]);
+  const row = result.rows[0];
+  return {
+    paidIn:  parseFloat(row.paidIn)  || 0,
+    paidOut: parseFloat(row.paidOut) || 0,
+    net:     (parseFloat(row.paidIn) || 0) - (parseFloat(row.paidOut) || 0),
+  };
 }
 
 async function getYTDDonationTotal(year) {
-  return new Promise((resolve, reject) => {
-    const sql = `SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE strftime('%Y', date) = ?`;
-    db.get(sql, [String(year)], (err, row) => {
-      if (err) reject(err);
-      else resolve(row.total || 0);
-    });
-  });
+  const result = await pool.query(
+    `SELECT COALESCE(SUM(amount::FLOAT), 0) AS total FROM donations WHERE TO_CHAR(date::date, 'YYYY') = $1`,
+    [String(year)]
+  );
+  return parseFloat(result.rows[0].total) || 0;
 }
 
 async function getMonthlyDonationCount(yearMonth) {
-  return new Promise((resolve, reject) => {
-    const sql = `SELECT COUNT(*) AS count FROM donations WHERE strftime('%Y-%m', date) = ?`;
-    db.get(sql, [yearMonth], (err, row) => {
-      if (err) reject(err);
-      else resolve(row.count || 0);
-    });
-  });
+  const result = await pool.query(
+    `SELECT COUNT(*) AS count FROM donations WHERE TO_CHAR(date::date, 'YYYY-MM') = $1`,
+    [yearMonth]
+  );
+  return parseInt(result.rows[0].count, 10) || 0;
 }
 
 async function getRecentTransactions(limit) {
-  return new Promise((resolve, reject) => {
-    const sql = `SELECT * FROM transactions ORDER BY date DESC LIMIT ?`;
-    db.all(sql, [limit], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+  const result = await pool.query(
+    'SELECT * FROM transactions ORDER BY date DESC LIMIT $1',
+    [limit]
+  );
+  return result.rows;
 }
 
 async function getRecentDonations(limit) {
-  return new Promise((resolve, reject) => {
-    const sql = `SELECT * FROM donations ORDER BY date DESC LIMIT ?`;
-    db.all(sql, [limit], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+  const result = await pool.query(
+    'SELECT * FROM donations ORDER BY date DESC LIMIT $1',
+    [limit]
+  );
+  return result.rows;
 }
 
 async function getDistinctYears() {
-  return new Promise((resolve, reject) => {
-    const sql = `SELECT DISTINCT strftime('%Y', date) AS year FROM transactions WHERE date IS NOT NULL ORDER BY year DESC`;
-    db.all(sql, [], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows.map(r => r.year));
-    });
-  });
+  const result = await pool.query(
+    `SELECT DISTINCT TO_CHAR(date::date, 'YYYY') AS year FROM transactions WHERE date IS NOT NULL ORDER BY year DESC`
+  );
+  return result.rows.map(r => r.year);
 }
 
 async function importBankTransaction({ date, description, transactionType, paidIn, paidOut, sourceRef }) {
-  // Infer type from description (same logic as CSV import)
   let inferredType = null;
   const desc = (description || '').toLowerCase();
   if (desc.includes('offering')) {
@@ -475,43 +332,34 @@ async function importBankTransaction({ date, description, transactionType, paidI
     inferredType = 'Bank Charges';
   }
 
-  return new Promise((resolve, reject) => {
-    db.get(`SELECT id, type FROM transactions WHERE notes = ?`, [sourceRef], (err, existing) => {
-      if (err) return reject(err);
-      if (existing) {
-        // Update type if it was not previously inferred
-        if (inferredType && !existing.type) {
-          db.run(`UPDATE transactions SET type = ? WHERE id = ?`, [inferredType, existing.id]);
-        }
-        return resolve(false);
-      }
-      db.run(
-        `INSERT INTO transactions (date, transaction_type, type, description, paid_in, paid_out, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [date, transactionType, inferredType, description, paidIn || null, paidOut || null, sourceRef],
-        function(err) {
-          if (err) reject(err);
-          else resolve(true);
-        }
-      );
-    });
-  });
+  const existing = await pool.query(
+    'SELECT id, type FROM transactions WHERE notes = $1',
+    [sourceRef]
+  );
+  if (existing.rows[0]) {
+    if (inferredType && !existing.rows[0].type) {
+      await pool.query('UPDATE transactions SET type = $1 WHERE id = $2', [inferredType, existing.rows[0].id]);
+    }
+    return false;
+  }
+  await pool.query(
+    `INSERT INTO transactions (date, transaction_type, type, description, paid_in, paid_out, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [date, transactionType, inferredType, description, paidIn || null, paidOut || null, sourceRef]
+  );
+  return true;
 }
 
 async function getTopDonors(year, limit) {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      SELECT first_name, surname, SUM(amount) AS total
-      FROM donations
-      WHERE strftime('%Y', date) = ?
-      GROUP BY member_id
-      ORDER BY total DESC
-      LIMIT ?
-    `;
-    db.all(sql, [String(year), limit], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+  const result = await pool.query(`
+    SELECT first_name, surname, SUM(amount::FLOAT) AS total
+    FROM donations
+    WHERE TO_CHAR(date::date, 'YYYY') = $1
+    GROUP BY member_id, first_name, surname
+    ORDER BY total DESC
+    LIMIT $2
+  `, [String(year), limit]);
+  return result.rows;
 }
 
 

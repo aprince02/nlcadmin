@@ -160,7 +160,7 @@
         <tbody>
           <% for (const tx of recentTxns) { %>
             <tr>
-              <td><%= tx.date ? tx.date.split('-').reverse().join('-') : '—' %></td>
+              <td><%= tx.date ? new Date(tx.date).toLocaleDateString('en-GB') : '' %></td>
               <td class="text-truncate pb-truncate-col" title="<%= tx.description %>"><%= tx.description || '—' %></td>
               <td><%= tx.merchant_name || '—' %></td>
               <td>

@@ -1,5 +1,5 @@
 const os = require('os');
-var db = require("./database.js")
+const pool = require("./database.js")
 const csv = require('csv-parser');
 const fs = require('fs');
 const csvWriter = require('csv-writer').createObjectCsvWriter;
@@ -22,17 +22,12 @@ function formatted_date() {
 }
 
 function log(update) {
-    const sql = "INSERT INTO console_logs (timestamp, user, log_message) VALUES (datetime('now'), ?, ?)";
     const computerName = os.hostname();
-    const data = [computerName, update];
-  
-    db.run(sql, data, err => {
-      if (err) {
-        console.error(err.message);
-        return;
-      }
-    });
-  }
+    pool.query(
+        'INSERT INTO console_logs (timestamp, "user", log_message) VALUES (NOW(), $1, $2)',
+        [computerName, update]
+    ).catch(err => console.error(err.message));
+}
 
 function readCSVAndProcess(csvFilePath, req, res, next) {
     if (!csvFilePath.toLowerCase().endsWith('.csv')) {
@@ -79,7 +74,7 @@ function readCSVAndProcess(csvFilePath, req, res, next) {
         const sql = `
             INSERT INTO transactions (
                 date, transaction_type, type, description, paid_out, paid_in, balance, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `;
 
         const params = [
@@ -93,13 +88,9 @@ function readCSVAndProcess(csvFilePath, req, res, next) {
             null
         ];
 
-        db.run(sql, params, (err) => {
-            if (err) {
-                log("Error inserting row into the database: " + row.Description + " " + err.message);
-            } else {
-                log("Row inserted successfully: " + row.Description);
-            }
-        });
+        pool.query(sql, params)
+            .then(() => log("Row inserted successfully: " + row.Description))
+            .catch(err => log("Error inserting row into the database: " + row.Description + " " + err.message));
     });
 
     fs.unlinkSync(csvFilePath);

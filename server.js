@@ -2,7 +2,7 @@ require('dotenv').config();
 var express = require("express")
 const fs = require('fs');
 var app = express()
-var db = require("./database.js")
+const pool = require("./database.js")
 const session = require('express-session');
 const bodyParser = require('body-parser');
 const flash = require('connect-flash');
@@ -89,49 +89,36 @@ app.listen(8000, () => {
       }
   });
 
-app.get("/yearly-transactions/:year/:page", requireLogin, checkApprovedUser, (req, res) => {
+app.get("/yearly-transactions/:year/:page", requireLogin, checkApprovedUser, async (req, res) => {
   const year = req.params.year;
   const rowsPerPage = 100;
   let currentPage = parseInt(req.params.page) || 1;
-  if (currentPage < 1) {
-    currentPage = 1;
-  }
+  if (currentPage < 1) currentPage = 1;
   const startIndex = (currentPage - 1) * rowsPerPage;
-  const sqlData = "SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date DESC LIMIT ? OFFSET ?";
-  const sqlCount = "SELECT COUNT(*) AS totalRows FROM transactions WHERE date >= ? AND date <= ?";
   const startDate = `${year}-01-01`;
   const endDate = `${year}-12-31`;
-  const typesSql = "SELECT type FROM transaction_types";
   const loggedInName = req.session.name;
-  
-  db.all(sqlData, [startDate, endDate, rowsPerPage, startIndex], (err, rows) => {
-    if (err) {
-      console.log(err.message);
-      log(loggedInName + ': ' + err.message)
-    } else {
-      db.all(typesSql, (err, types) => {
-        if (err) {
-          console.error(err.message);
-          log(loggedInName + ': ' + err.message)
-        } else {
-          db.get(sqlCount, [startDate, endDate], (err, countRow) => {
-            if (err) {
-              console.error(err.message);
-              log(loggedInName + ': ' + err.message)
-            } else {
-              const totalRows = countRow.totalRows;
-              const totalPages = Math.ceil(totalRows / rowsPerPage);
-              res.render("yearly-transactions", { 
-                row: rows, 
-                types: types,
-                loggedInName: loggedInName, 
-                currentPage: currentPage, 
-                totalPages: totalPages,
-                year: year
-              });
-            }});
-        }});
-    }});
+  try {
+    const [rowsResult, typesResult, countResult] = await Promise.all([
+      pool.query('SELECT * FROM transactions WHERE date >= $1 AND date <= $2 ORDER BY date DESC LIMIT $3 OFFSET $4', [startDate, endDate, rowsPerPage, startIndex]),
+      pool.query('SELECT type FROM transaction_types'),
+      pool.query('SELECT COUNT(*) AS totalrows FROM transactions WHERE date >= $1 AND date <= $2', [startDate, endDate]),
+    ]);
+    const totalRows = parseInt(countResult.rows[0].totalrows, 10);
+    const totalPages = Math.ceil(totalRows / rowsPerPage);
+    res.render('yearly-transactions', {
+      row: rowsResult.rows,
+      types: typesResult.rows,
+      loggedInName,
+      currentPage,
+      totalPages,
+      year,
+    });
+  } catch (err) {
+    console.error(err.message);
+    log(loggedInName + ': ' + err.message);
+    res.redirect('/admin');
+  }
 });
 
 app.get("/edit/:id", async (req, res) => {
@@ -146,20 +133,21 @@ app.get("/edit/:id", async (req, res) => {
       return res.redirect("/claimants/:page")
     }});
 
-app.post("/edit/:id", (req, res) => {
+app.post("/edit/:id", async (req, res) => {
     const id = req.params.id;
     const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
-    const sql = "UPDATE members SET first_name = ?, surname = ?, banking_name = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?, title = ?, house_number = ?, spouse_name = ?  WHERE (id = ?)";
-    db.run(sql, claimant, err => {
-        if (err) {
-            console.error(err.message);
-            log(err.message)
-        } else {
-            req.flash('success', 'Member details updated successfully.');
-            console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
-            log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
-            res.redirect("/claimants/:page");
-        }});
+    const sql = "UPDATE members SET first_name = $1, surname = $2, banking_name = $3, date_of_birth = $4, sex = $5, email = $6, phone_number = $7, address_line_1 = $8, address_line_2 = $9, city = $10, postcode = $11, baptised = $12, baptised_date = $13, holy_spirit = $14, native_church = $15, children_details = $16, emergency_contact_1 = $17, emergency_contact_1_name = $18, emergency_contact_2 = $19, emergency_contact_2_name = $20, occupation_studies = $21, title = $22, house_number = $23, spouse_name = $24 WHERE id = $25";
+    try {
+        await pool.query(sql, claimant);
+        req.flash('success', 'Member details updated successfully.');
+        console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name);
+        log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name);
+        res.redirect("/claimants/:page");
+    } catch (err) {
+        console.error(err.message);
+        log(err.message);
+        res.redirect("/claimants/:page");
+    }
     });
 
     app.get("/edit-member/:id", async (req, res) => {
@@ -173,21 +161,21 @@ app.post("/edit/:id", (req, res) => {
         res.redirect(`/edit-member/${id}`);
       }});
   
-  app.post("/edit-member/:id", (req, res) => {
+  app.post("/edit-member/:id", async (req, res) => {
       const id = req.params.id;
       const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
-      const sql = "UPDATE members SET first_name = ?, surname = ?, banking_name = ?, date_of_birth = ?, sex = ?, email = ?, phone_number = ?, address_line_1 = ?, address_line_2 = ?, city = ?, postcode = ?, baptised = ?, baptised_date = ?, holy_spirit = ?, native_church = ?, children_details = ?, emergency_contact_1 = ?, emergency_contact_1_name = ?, emergency_contact_2 = ?, emergency_contact_2_name = ?, occupation_studies = ?, title = ?, house_number = ?, spouse_name = ?  WHERE (id = ?)";
-      db.run(sql, claimant, err => {
-          if (err) {
-              console.error(err.message);
-              log(err.message)
-          } else {
-              req.flash('success', 'Your details have been updated successfully.');
-              console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
-              log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name)
-              res.redirect(`/edit-member/${id}`);
-
-          }});
+      const sql = "UPDATE members SET first_name = $1, surname = $2, banking_name = $3, date_of_birth = $4, sex = $5, email = $6, phone_number = $7, address_line_1 = $8, address_line_2 = $9, city = $10, postcode = $11, baptised = $12, baptised_date = $13, holy_spirit = $14, native_church = $15, children_details = $16, emergency_contact_1 = $17, emergency_contact_1_name = $18, emergency_contact_2 = $19, emergency_contact_2_name = $20, occupation_studies = $21, title = $22, house_number = $23, spouse_name = $24 WHERE id = $25";
+      try {
+          await pool.query(sql, claimant);
+          req.flash('success', 'Your details have been updated successfully.');
+          console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name);
+          log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name);
+          res.redirect(`/edit-member/${id}`);
+      } catch (err) {
+          console.error(err.message);
+          log(err.message);
+          res.redirect(`/edit-member/${id}`);
+      }
       });
 
 app.get("/create", requireLogin, checkApprovedUser, (req, res) => {
@@ -220,45 +208,40 @@ app.get("/delete/:id", requireLogin, checkUserRole, checkApprovedUser, async (re
       return res.redirect("/claimants/:page")
     }});
 
-app.post("/delete/:id", requireLogin, checkUserRole, checkApprovedUser, (req, res) => {
+app.post("/delete/:id", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
-    const sql = "DELETE FROM members WHERE id = ?";
-    db.run(sql, id, err => {
-        if (err) {
-            console.error(err.message);
-        } else {
-            req.flash('success', 'Member deleted successfully.');
-            console.log("Deleted member with id: " + id)
-            log(loggedInName + ": Deleted member with id: " + id)
-            res.redirect("/claimants/:page");
-        }});
+    try {
+        await pool.query("DELETE FROM members WHERE id = $1", [id]);
+        req.flash('success', 'Member deleted successfully.');
+        console.log("Deleted member with id: " + id);
+        log(loggedInName + ": Deleted member with id: " + id);
+        res.redirect("/claimants/:page");
+    } catch (err) {
+        console.error(err.message);
+        res.redirect("/claimants/:page");
+    }
     });
 
-    app.get("/all-donations/:page", requireLogin, checkApprovedUser, (req, res) => {
+    app.get("/all-donations/:page", requireLogin, checkApprovedUser, async (req, res) => {
       const donationsPerPage = 100;
         const loggedInName = req.session.name;
         const currentPage = parseInt(req.params.page) || 1;
         const startIndex = (currentPage - 1) * donationsPerPage;
-        const donations_sql = "SELECT * FROM donations ORDER BY date DESC LIMIT ? OFFSET ?";
-        const count_sql = "SELECT COUNT(*) AS totalCount FROM donations";
-    
-        db.all(donations_sql, [donationsPerPage, startIndex], (err, rows) => {
-            if (err) {
-                log(loggedInName + ': ' +err.message);
-                return console.error(err.message);
-            } else {
-                db.get(count_sql, (err, countRow) => {
-                    if (err) {
-                      log(loggedInName + ': ' +err.message);
-                        return console.error(err.message);
-                    } else {
-                        const totalDonations = countRow.totalCount;
-                        const totalPages = Math.ceil(totalDonations / donationsPerPage);
-                        res.render("all-donations", { model: rows, loggedInName: loggedInName, currentPage: currentPage, totalPages: totalPages });
-                    }});
-            }});
-    }); 
+        try {
+            const [rowsResult, countResult] = await Promise.all([
+                pool.query('SELECT * FROM donations ORDER BY date DESC LIMIT $1 OFFSET $2', [donationsPerPage, startIndex]),
+                pool.query('SELECT COUNT(*) AS totalcount FROM donations'),
+            ]);
+            const totalDonations = parseInt(countResult.rows[0].totalcount, 10);
+            const totalPages = Math.ceil(totalDonations / donationsPerPage);
+            res.render('all-donations', { model: rowsResult.rows, loggedInName, currentPage, totalPages });
+        } catch (err) {
+            log(loggedInName + ': ' + err.message);
+            console.error(err.message);
+            res.redirect('/admin');
+        }
+    });
 
 app.get("/select-giver", requireLogin, checkApprovedUser, async (req, res) => {
   try {
@@ -338,71 +321,63 @@ app.get("/edit-donation/:id", requireLogin, checkApprovedUser, async (req, res) 
     return res.redirect("/claimants/:page")
   }});
 
-app.post("/edit-donation/:id", requireLogin, checkApprovedUser, (req, res) => {
+app.post("/edit-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
-    const claimant_sql = "UPDATE donations SET date = ?, notes = ?, fund = ?, amount = ?, method = ? WHERE (id = ?)";
-    const claimant = [req.body.date, req.body.notes, req.body.fund, req.body.amount, req.body.method, id];
-    db.run(claimant_sql, claimant, err => {
-        if (err) {
-            req.flash('error', 'Error editing donation, please try again!')
-            console.error(err.message);
-            log(loggedInName + ': Error editing donation: ' + err)
-        } else {
-          req.flash('success', 'Donation edited successfully!')
-            console.log("Edited donation with id: " + id)
-            log(loggedInName + ': Edited donation with id: ' + id)
-            res.redirect("/all-donations/:page");
-        }}); 
+    try {
+        await pool.query(
+            'UPDATE donations SET date = $1, notes = $2, fund = $3, amount = $4, method = $5 WHERE id = $6',
+            [req.body.date, req.body.notes, req.body.fund, req.body.amount, req.body.method, id]
+        );
+        req.flash('success', 'Donation edited successfully!');
+        console.log("Edited donation with id: " + id);
+        log(loggedInName + ': Edited donation with id: ' + id);
+        res.redirect("/all-donations/:page");
+    } catch (err) {
+        req.flash('error', 'Error editing donation, please try again!');
+        console.error(err.message);
+        log(loggedInName + ': Error editing donation: ' + err);
+    }
     });
 
-    app.get("/delete-donation/:id", requireLogin, checkApprovedUser, (req, res) => {
+    app.get("/delete-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
       const id = req.params.id;
       const loggedInName = req.session.name;
-      const sql = "DELETE FROM donations WHERE (id = ?)";
-      db.run(sql, id, err => {
-          if (err) {
-              req.flash('error', 'Error deleting donation, please try again!')
-              console.error(err.message);
-              log(loggedInName + ': Error deleting donation: ' + err)
-          } else {
-            req.flash('success', 'Donation deleted successfully!')
-              console.log("Deleted donation with id: " + id)
-              log(loggedInName + ': deleted donation with id: ' + id)
-              res.redirect("/all-donations/:page");
-          }}); 
+      try {
+          await pool.query('DELETE FROM donations WHERE id = $1', [id]);
+          req.flash('success', 'Donation deleted successfully!');
+          console.log("Deleted donation with id: " + id);
+          log(loggedInName + ': deleted donation with id: ' + id);
+          res.redirect("/all-donations/:page");
+      } catch (err) {
+          req.flash('error', 'Error deleting donation, please try again!');
+          console.error(err.message);
+          log(loggedInName + ': Error deleting donation: ' + err);
+          res.redirect("/all-donations/:page");
+      }
       });
 
       app.post("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
+        const id = req.params.id;
+        const loggedInName = req.session.name;
         try {
-            const id = req.params.id;
-            const loggedInName = req.session.name;
-            const payment_sql = "INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES (?,?,?,?,?,?,?,?,?)";
-            const status = "Unclaimed";
-            const bank = "Bank";
-            const payment = [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, bank, status, req.body.notes];
-    
-            db.run(payment_sql, payment, async (err) => {
-                if (err) {
-                    req.flash('error', 'Error adding donation, please try again!');
-                    console.error(err.message);
-                    log(loggedInName + ': Error adding donation: ' + err.message);
-                    return res.redirect("/select-giver");
-                } else {
-                    req.flash('success', 'Donation added successfully.');
-                    console.log("Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname);
-                    log(loggedInName + ": Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname);
-                    try {
-                        const member = await dbHelper.getMemberWithId(id);
-                        await sendDonationReceivedEmail(member, req.body);
-                        log(loggedInName + ": Donation added email sent for: " + member.first_name);
-                    } catch (emailError) {
-                        console.error('Error sending donation added email:', emailError.message);
-                        log(loggedInName + ": Error sending donation added email: " + emailError.message);
-                    }
-                    const dest = req.body.autoclose === '1' ? '/donation-added?autoclose=1' : '/select-giver';
-                    return res.redirect(dest);
-                }});
+            await pool.query(
+                'INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+                [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, 'Bank', 'Unclaimed', req.body.notes]
+            );
+            req.flash('success', 'Donation added successfully.');
+            console.log("Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname);
+            log(loggedInName + ": Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname);
+            try {
+                const member = await dbHelper.getMemberWithId(id);
+                await sendDonationReceivedEmail(member, req.body);
+                log(loggedInName + ": Donation added email sent for: " + member.first_name);
+            } catch (emailError) {
+                console.error('Error sending donation added email:', emailError.message);
+                log(loggedInName + ": Error sending donation added email: " + emailError.message);
+            }
+            const dest = req.body.autoclose === '1' ? '/donation-added?autoclose=1' : '/select-giver';
+            return res.redirect(dest);
         } catch (error) {
             req.flash('error', 'Error adding donation, please try again!');
             console.error('Error adding donation:', error.message);
@@ -411,25 +386,25 @@ app.post("/edit-donation/:id", requireLogin, checkApprovedUser, (req, res) => {
         }
     });
 
-app.get("/donations/:id", requireLogin, checkApprovedUser, (req, res) => {
+app.get("/donations/:id", requireLogin, checkApprovedUser, async (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
-    const sql = "SELECT * FROM donations WHERE member_id = ? ORDER by date DESC";
-    db.all(sql, id, (err, rows) => {
-        if (err) {
-          log(loggedInName + ': Error getting donations: ' + err.message)
-          return console.error(err.message);
-        }else if (!rows || rows.length === 0) {
-            res.redirect("/no-donations/" + encodeURI(id));
-        } else {
-            const firstName = rows[0].first_name || "";
-            const surname = rows[0].surname || "";
-            let totalAmount = 0;
-            rows.forEach((row) => {
-                totalAmount += row.amount;
-            });
-            res.render("donations", {model: rows, id: id, loggedInName: loggedInName, firstName: firstName, surname: surname, totalAmount: totalAmount});
-        }});
+    try {
+        const result = await pool.query('SELECT * FROM donations WHERE member_id = $1 ORDER BY date DESC', [id]);
+        const rows = result.rows;
+        if (!rows || rows.length === 0) {
+            return res.redirect("/no-donations/" + encodeURI(id));
+        }
+        const firstName = rows[0].first_name || "";
+        const surname = rows[0].surname || "";
+        let totalAmount = 0;
+        rows.forEach((row) => { totalAmount += parseFloat(row.amount) || 0; });
+        res.render("donations", { model: rows, id, loggedInName, firstName, surname, totalAmount });
+    } catch (err) {
+        log(loggedInName + ': Error getting donations: ' + err.message);
+        console.error(err.message);
+        res.redirect("/claimants/1");
+    }
     });
 
 app.get("/no-donations/:id", requireLogin, checkApprovedUser, (req, res) => {
@@ -443,74 +418,68 @@ app.get("/register", (req, res) =>  {
 });
 
 app.post("/register", (req, res) => {
-    const user_sql = "INSERT INTO user (name, email, password, role, security_question, approval) VALUES (?, ?, ?, ?, ?, ?)";
-    var password = req.body.password;
+    const password = req.body.password;
     bcrypt.genSalt(saltRounds, function(err, salt) {
-        bcrypt.hash(password, salt, function(err, hash) {
-            const role = "user";
-            const approval = "unapproved"
-            const user = [req.body.username, req.body.email, hash, role, req.body.security_question, approval];
-            db.run(user_sql, user, err => {
-                if (err) {
-                    req.flash('error', 'Error registering new account, try again.');
-                    log('Error registering new account: ' + err.message)
-                    return res.redirect("/register")
-                } else {
-                    req.flash('success', 'New account created successfully.');
-                    log('New account created successfully: ' + req.body.username)
-                    sendNewUserAddedEmail(user)
-                    return res.redirect("/login");
-                }});
+        bcrypt.hash(password, salt, async function(err, hash) {
+            const user = [req.body.username, req.body.email, hash, 'user', req.body.security_question, 'unapproved'];
+            try {
+                await pool.query(
+                    'INSERT INTO users (name, email, password, role, security_question, approval) VALUES ($1,$2,$3,$4,$5,$6)',
+                    user
+                );
+                req.flash('success', 'New account created successfully.');
+                log('New account created successfully: ' + req.body.username);
+                sendNewUserAddedEmail(user);
+                return res.redirect("/login");
+            } catch (dbErr) {
+                req.flash('error', 'Error registering new account, try again.');
+                log('Error registering new account: ' + dbErr.message);
+                return res.redirect("/register");
+            }
         });
     });
 });
 
-    app.post("/save-transaction/:id", requireLogin, checkApprovedUser, (req, res) => {
+    app.post("/save-transaction/:id", requireLogin, checkApprovedUser, async (req, res) => {
       const id = req.params.id;
       const type = req.body.type;
       const description = req.body.description;
       const loggedInName = req.session.name;
       const date = req.body.date;
       const paid_in = req.body.paid_in;
-      const unclaimed = "Unclaimed";
-  
+
       req.session.date = date;
       req.session.description = description;
       req.session.incoming = paid_in;
       req.session.save((err) => {
-          if (err) {
-              console.error('Failed to save session:', err);
-          }
+          if (err) console.error('Failed to save session:', err);
       });
-  
-      const updateTransactionSQL = "UPDATE transactions SET type = ?, description = ? WHERE id = ?";
-      db.run(updateTransactionSQL, [type, description, id], err => {
-          if (err) {
-              req.flash('error', 'Error saving transaction, please try again!');
-              console.error(err.message);
-              log(loggedInName + ': Error saving transaction: ' + err.message);
-              return res.redirect("/yearly-transactions/:year/:page");
-          } 
-          
+
+      try {
+          await pool.query('UPDATE transactions SET type = $1, description = $2 WHERE id = $3', [type, description, id]);
           console.log(`Transaction with ID: ${id} saved with type: ${type}`);
           log(`${loggedInName}: Transaction with ID: ${id} saved with type: ${type}`);
           req.flash('success', 'Transaction type saved successfully.');
-  
+
           if (type === "Offering" || type === "Sunday School Offering") {
-              const insertOfferingSQL = `
-                  INSERT INTO offering_claim (transaction_id, type, date, description, amount, claimed)
-                  VALUES (?, ?, ?, ?, ?, ?) 
-                  ON CONFLICT(transaction_id) DO UPDATE SET date = excluded.date, type = excluded.type, amount = excluded.amount;
-              `;
-              db.run(insertOfferingSQL, [id, type, date, description, paid_in, unclaimed ], err => {
-                  if (err) {
-                      console.error(`Error inserting into offering_claim: ${err.message}`);
-                      log(`${loggedInName}: Error inserting into offering_claim: ${err.message}`);
-                  } else {
-                      console.log(`Transaction ID ${id} added to offering_claim table.`);
-                      log(`${loggedInName}: Transaction ID ${id} added to offering_claim table.`);
-                  }});
-          }});
+              try {
+                  await pool.query(`
+                      INSERT INTO offering_claim (transaction_id, type, date, description, amount, claimed)
+                      VALUES ($1, $2, $3, $4, $5, $6)
+                      ON CONFLICT (transaction_id) DO UPDATE SET date = EXCLUDED.date, type = EXCLUDED.type, amount = EXCLUDED.amount
+                  `, [id, type, date, description, paid_in, 'Unclaimed']);
+                  console.log(`Transaction ID ${id} added to offering_claim table.`);
+                  log(`${loggedInName}: Transaction ID ${id} added to offering_claim table.`);
+              } catch (offerErr) {
+                  console.error(`Error inserting into offering_claim: ${offerErr.message}`);
+                  log(`${loggedInName}: Error inserting into offering_claim: ${offerErr.message}`);
+              }
+          }
+      } catch (err) {
+          req.flash('error', 'Error saving transaction, please try again!');
+          console.error(err.message);
+          log(loggedInName + ': Error saving transaction: ' + err.message);
+      }
   });
 
 app.get("/release-notes", (req, res) =>  {
@@ -521,121 +490,114 @@ app.get("/login", (req, res) =>  {
     res.render("login");
 });
 
-app.post("/login", (req, res) =>  {
+app.post("/login", async (req, res) => {
     const email = req.body.email;
     const password = req.body.password;
-    db.get('SELECT * FROM user WHERE email = ?', [email], (err, row) => {
-    if (err) {
-        throw err;
-    }else if (!row) {
-        req.flash('error', 'Invalid email or password.');
-        return res.redirect('/login');
-    }
-    bcrypt.compare(password, row.password, function(err, result){
-        if (err){
-            console.error(err.message);
-        } else if (result === true) {
-            req.session.email = email;
-            req.session.name = row.name;
-            req.session.role = row.role;
-            req.session.approval = row.approval;
-            db.get("SELECT * FROM last_update ORDER BY id DESC LIMIT 1", (err, row) => {
-                if (err) {
-                    throw err;
-                }else {
-                    console.log("User " + req.session.name + " logged in");
-                    const fingerprintData = req.fingerprint;
-                    console.log(`Logged in user device fingerprint: ${JSON.stringify(fingerprintData)}`);
-                    log(req.session.name + ': ' + JSON.stringify(fingerprintData))
-                }});
-            res.redirect('claimants');
-        } else {
+    try {
+        const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        const row = result.rows[0];
+        if (!row) {
             req.flash('error', 'Invalid email or password.');
             return res.redirect('/login');
-        }});     
-    });
+        }
+        bcrypt.compare(password, row.password, function(err, match) {
+            if (err) {
+                console.error(err.message);
+            } else if (match === true) {
+                req.session.email = email;
+                req.session.name = row.name;
+                req.session.role = row.role;
+                req.session.approval = row.approval;
+                console.log("User " + req.session.name + " logged in");
+                const fingerprintData = req.fingerprint;
+                console.log(`Logged in user device fingerprint: ${JSON.stringify(fingerprintData)}`);
+                log(req.session.name + ': ' + JSON.stringify(fingerprintData));
+                res.redirect('claimants');
+            } else {
+                req.flash('error', 'Invalid email or password.');
+                return res.redirect('/login');
+            }
+        });
+    } catch (err) {
+        console.error(err.message);
+        req.flash('error', 'Login error, please try again.');
+        return res.redirect('/login');
+    }
 });
 
 app.get("/forgot-password", (req, res) =>  {
   res.render("forgot-password");
 });
 
-app.post("/forgot-password", (req, res) => {
+app.post("/forgot-password", async (req, res) => {
   const security_question = req.body.security_question.toLowerCase();
   const new_password = req.body.new_password;
   const email = req.body.email;
-  const selectUserSQL = "SELECT * FROM user WHERE email = ?";
-  db.get(selectUserSQL, [email], (err, user) => {
-      if (err) {
-          console.error('Error fetching user:', err);
-          log('Error fetching user:' + err)
-          req.flash('error', 'Error resetting password, try again.');
-          return res.redirect("/forgot-password");
-      }
+  try {
+      const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+      const user = result.rows[0];
       if (!user) {
           req.flash('error', 'User with this email does not exist.');
           return res.redirect("/forgot-password");
       }
-      const storedSecurityQuestion = user.security_question.toLowerCase();
-      if (storedSecurityQuestion !== security_question) {
+      if (user.security_question.toLowerCase() !== security_question) {
           req.flash('error', 'Security question does not match.');
-          log(user.name + ': Security question does not match')
+          log(user.name + ': Security question does not match');
           return res.redirect("/forgot-password");
       }
       bcrypt.genSalt(saltRounds, function(err, salt) {
-          bcrypt.hash(new_password, salt, function(err, hash) {
+          bcrypt.hash(new_password, salt, async function(err, hash) {
               if (err) {
                   console.error('Error hashing password:', err);
-                  log(user.name + ': Error hashing password:' + err)
+                  log(user.name + ': Error hashing password:' + err);
                   req.flash('error', 'Error resetting password, try again.');
                   return res.redirect("/forgot-password");
               }
-              const updatePasswordSQL = "UPDATE user SET password = ? WHERE email = ?";
-              db.run(updatePasswordSQL, [hash, email], err => {
-                  if (err) {
-                      console.error('Error updating password:', err);
-                      req.flash('error', 'Error resetting password, try again.');
-                      return res.redirect("/forgot-password");
-                  } 
+              try {
+                  await pool.query('UPDATE users SET password = $1 WHERE email = $2', [hash, email]);
                   req.flash('success', 'Password reset successfully.');
-                  log(user.name + ': password reset successfully')
+                  log(user.name + ': password reset successfully');
                   return res.redirect("/login");
-              });
+              } catch (dbErr) {
+                  console.error('Error updating password:', dbErr);
+                  req.flash('error', 'Error resetting password, try again.');
+                  return res.redirect("/forgot-password");
+              }
           });
       });
-  });
+  } catch (err) {
+      console.error('Error fetching user:', err);
+      log('Error fetching user:' + err);
+      req.flash('error', 'Error resetting password, try again.');
+      return res.redirect("/forgot-password");
+  }
 });
 
 app.get('/export-transactions', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
-  db.all(`SELECT * FROM transactions`, function(err, rows) {
-    if (err) {
-      req.flash('error', 'Error retrieving data to export transactions.');
-      console.error('Error retrieving data for transactions.' + err)
-      log(loggedInName + ': Error retrieving data for transactions.' + err)
-    }
+  try {
+    const result = await pool.query('SELECT * FROM transactions');
+    const rows = result.rows;
     const csvWrite = csvWriter({
       path: 'transactions.csv',
       header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
     });
-    csvWrite.writeRecords(rows)
-      .then(() => {
-        res.download('transactions.csv');
-      })
-      .catch(() => {
-        console.error('Error generating CSV file for transactions.')
-        req.flash('error', 'Error generating CSV file for transactions.');
-        log(loggedInName + ': Error generating CSV file for transactions.')
-      });
-  });
-  try {
-    await createAndEmail('transactions', 'ProBooks Accounting - Transactions Export CSV', 'transactions export csv file');
-    console.log('Transactions CSV sent via email!');
-    log(loggedInName + ': Transactions CSV sent via email')
-  } catch (error) {
-    console.error("Error sending transactions email" + error)
-    log(loggedInName + "Error sending transactions email" + error)
-  }});
+    await csvWrite.writeRecords(rows);
+    res.download('transactions.csv');
+    try {
+      await createAndEmail('transactions', 'ProBooks Accounting - Transactions Export CSV', 'transactions export csv file');
+      console.log('Transactions CSV sent via email!');
+      log(loggedInName + ': Transactions CSV sent via email');
+    } catch (error) {
+      console.error("Error sending transactions email" + error);
+      log(loggedInName + ": Error sending transactions email" + error);
+    }
+  } catch (err) {
+    req.flash('error', 'Error retrieving data to export transactions.');
+    console.error('Error retrieving data for transactions.' + err);
+    log(loggedInName + ': Error retrieving data for transactions.' + err);
+  }
+});
 
 app.get('/export-donations', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
@@ -694,13 +656,10 @@ schedule.scheduleJob(scheduledTime, async () => {
 
 app.get("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
-    const sql = "SELECT * FROM transactions WHERE date >= '2025-01-01' AND date <= '2025-12-31'  ORDER BY type";
-    db.all(sql, async function(err, rows) {
-        if (err) {
-            req.flash('error', 'Error retrieving data for transactions.');
-            log(loggedInName + ': Error retrieving data for transactions export - ' + err.message)
-            return res.redirect('/admin');
-        }
+    const sql = "SELECT * FROM transactions WHERE date >= '2025-01-01' AND date <= '2025-12-31' ORDER BY type";
+    try {
+        const result = await pool.query(sql);
+        const rows = result.rows;
         const totalPaidInByType = {};
         const totalPaidOutByType = {};
         try {
@@ -709,16 +668,12 @@ app.get("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async 
                 const typeTransactions = rows.filter(row => row.type === type);
                 const totalPaidIn = typeTransactions.reduce((total, transaction) => {
                     const paidIn = parseFloat(transaction.paid_in) || 0;
-                    if (!isNaN(paidIn)) {
-                        total += paidIn;
-                    }
+                    if (!isNaN(paidIn)) total += paidIn;
                     return total;
                 }, 0);
                 const totalPaidOut = typeTransactions.reduce((total, transaction) => {
                     const paidOut = parseFloat(transaction.paid_out) || 0;
-                    if (!isNaN(paidOut)) {
-                        total += paidOut;
-                    }
+                    if (!isNaN(paidOut)) total += paidOut;
                     return total;
                 }, 0);
                 totalPaidInByType[type] = parseFloat(totalPaidIn.toFixed(2));
@@ -728,21 +683,25 @@ app.get("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async 
             try {
                 await createAndEmail('total_paid_in_out', 'ProBooks Accounting - Totals Export CSV File', 'totals export csv file');
                 console.log('Totals sent via email!');
-                log(loggedInName + ': Totals export sent via email')
+                log(loggedInName + ': Totals export sent via email');
                 req.flash('success', 'Totals export sent via email successfully.');
             } catch (error) {
                 console.error("Error sending totals email" + error);
-                log(loggedInName + ': Error sending totals email ' + error)
+                log(loggedInName + ': Error sending totals email ' + error);
                 req.flash('error', 'Error sending totals email.');
             }
             res.redirect('/admin');
         } catch (error) {
             req.flash('error', 'Error getting transaction types.');
-            log(loggedInName + ': Error getting transaction types: ' + error)
+            log(loggedInName + ': Error getting transaction types: ' + error);
             console.error("Error getting transaction types:", error);
             return res.redirect('/admin');
         }
-    });
+    } catch (err) {
+        req.flash('error', 'Error retrieving data for transactions.');
+        log(loggedInName + ': Error retrieving data for transactions export - ' + err.message);
+        return res.redirect('/admin');
+    }
 });
 
 app.get('/export-giftaid-claims', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
@@ -752,18 +711,11 @@ app.get('/export-giftaid-claims', requireLogin, checkUserRole, checkApprovedUser
     await createAndEmail('giftaid_claim', 'Gift Aid Claim Export', 'gift aid claim export csv file');
     console.log('Gift Aid Claim sent via email!');
     log(loggedInName + ': Gift Aid Claim sent via email')
-    db.run(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed'`, function(err) {
-      if (err) {
-        console.error("Error updating gift_aid_status:", err.message);
-        req.flash('error', 'Error updating gift aid status in the database.');
-        log(loggedInName + ': Error updating gift_aid_status: ' + err)
-      } else {
-        console.log("Gift aid status updated successfully.");
-        log(loggedInName + ': Gift aid status updated successfully')
-        req.flash('success', 'Gift aid claims exported and updated successfully.');
-      }
-      res.redirect("/admin");
-    });
+    await pool.query(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed'`);
+    console.log("Gift aid status updated successfully.");
+    log(loggedInName + ': Gift aid status updated successfully');
+    req.flash('success', 'Gift aid claims exported and updated successfully.');
+    res.redirect("/admin");
   } catch (error) {
     console.error("Error exporting gift aid claims:", error);
     req.flash('error', 'Error exporting gift aid claims.');
@@ -785,27 +737,11 @@ app.get('/logout', (req, res) => {
         try {
           const id = req.params.id;
           const donor = await dbHelper.getMemberWithId(id);
-          const titheSql = "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2024-01-01' AND '2024-12-31' AND fund = 'Tithe' ORDER BY date ASC";
-          const donationSql = "SELECT * FROM donations WHERE member_id = ? AND date BETWEEN '2024-01-01' AND '2024-12-31' AND fund != 'Tithe' ORDER BY date ASC";
+          const titheSql = "SELECT * FROM donations WHERE member_id = $1 AND date BETWEEN '2024-01-01' AND '2024-12-31' AND fund = 'Tithe' ORDER BY date ASC";
+          const donationSql = "SELECT * FROM donations WHERE member_id = $1 AND date BETWEEN '2024-01-01' AND '2024-12-31' AND fund != 'Tithe' ORDER BY date ASC";
           Promise.all([
-            new Promise((resolve, reject) => {
-              db.all(titheSql, [id], (err, tithe) => {
-                if (err) {
-                  reject(err.message);
-                } else {
-                  resolve(tithe);
-                }
-              });
-            }),
-            new Promise((resolve, reject) => {
-              db.all(donationSql, [id], (err, donations) => {
-                if (err) {
-                  reject(err.message);
-                } else {
-                  resolve(donations);
-                }
-              });
-            })
+            pool.query(titheSql, [id]).then(r => r.rows),
+            pool.query(donationSql, [id]).then(r => r.rows),
           ])
             .then(async ([tithe, donations]) => {
               try {
@@ -1078,73 +1014,49 @@ app.get("/suggest-update", requireLogin, checkApprovedUser, (req, res) => {
   res.render("suggest-update", { loggedInName });
 });
 
-app.get("/select-inactive", requireLogin, checkApprovedUser, (req, res) => {
+app.get("/select-inactive", requireLogin, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
-
-  const sql = "SELECT * FROM members ORDER BY first_name ASC";
-
-  db.all(sql, [], (err, rows) => {
-    if (err) {
-      console.error("Error fetching donors:", err);
-      return res.status(500).send("Database error.");
-    }
-
-    res.render("select-inactive", {
-      loggedInName,
-      row: rows
-    });
-  });
+  try {
+    const result = await pool.query("SELECT * FROM members ORDER BY first_name ASC");
+    res.render("select-inactive", { loggedInName, row: result.rows });
+  } catch (err) {
+    console.error("Error fetching donors:", err);
+    return res.status(500).send("Database error.");
+  }
 });
 
 
-app.post('/deactivate-donors', (req, res) => {
-  const selectedIds = req.body.selectedIds || []; // could be string or array or undefined
-
-  // Normalize to array of IDs to deactivate
+app.post('/deactivate-donors', async (req, res) => {
+  const selectedIds = req.body.selectedIds || [];
   const deactivateIds = Array.isArray(selectedIds) ? selectedIds : [selectedIds];
 
-  // First, get all members IDs (you can limit it to members currently shown on page if you want)
-  db.all('SELECT id FROM members', (err, rows) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send('Database error');
-    }
-
-    const allIds = rows.map(row => row.id.toString()); // array of all member ids as strings
-    // IDs to activate = allIds - deactivateIds
+  const client = await pool.connect();
+  try {
+    const allResult = await client.query('SELECT id FROM members');
+    const allIds = allResult.rows.map(row => row.id.toString());
     const activateIds = allIds.filter(id => !deactivateIds.includes(id));
 
-    // Build queries to update is_active:
-    // Set is_active = 0 for deactivateIds
-    // Set is_active = 1 for activateIds
+    await client.query('BEGIN');
 
-    // Wrap updates in transaction for safety
-    db.serialize(() => {
-      db.run('BEGIN TRANSACTION');
+    if (deactivateIds.length > 0) {
+      const placeholders = deactivateIds.map((_, i) => `$${i + 1}`).join(',');
+      await client.query(`UPDATE members SET is_active = 0 WHERE id IN (${placeholders})`, deactivateIds);
+    }
 
-      if (deactivateIds.length > 0) {
-        const placeholders = deactivateIds.map(() => '?').join(',');
-        db.run(`UPDATE members SET is_active = 0 WHERE id IN (${placeholders})`, deactivateIds, function(err) {
-          if (err) console.error('Deactivate error:', err);
-        });
-      }
+    if (activateIds.length > 0) {
+      const placeholders = activateIds.map((_, i) => `$${i + 1}`).join(',');
+      await client.query(`UPDATE members SET is_active = 1 WHERE id IN (${placeholders})`, activateIds);
+    }
 
-      if (activateIds.length > 0) {
-        const placeholders = activateIds.map(() => '?').join(',');
-        db.run(`UPDATE members SET is_active = 1 WHERE id IN (${placeholders})`, activateIds, function(err) {
-          if (err) console.error('Activate error:', err);
-        });
-      }
-
-      db.run('COMMIT', (err) => {
-        if (err) {
-          console.error('Commit error:', err);
-          return res.status(500).send('Database error');
-        }
-        res.redirect('/admin'); // success redirect
-      });
-    });
-  });
+    await client.query('COMMIT');
+    res.redirect('/admin');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Transaction error:', err);
+    return res.status(500).send('Database error');
+  } finally {
+    client.release();
+  }
 });
 
 app.get('/dashboard', requireLogin, checkApprovedUser, async (req, res) => {

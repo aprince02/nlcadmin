@@ -135,7 +135,7 @@
               <% } else { %>
                 <% for (const tx of recentTransactions) { %>
                   <tr>
-                    <td><%= tx.date ? tx.date.split('-').reverse().join('-') : '—' %></td>
+                    <td><%= tx.date ? new Date(tx.date).toLocaleDateString('en-GB') : '' %></td>
                     <td class="text-truncate pb-truncate-col" title="<%= tx.description %>"><%= tx.description || '—' %></td>
                     <td class="<%= parseFloat(tx.paid_in) > 0 ? 'pb-amt-in' : 'text-muted' %>">
                       <%= parseFloat(tx.paid_in) > 0 ? '£' + parseFloat(tx.paid_in).toFixed(2) : '—' %>
@@ -174,7 +174,7 @@
               <% } else { %>
                 <% for (const d of recentDonations) { %>
                   <tr>
-                    <td><%= d.date ? d.date.split('-').reverse().join('-') : '—' %></td>
+                    <td><%= d.date ? new Date(d.date).toLocaleDateString('en-GB') : '' %></td>
                     <td><%= d.first_name %> <%= d.surname %></td>
                     <td><%= d.fund || '—' %></td>
                     <td class="pb-amt-in">£<%= parseFloat(d.amount).toFixed(2) %></td>

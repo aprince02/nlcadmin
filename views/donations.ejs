@@ -39,7 +39,7 @@
             <tr>
               <td><%= payments.id %></td>
               <td>£<%= payments.amount %></td>
-              <td><%= payments.date ? payments.date.split('-').reverse().join('-') : '' %></td>
+              <td><%= payments.date ? new Date(payments.date).toLocaleDateString('en-GB') : '' %></td>
               <td><%= payments.fund %></td>
               <td><%= payments.method %></td>
               <td><%= payments.gift_aid_status %></td>

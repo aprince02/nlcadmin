@@ -16,7 +16,7 @@
   </div>
   <div class="col-sm-4">
     <label class="form-label" for="donationDate">Date of Donation</label>
-    <input type="date" name="date" id="donationDate" class="form-control pb-field-natural" value="<%= typeof donationDate !== 'undefined' ? donationDate : (row.date || '') %>" required>
+    <input type="date" name="date" class="form-control" value="<%= row.date_input || '' %>">
   </div>
 </div>
 
