@@ -107,11 +107,11 @@ async function getAllTransactionsWithOnly(startDate, endDate, exportOnly) {
   let params = [startDate, endDate];
 
   if (exportOnly === 'allPaidIn') {
-    sql += ' AND CAST(paid_in AS FLOAT) > 0';
+    sql += " AND NULLIF(paid_in, '')::FLOAT > 0";
   } else if (exportOnly === 'allPaidOut') {
-    sql += ' AND CAST(paid_out AS FLOAT) > 0';
+    sql += " AND NULLIF(paid_out, '')::FLOAT > 0";
   } else if (exportOnly === 'allPaidOutOver£2000') {
-    sql += ' AND CAST(paid_out AS FLOAT) >= 2000';
+    sql += " AND NULLIF(paid_out, '')::FLOAT >= 2000";
   } else if (exportOnly) {
     sql += ' AND type = $3';
     params.push(exportOnly);
@@ -263,8 +263,8 @@ async function getAllDonationsForYear(year) {
 async function getMonthlyTotals(yearMonth) {
   const result = await pool.query(`
     SELECT
-      COALESCE(SUM(CAST(paid_in AS FLOAT)), 0) AS "paidIn",
-      COALESCE(SUM(CAST(paid_out AS FLOAT)), 0) AS "paidOut"
+      COALESCE(SUM(NULLIF(paid_in, '')::FLOAT), 0) AS "paidIn",
+      COALESCE(SUM(NULLIF(paid_out, '')::FLOAT), 0) AS "paidOut"
     FROM transactions
     WHERE TO_CHAR(date::date, 'YYYY-MM') = $1
   `, [yearMonth]);

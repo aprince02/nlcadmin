@@ -232,13 +232,15 @@ app.post("/delete/:id", requireLogin, checkUserRole, checkApprovedUser, async (r
         const currentPage = parseInt(req.params.page) || 1;
         const startIndex = (currentPage - 1) * donationsPerPage;
         try {
-            const [rowsResult, countResult] = await Promise.all([
+            const [rowsResult, countResult, dtResult] = await Promise.all([
                 pool.query('SELECT * FROM donations ORDER BY date DESC LIMIT $1 OFFSET $2', [donationsPerPage, startIndex]),
                 pool.query('SELECT COUNT(*) AS totalcount FROM donations'),
+                pool.query('SELECT type FROM donation_types ORDER BY type ASC'),
             ]);
             const totalDonations = parseInt(countResult.rows[0].totalcount, 10);
             const totalPages = Math.ceil(totalDonations / donationsPerPage);
-            res.render('all-donations', { model: rowsResult.rows, loggedInName, currentPage, totalPages });
+            const donationTypes = dtResult.rows.map(r => r.type);
+            res.render('all-donations', { model: rowsResult.rows, loggedInName, currentPage, totalPages, donationTypes });
         } catch (err) {
             log(loggedInName + ': ' + err.message);
             console.error(err.message);
