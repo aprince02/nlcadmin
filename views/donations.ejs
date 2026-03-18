@@ -8,13 +8,25 @@
     </ol>
   </nav>
 
+  <!-- Toast notification -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+    <div id="donationToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body">
+          <i class="bi bi-check-circle-fill me-2"></i>Donation saved successfully.
+        </div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  </div>
+
   <div class="pb-page-header">
     <div>
       <h1 class="pb-page-title">Donations for <%= firstName %> <%= surname %></h1>
       <p class="pb-page-subtitle">Total giving: £<%= totalAmount %></p>
     </div>
     <div class="pb-page-actions d-print-none">
-      <a class="btn btn-primary btn-sm" href="/add-donation/<%= id %>">Add Donation</a>
+      <button class="btn btn-primary btn-sm" id="openAddDonationBtn">Add Donation</button>
       <a class="btn btn-secondary btn-sm" href="/generate-donor-pdf/<%= id %>">Generate PDF</a>
       <a class="btn btn-secondary btn-sm" href="/send-update-request/<%= id %>">Request Update</a>
       <a class="btn btn-outline-secondary btn-sm" href="/claimants/1">Return</a>
@@ -50,5 +62,152 @@
     </div>
   </div>
 </div>
+
+<!-- ── Add Donation Modal ──────────────────────────────────────── -->
+<div class="modal fade" id="addDonationModal" tabindex="-1" aria-labelledby="addDonationModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+
+      <!-- Header -->
+      <div class="modal-header pb-modal-header">
+        <div>
+          <h5 class="modal-title mb-0" id="addDonationModalLabel">
+            <i class="bi bi-wallet2 me-2"></i>Add Donation
+          </h5>
+          <small class="text-muted">for <%= firstName %> <%= surname %></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <!-- Body -->
+      <div class="modal-body">
+        <form id="donationModalForm" novalidate>
+          <input type="hidden" id="modal_member_id" name="member_id" value="<%= id %>">
+          <input type="hidden" id="modal_first_name" name="first_name" value="<%= firstName %>">
+          <input type="hidden" id="modal_surname" name="surname" value="<%= surname %>">
+
+          <div class="row g-3 mb-3">
+            <div class="col-sm-4">
+              <label class="form-label" for="modal_amount">Amount (£)</label>
+              <input type="number" step="0.01" min="0" class="form-control" name="amount" id="modal_amount" required>
+              <div class="invalid-feedback">Please enter an amount.</div>
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label" for="modal_date">Date</label>
+              <input type="date" class="form-control" name="date" id="modal_date" required>
+              <div class="invalid-feedback">Please select a date.</div>
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label" for="modal_gift_aid">Gift Aid Status</label>
+              <select class="form-select" name="gift_aid_status" id="modal_gift_aid">
+                <option value="Unclaimed" selected>Unclaimed</option>
+                <option value="Claimed">Claimed</option>
+                <option value="N/A">N/A</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="modal_fund">Fund</label>
+            <select required class="form-select" name="fund" id="modal_fund">
+              <option value="">— Select fund —</option>
+              <% donationTypes.forEach(type => { %>
+                <option value="<%= type %>"><%= type %></option>
+              <% }); %>
+            </select>
+            <div class="invalid-feedback">Please select a fund.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="modal_notes">Notes</label>
+            <input class="form-control" name="notes" id="modal_notes" placeholder="Optional notes…">
+          </div>
+
+          <!-- Error area -->
+          <div id="modalError" class="alert alert-danger d-none" role="alert"></div>
+        </form>
+      </div>
+
+      <!-- Footer -->
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" id="submitDonationBtn">
+          <span id="submitBtnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+          <i class="bi bi-check-lg me-1" id="submitBtnIcon"></i>Save Donation
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const modal     = document.getElementById('addDonationModal');
+  const bsModal   = new bootstrap.Modal(modal);
+  const form      = document.getElementById('donationModalForm');
+  const submitBtn = document.getElementById('submitDonationBtn');
+  const spinner   = document.getElementById('submitBtnSpinner');
+  const submitIcon = document.getElementById('submitBtnIcon');
+  const errorBox  = document.getElementById('modalError');
+
+  document.getElementById('openAddDonationBtn').addEventListener('click', function () {
+    form.reset();
+    form.classList.remove('was-validated');
+    errorBox.classList.add('d-none');
+    // Set today's date as default
+    document.getElementById('modal_date').value = new Date().toISOString().slice(0, 10);
+    bsModal.show();
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    form.classList.add('was-validated');
+    if (!form.checkValidity()) return;
+
+    const payload = {
+      member_id:       document.getElementById('modal_member_id').value || null,
+      first_name:      document.getElementById('modal_first_name').value.trim(),
+      surname:         document.getElementById('modal_surname').value.trim(),
+      amount:          document.getElementById('modal_amount').value,
+      date:            document.getElementById('modal_date').value,
+      fund:            document.getElementById('modal_fund').value,
+      notes:           document.getElementById('modal_notes').value.trim(),
+      gift_aid_status: document.getElementById('modal_gift_aid').value,
+    };
+
+    spinner.classList.remove('d-none');
+    submitIcon.classList.add('d-none');
+    submitBtn.disabled = true;
+    errorBox.classList.add('d-none');
+
+    try {
+      const res = await fetch('/api/donations/modal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        bsModal.hide();
+        const toast = new bootstrap.Toast(document.getElementById('donationToast'), { delay: 3500 });
+        toast.show();
+        // Reload to reflect new donation in table
+        setTimeout(() => location.reload(), 3600);
+      } else {
+        errorBox.textContent = data.error || 'Failed to save donation.';
+        errorBox.classList.remove('d-none');
+      }
+    } catch {
+      errorBox.textContent = 'Network error — please try again.';
+      errorBox.classList.remove('d-none');
+    } finally {
+      spinner.classList.add('d-none');
+      submitIcon.classList.remove('d-none');
+      submitBtn.disabled = false;
+    }
+  });
+});
+</script>
 
 <%- include("_loggedInFooter") -%>

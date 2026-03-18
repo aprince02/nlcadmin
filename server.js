@@ -28,6 +28,7 @@ app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
 app.use(express.static("public", { maxAge: "7d" }));
 app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(session({
     secret: 'secret-key',
@@ -99,16 +100,18 @@ app.get("/yearly-transactions/:year/:page", requireLogin, checkApprovedUser, asy
   const endDate = `${year}-12-31`;
   const loggedInName = req.session.name;
   try {
-    const [rowsResult, typesResult, countResult] = await Promise.all([
+    const [rowsResult, typesResult, countResult, donationTypesResult] = await Promise.all([
       pool.query('SELECT * FROM transactions WHERE date >= $1 AND date <= $2 ORDER BY date DESC LIMIT $3 OFFSET $4', [startDate, endDate, rowsPerPage, startIndex]),
       pool.query('SELECT type FROM transaction_types'),
       pool.query('SELECT COUNT(*) AS totalrows FROM transactions WHERE date >= $1 AND date <= $2', [startDate, endDate]),
+      pool.query('SELECT type FROM donation_types ORDER BY type ASC'),
     ]);
     const totalRows = parseInt(countResult.rows[0].totalrows, 10);
     const totalPages = Math.ceil(totalRows / rowsPerPage);
     res.render('yearly-transactions', {
       row: rowsResult.rows,
       types: typesResult.rows,
+      donationTypes: donationTypesResult.rows.map(r => r.type),
       loggedInName,
       currentPage,
       totalPages,
@@ -399,7 +402,9 @@ app.get("/donations/:id", requireLogin, checkApprovedUser, async (req, res) => {
         const surname = rows[0].surname || "";
         let totalAmount = 0;
         rows.forEach((row) => { totalAmount += parseFloat(row.amount) || 0; });
-        res.render("donations", { model: rows, id, loggedInName, firstName, surname, totalAmount });
+        const dtResult = await pool.query('SELECT type FROM donation_types ORDER BY type ASC');
+        const donationTypes = dtResult.rows.map(r => r.type);
+        res.render("donations", { model: rows, id, loggedInName, firstName, surname, totalAmount, donationTypes });
     } catch (err) {
         log(loggedInName + ': Error getting donations: ' + err.message);
         console.error(err.message);
@@ -1007,6 +1012,58 @@ app.post("/update-users", requireLogin, checkUserRole, checkApprovedUser, async 
         log(loggedInName + ': Error rendering software-logs page - ' + error.message)
         return res.redirect("/admin")
     }
+});
+
+// ── API: donor search (used by Add Donation modal) ─────────────────
+app.get('/api/members/search', requireLogin, checkApprovedUser, async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q) return res.json([]);
+  try {
+    const like = `%${q}%`;
+    const result = await pool.query(
+      `SELECT id, first_name, surname, banking_name, spouse_name
+       FROM members
+       WHERE is_active = 1
+         AND (first_name ILIKE $1
+              OR surname ILIKE $2
+              OR (first_name || ' ' || surname) ILIKE $3
+              OR spouse_name ILIKE $4
+              OR banking_name ILIKE $5)
+       ORDER BY first_name ASC
+       LIMIT 15`,
+      [like, like, like, like, like]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Member search error:', err.message);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// ── API: add donation from modal (JSON) ────────────────────────────
+app.post('/api/donations/modal', requireLogin, checkApprovedUser, async (req, res) => {
+  const loggedInName = req.session.name;
+  const { member_id, first_name, surname, amount, date, fund, notes, gift_aid_status } = req.body;
+  try {
+    await pool.query(
+      'INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [member_id || null, first_name, surname, amount, date, fund, 'Bank', gift_aid_status || 'Unclaimed', notes || null]
+    );
+    log(loggedInName + ': Added donation via modal for ' + first_name + ' ' + surname);
+    try {
+      if (member_id) {
+        const member = await dbHelper.getMemberWithId(member_id);
+        await sendDonationReceivedEmail(member, req.body);
+      }
+    } catch (emailErr) {
+      console.error('Donation email error:', emailErr.message);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Modal donation error:', err.message);
+    log(loggedInName + ': Modal donation error: ' + err.message);
+    res.status(500).json({ success: false, error: 'Failed to save donation.' });
+  }
 });
 
 app.get("/suggest-update", requireLogin, checkApprovedUser, (req, res) => {

@@ -35,7 +35,7 @@
       </div>
       <div class="col-sm-4">
         <label class="form-label" for="date_of_birth">Date of Birth</label>
-        <input required type="date" class="form-control" name="date_of_birth" id="date_of_birth" value="<%= member.date_of_birth %>" />
+        <input required type="date" class="form-control" name="date_of_birth" id="date_of_birth" value="<%= member.date_of_birth ? new Date(member.date_of_birth).toISOString().slice(0, 10) : '' %>" />
       </div>
     </div>
     <div class="row g-3">
