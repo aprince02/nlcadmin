@@ -29,10 +29,20 @@ async function getValidAccessToken(connection) {
     try {
       tokenData = await tlAuth.refreshAccessToken(plainRefresh);
     } catch (err) {
-      // 400 / 401 here almost always means consent has expired (90-day limit)
-      if (err.response?.status === 400 || err.response?.status === 401) {
-        await tlDb.deactivateConnection(connection.account_id);
-        throw new Error('CONSENT_EXPIRED');
+      const status   = err.response?.status;
+      const tlError  = err.response?.data?.error;
+      const tlDesc   = err.response?.data?.error_description;
+      console.error(`[TrueLayer] Token refresh failed — HTTP ${status} | error: ${tlError} | ${tlDesc}`);
+
+      if (status === 400 || status === 401) {
+        // 'invalid_grant' means the refresh token is genuinely expired/revoked (consent ended).
+        // Any other 400/401 (e.g. bad credentials, malformed request) should not
+        // silently deactivate the connection — surface the real error instead.
+        if (tlError === 'invalid_grant' || !tlError) {
+          await tlDb.deactivateConnection(connection.account_id);
+          throw new Error('CONSENT_EXPIRED');
+        }
+        throw new Error(`Token refresh rejected by TrueLayer: ${tlError} — ${tlDesc}`);
       }
       throw err;
     }
