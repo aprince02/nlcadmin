@@ -21,7 +21,7 @@ const currentYear = new Date().getFullYear();
 const csvGenerator = require('./csvGenerator')
 const bankRouter   = require('./routes/bank')
 const tlSync       = require('./truelayer/sync')
-const { sendStatementByEmail, createAndEmail, createAndEmailDBBackup, emailMemberForUpdate, sendTransactionsEmail, sendUpdateSuggestionEmail, sendNewUserAddedEmail, sendDonationReceivedEmail } = require('./emailer');
+const { sendStatementByEmail, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendNewUserAddedEmail, sendDonationReceivedEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
@@ -60,9 +60,18 @@ app.listen(8000, () => {
   console.log("Server running on port: %PORT%".replace("%PORT%",8000))
 });
 
-  app.get("/admin", requireLogin, checkApprovedUser, (req, res) =>  {
+  app.get("/admin", requireLogin, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
-    res.render("admin", {loggedInName: loggedInName});
+    try {
+      const [transactionTypes, donationTypes] = await Promise.all([
+        dbHelper.getAllTransactionTypes(),
+        dbHelper.getAllDonationTypes(),
+      ]);
+      res.render("admin", { loggedInName, transactionTypes, donationTypes });
+    } catch (err) {
+      console.error('Error loading admin page:', err.message);
+      res.render("admin", { loggedInName, transactionTypes: [], donationTypes: [] });
+    }
   });
 
   const membersPerPage = 15;
@@ -260,6 +269,16 @@ app.get("/select-giver", requireLogin, checkApprovedUser, async (req, res) => {
     return res.redirect("/claimants/:page")
   }});
 
+  /** Safely escape a value for CSV output (RFC 4180). */
+  function escapeCsvField(value) {
+    if (value === null || value === undefined) return '';
+    const str = value instanceof Date ? value.toISOString() : String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+  }
+
   function guessFundFromDescription(description, types) {
   if (!description) return null;
 
@@ -420,23 +439,32 @@ app.get("/no-donations/:id", requireLogin, checkApprovedUser, (req, res) => {
     res.render("no-donations", { id: id, loggedInName: loggedInName });
     });
 
-app.get("/register", (req, res) =>  {
-    res.render("register");
-});
+app.get("/register", (req, res) => res.render("register"));
 
 app.post("/register", (req, res) => {
+    if (!req.body.terms_accepted) {
+        req.flash('error', 'You must agree to the Terms & Conditions to create an account.');
+        return res.redirect("/register");
+    }
     const password = req.body.password;
     bcrypt.genSalt(saltRounds, function(err, salt) {
         bcrypt.hash(password, salt, async function(err, hash) {
-            const user = [req.body.username, req.body.email, hash, 'user', req.body.security_question, 'unapproved'];
+            const username = req.body.username;
+            const email    = req.body.email;
             try {
+                const result = await pool.query(
+                    'INSERT INTO users (name, email, password, role, security_question, approval) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+                    [username, email, hash, 'user', req.body.security_question, 'unapproved']
+                );
+                const userId   = result.rows[0].id;
+                const ipAddress = req.ip || req.headers['x-forwarded-for'] || null;
                 await pool.query(
-                    'INSERT INTO users (name, email, password, role, security_question, approval) VALUES ($1,$2,$3,$4,$5,$6)',
-                    user
+                    'INSERT INTO terms_acceptance (user_id, username, email, terms_version, ip_address) VALUES ($1,$2,$3,$4,$5)',
+                    [userId, username, email, '1.0', ipAddress]
                 );
                 req.flash('success', 'New account created successfully.');
-                log('New account created successfully: ' + req.body.username);
-                sendNewUserAddedEmail(user);
+                log('New account created: ' + username);
+                sendNewUserAddedEmail([username, email, hash, 'user', req.body.security_question, 'unapproved']);
                 return res.redirect("/login");
             } catch (dbErr) {
                 req.flash('error', 'Error registering new account, try again.');
@@ -446,6 +474,9 @@ app.post("/register", (req, res) => {
         });
     });
 });
+
+app.get("/privacy-policy", (_, res) => res.render("privacy-policy"));
+app.get("/terms-and-conditions", (_, res) => res.render("terms-and-conditions"));
 
     app.post("/save-transaction/:id", requireLogin, checkApprovedUser, async (req, res) => {
       const id = req.params.id;
@@ -606,39 +637,87 @@ app.get('/export-transactions', requireLogin, checkUserRole, checkApprovedUser, 
   }
 });
 
-app.get('/export-donations', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
+app.post('/export-donations', requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
-    await csvGenerator.exportDonationsCsv(req, res);
-    try {
-      await createAndEmail('donations', 'ProBooks Accounting - Donations Export CSV File', 'donations export csv file');
-      req.flash('success', 'Donations export sent via email successfully.');
-    } catch (error) {
-        req.flash('error', 'Unable to send donations export via email.');
-        log(loggedInName + ': Unable to send donations export via email' + error)
-    }
+    const { fund, start_date, end_date } = req.body;
+
+    // Build query with optional filters
+    let query = 'SELECT * FROM donations WHERE 1=1';
+    const params = [];
+    let idx = 1;
+    if (start_date)             { query += ` AND date >= $${idx++}`; params.push(start_date); }
+    if (end_date)               { query += ` AND date <= $${idx++}`; params.push(end_date); }
+    if (fund && fund !== 'all') { query += ` AND fund = $${idx++}`;  params.push(fund); }
+    query += ' ORDER BY date DESC';
+
+    const result = await pool.query(query, params);
+    const pdfBuffer = await pdfGenerator.generateDonationsPDF(result.rows, { fund, startDate: start_date, endDate: end_date });
+
+    const date     = new Date().toISOString().slice(0, 10);
+    const fundSlug = fund && fund !== 'all' ? `_${fund.replace(/[^a-z0-9]/gi, '_')}` : '';
+    const filename = `donations_export${fundSlug}_${date}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
+    log(`${loggedInName}: Donations PDF downloaded (${result.rows.length} rows)`);
   } catch (error) {
-      req.flash('error', 'Unable to export donations csv');
-      log(loggedInName + ': Unable to export donations csv' + error)
-  };
-  return res.redirect("/admin");
+    console.error('Error generating donations PDF:', error.message);
+    log(`${loggedInName}: Error generating donations PDF: ${error.message}`);
+    if (!res.headersSent) res.status(500).json({ error: 'Error generating PDF.' });
+  }
 });
 
 
   app.get('/db-backup', requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
     try {
-      await createAndEmailDBBackup();
-      console.log('Database backup sent via email!');
-      req.flash('success', 'Database backup sent via email successfully.');
-      log(loggedInName + ': Database backup sent via email successfully.')
-      return res.redirect('/admin')
+      // Discover all tables in the public schema
+      const tablesResult = await pool.query(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public'
+        ORDER BY tablename ASC
+      `);
+      const tables = tablesResult.rows.map(r => r.tablename);
+
+      const date = new Date().toISOString().slice(0, 10);
+      const filename = `database_export_${date}.zip`;
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+      const archiver = require('archiver');
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      archive.pipe(res);
+
+      for (const table of tables) {
+        try {
+          // Table name comes from pg_tables (schemaname = 'public') — safe, no injection risk
+          const result = await pool.query(`SELECT * FROM "${table}"`);
+          const headers = result.fields.map(f => f.name);
+          const lines = [headers.map(escapeCsvField).join(',')];
+          for (const row of result.rows) {
+            lines.push(headers.map(h => escapeCsvField(row[h])).join(','));
+          }
+          archive.append(lines.join('\n') + '\n', { name: `${table}.csv` });
+        } catch (tableErr) {
+          console.error(`DB export: error on table "${table}":`, tableErr.message);
+          log(`${loggedInName}: DB export error on table "${table}": ${tableErr.message}`);
+          // Continue with remaining tables
+        }
+      }
+
+      await archive.finalize();
+      log(`${loggedInName}: Database CSV export downloaded (${tables.length} tables).`);
     } catch (error) {
-       console.error("Error sending database backup" + error.message)
-      req.flash('error', 'Error sending database backup.');
-      log(loggedInName + ': Error sending database backup' + error.message)
-      return res.redirect('/admin');
-    }});
+      console.error('DB export: fatal error:', error.message);
+      log(`${loggedInName}: DB export fatal error: ${error.message}`);
+      if (!res.headersSent) {
+        res.status(500).send('Error generating database export.');
+      }
+    }
+  });
 
 // TrueLayer bank sync — runs every 6 hours
 schedule.scheduleJob('0 */6 * * *', async () => {
@@ -650,16 +729,6 @@ schedule.scheduleJob('0 */6 * * *', async () => {
   }
 });
 
-const scheduledTime = '59 23 * * 0'; // '59 23 * * 0' represents every Sunday at 23:59
-schedule.scheduleJob(scheduledTime, async () => {
-  try {
-    await createAndEmailDBBackup();
-    console.log('Database backup sent via email!');
-    log('Database scheduled backup sent via email')
-  } catch (error) {
-    console.error("Error sending database backup: " + error.message);
-    log('Error sending scheduled database backup' + error.message)
-  }});
 
 app.get("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
@@ -777,42 +846,28 @@ app.get('/logout', (req, res) => {
           return res.redirect("/claimants/:page")
         }});
 
-        app.get("/generate-transaction-pdf", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
-          try {
-            const loggedInName = req.session.name;
-            const types = await dbHelper.getAllTransactionTypes(); // Add await
-            res.render("generate-transaction-pdf", { loggedInName: loggedInName, types: types });
-          } catch (error) {
-            console.error("Error rendering generate transactions page:", error);
-            return res.redirect("/admin");
-          }
-        });
-        
-
         app.post("/generate-transaction-pdf", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
           const loggedInName = req.session.name;
           try {
-            const startDate = req.body.start_date;
-            const endDate = req.body.end_date;
-            const exportType = req.body.export;
-            const email = req.body.email;
+            const { start_date, end_date, export: exportType } = req.body;
             let transactions;
-            if (exportType == 'everything') {
-              transactions = await dbHelper.getAllTransactionsForPeriod(startDate, endDate);
+            if (exportType === 'everything') {
+              transactions = await dbHelper.getAllTransactionsForPeriod(start_date, end_date);
             } else {
-               transactions = await dbHelper.getAllTransactionsWithOnly(startDate, endDate, exportType);
+              transactions = await dbHelper.getAllTransactionsWithOnly(start_date, end_date, exportType);
             }
-            const pdfPath = await pdfGenerator.generateTransactionPDF(transactions);
-            await sendTransactionsEmail(pdfPath, email);
-            req.flash('success', 'Transactions PDF generated and sent successfully.');
-            log(loggedInName + ': Transactions PDF generated and sent successfully')
-            return res.redirect('/admin');
+            const pdfBuffer = await pdfGenerator.generateTransactionPDF(transactions);
+            const filename  = `transactions_${start_date}_to_${end_date}.pdf`;
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.send(pdfBuffer);
+            log(loggedInName + ': Transactions PDF downloaded');
           } catch (error) {
-            console.error('Error generating or sending transactions PDF:', error.message);
-            req.flash('error', 'Error generating or sending transaction PDF.');
-            log(loggedInName + ': Error generating or sending transaction PDF:', error);
-            return res.redirect('/admin');
-          }});
+            console.error('Error generating transactions PDF:', error.message);
+            log(loggedInName + ': Error generating transactions PDF: ' + error.message);
+            if (!res.headersSent) res.status(500).json({ error: 'Error generating PDF.' });
+          }
+        });
         
   
   app.get("/import-transactions", requireLogin, checkUserRole, checkApprovedUser, (req, res) => {

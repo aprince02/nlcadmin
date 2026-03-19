@@ -25,12 +25,12 @@
     <div class="pb-admin-section">
       <div class="pb-admin-section-header">Export</div>
       <div class="pb-admin-section-body">
-        <a href="/generate-transaction-pdf" class="pb-admin-btn">
+        <button type="button" class="pb-admin-btn" id="openTransactionModal">
           <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Transactions
-        </a>
-        <a href="/export-donations" class="pb-admin-btn">
+        </button>
+        <button type="button" class="pb-admin-btn" id="openDonationsModal">
           <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Donations
-        </a>
+        </button>
         <a href="/export-giftaid-claims" class="pb-admin-btn">
           <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Claim Gift Aid
         </a>
@@ -84,5 +84,203 @@
 
   </div>
 </div>
+
+<!-- ── Export Transactions Modal ───────────────────────────────── -->
+<div class="modal fade" id="transactionModal" tabindex="-1" aria-labelledby="transactionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <h5 class="modal-title" id="transactionModalLabel">
+          <i class="bi bi-file-earmark-pdf me-2"></i>Export Transactions
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="transactionForm" novalidate>
+
+          <div class="mb-3">
+            <label class="form-label" for="tx_export">Export</label>
+            <select class="form-select" name="export" id="tx_export" required>
+              <option value="everything">Everything</option>
+              <option value="allPaidIn">All Paid In</option>
+              <option value="allPaidOut">All Paid Out</option>
+              <option value="allPaidOutOver£2000">All Paid Out Over £2000</option>
+              <% (transactionTypes || []).forEach(type => { %>
+                <option value="<%= type %>"><%= type %></option>
+              <% }); %>
+            </select>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label" for="tx_start">Date From</label>
+              <input type="date" class="form-control" id="tx_start" name="start_date" required>
+              <div class="invalid-feedback">Required.</div>
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="tx_end">Date To</label>
+              <input type="date" class="form-control" id="tx_end" name="end_date" required>
+              <div class="invalid-feedback">Required.</div>
+            </div>
+          </div>
+
+          <div id="txError" class="alert alert-danger d-none" role="alert"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="txSubmitBtn">
+          <span id="txSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+          <i class="bi bi-download me-1" id="txIcon"></i>Download PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Export Donations Modal ──────────────────────────────────── -->
+<div class="modal fade" id="donationsModal" tabindex="-1" aria-labelledby="donationsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <h5 class="modal-title" id="donationsModalLabel">
+          <i class="bi bi-file-earmark-pdf me-2"></i>Export Donations
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="donationsForm" novalidate>
+
+          <div class="mb-3">
+            <label class="form-label" for="dn_fund">Fund Type</label>
+            <select class="form-select" name="fund" id="dn_fund">
+              <option value="all">All Types</option>
+              <% (donationTypes || []).forEach(type => { %>
+                <option value="<%= type %>"><%= type %></option>
+              <% }); %>
+            </select>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label" for="dn_start">Date From</label>
+              <input type="date" class="form-control" id="dn_start" name="start_date">
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="dn_end">Date To</label>
+              <input type="date" class="form-control" id="dn_end" name="end_date">
+            </div>
+          </div>
+
+          <div id="dnError" class="alert alert-danger d-none" role="alert"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="dnSubmitBtn">
+          <span id="dnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+          <i class="bi bi-download me-1" id="dnIcon"></i>Download PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  async function fetchPdfDownload(url, payload, filename, { spinner, icon, errorBox, submitBtn }) {
+    spinner.classList.remove('d-none');
+    icon.classList.add('d-none');
+    submitBtn.disabled = true;
+    errorBox.classList.add('d-none');
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Server error');
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      errorBox.textContent = err.message || 'Failed to generate PDF.';
+      errorBox.classList.remove('d-none');
+    } finally {
+      spinner.classList.add('d-none');
+      icon.classList.remove('d-none');
+      submitBtn.disabled = false;
+    }
+  }
+
+  // ── Transactions modal ─────────────────────────────────────────
+  const txModal   = new bootstrap.Modal(document.getElementById('transactionModal'));
+  const txForm    = document.getElementById('transactionForm');
+  const txSubmit  = document.getElementById('txSubmitBtn');
+  const txSpinner = document.getElementById('txSpinner');
+  const txIcon    = document.getElementById('txIcon');
+  const txError   = document.getElementById('txError');
+
+  document.getElementById('openTransactionModal').addEventListener('click', () => {
+    txForm.reset();
+    txForm.classList.remove('was-validated');
+    txError.classList.add('d-none');
+    txModal.show();
+  });
+
+  txSubmit.addEventListener('click', async () => {
+    txForm.classList.add('was-validated');
+    if (!txForm.checkValidity()) return;
+    const start = document.getElementById('tx_start').value;
+    const end   = document.getElementById('tx_end').value;
+    const exp   = document.getElementById('tx_export').value;
+    await fetchPdfDownload(
+      '/generate-transaction-pdf',
+      { start_date: start, end_date: end, export: exp },
+      `transactions_${start}_to_${end}.pdf`,
+      { spinner: txSpinner, icon: txIcon, errorBox: txError, submitBtn: txSubmit },
+    );
+  });
+
+  // ── Donations modal ────────────────────────────────────────────
+  const dnModal   = new bootstrap.Modal(document.getElementById('donationsModal'));
+  const dnForm    = document.getElementById('donationsForm');
+  const dnSubmit  = document.getElementById('dnSubmitBtn');
+  const dnSpinner = document.getElementById('dnSpinner');
+  const dnIcon    = document.getElementById('dnIcon');
+  const dnError   = document.getElementById('dnError');
+
+  document.getElementById('openDonationsModal').addEventListener('click', () => {
+    dnForm.reset();
+    dnError.classList.add('d-none');
+    dnModal.show();
+  });
+
+  dnSubmit.addEventListener('click', async () => {
+    const fund  = document.getElementById('dn_fund').value;
+    const start = document.getElementById('dn_start').value;
+    const end   = document.getElementById('dn_end').value;
+    const date  = new Date().toISOString().slice(0, 10);
+    const slug  = fund && fund !== 'all' ? `_${fund.replace(/[^a-z0-9]/gi, '_')}` : '';
+    await fetchPdfDownload(
+      '/export-donations',
+      { fund, start_date: start || null, end_date: end || null },
+      `donations_export${slug}_${date}.pdf`,
+      { spinner: dnSpinner, icon: dnIcon, errorBox: dnError, submitBtn: dnSubmit },
+    );
+  });
+
+});
+</script>
 
 <%- include("_loggedInFooter") -%>

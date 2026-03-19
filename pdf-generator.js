@@ -4,6 +4,17 @@ const fs = require("fs");
 const { autoTable } = require("jspdf-autotable");
 const { log } = require('./utils');
 
+/** Format any date value as DD-MM-YYYY. Uses UTC to avoid timezone shifts on DATE-only values. */
+function fmtDate(value) {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  const dd   = String(d.getUTCDate()).padStart(2, '0');
+  const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+}
+
 async function generatePDF(donor, tithe, donations) {
   const doc = new jsPDF({ compress: true });
 
@@ -64,7 +75,7 @@ async function generatePDF(donor, tithe, donations) {
   const titheBody = []; 
 
   for (let i = 0; i < tithe.length; i++) {
-    const row = [`${tithe[i].date}`, `£${tithe[i].amount}`];
+    const row = [fmtDate(tithe[i].date), `£${tithe[i].amount}`];
     titheBody.push(row);
   }
 
@@ -83,7 +94,7 @@ async function generatePDF(donor, tithe, donations) {
   const donationsBody = [];
 
   for (let i = 0; i < donations.length; i++) {
-    const row = [`${donations[i].date}`, `${donations[i].fund}`, `£${donations[i].amount}`];
+    const row = [fmtDate(donations[i].date), `${donations[i].fund}`, `£${donations[i].amount}`];
     donationsBody.push(row);
   }
 
@@ -115,8 +126,8 @@ async function generateTransactionPDF(transactions) {
   const logoData = fs.readFileSync(logoPath);
 
   const pageWidth = doc.internal.pageSize.getWidth();
-  const logoWidth = 150; // Adjust the width of the logo as needed
-  const logoHeight = 150; // Adjust the height of the logo as needed
+  const logoWidth = 150;
+  const logoHeight = 150;
   const logoX = (pageWidth - logoWidth) / 2;
 
   doc.addImage(logoData, "PNG", logoX, 10, logoWidth, logoHeight);
@@ -139,36 +150,121 @@ async function generateTransactionPDF(transactions) {
 
     const body = typeTransactions.map(transaction => {
       const paidOut = typeof transaction.paid_out === 'number' ? transaction.paid_out : parseFloat(transaction.paid_out || 0);
-      const paidIn = typeof transaction.paid_in === 'number' ? transaction.paid_in : parseFloat(transaction.paid_in || 0);
-      return [transaction.date, transaction.description, paidOut, paidIn];
+      const paidIn  = typeof transaction.paid_in  === 'number' ? transaction.paid_in  : parseFloat(transaction.paid_in  || 0);
+      return [fmtDate(transaction.date), transaction.description, paidOut, paidIn];
     });
-    
 
-    // Calculate totals for Paid In and Paid Out
-    const totalPaidIn = body.reduce((total, [, , , paidIn]) => total + paidIn, 0);
-    const totalPaidOut = body.reduce((total, [, , paidOut]) => total + paidOut, 0);
-    const totalRow = ['', 'Total', totalPaidOut, totalPaidIn];
-    body.push(totalRow);
+    const totalPaidIn  = body.reduce((total, [, , , paidIn])  => total + paidIn,  0);
+    const totalPaidOut = body.reduce((total, [, , paidOut])    => total + paidOut, 0);
+    body.push(['', 'Total', totalPaidOut, totalPaidIn]);
 
-    const headers = ['Date', 'Description', 'Paid Out', 'Paid In'];
-
-    const table = doc.autoTable({
-      head: [headers],
-      body: body,
+    doc.autoTable({
+      head: [['Date', 'Description', 'Paid Out', 'Paid In']],
+      body,
       startY: startY + 5,
-      theme: 'grid'
+      theme: 'grid',
     });
   }
 
-  const fileName = `Statement of Transactions.pdf`;
-  const pdfPath = fileName;
-  doc.autoPrint();
-  doc.save(fileName);
-  console.log(`Statement of Transactions PDF generated`);
-  return pdfPath;
+  console.log('Statement of Transactions PDF generated');
+  return Buffer.from(doc.output('arraybuffer'));
 }
 
 
 
 
-module.exports = { generatePDF, generateTransactionPDF };
+async function generateDonationsPDF(donations, { fund, startDate, endDate } = {}) {
+  const doc = new jsPDF();
+
+  const logoPath = "css/logo.png";
+  const logoData = fs.readFileSync(logoPath);
+
+  // ── Header ──────────────────────────────────────────────────────
+  doc.addImage(logoData, "PNG", 1, 1, 35, 35);
+  doc.setFontSize(12);
+  doc.text('NewLife Church Sunderland', 135, 10);
+  doc.setFontSize(10);
+  doc.text('Tel: 07737188124',            135, 16);
+  doc.text('Email: info@nlcsunderland.uk', 135, 21);
+  doc.text('Web: www.nlcsunderland.uk',    135, 26);
+  doc.text('Charity No. 117881',           135, 31);
+  doc.line(0, 37, 250, 38, 'S');
+
+  doc.setFontSize(14);
+  doc.text('Donations Export', 10, 45);
+
+  doc.setFontSize(9);
+  doc.setTextColor('#555555');
+  const dateLabel = (startDate ? fmtDate(startDate) : '—') + ' to ' + (endDate ? fmtDate(endDate) : '—');
+  const fundLabel  = fund && fund !== 'all' ? fund : 'All Funds';
+  doc.text(`Period: ${dateLabel}     Fund: ${fundLabel}`, 10, 52);
+  doc.setTextColor('#000000');
+
+  // ── Fund totals summary table ────────────────────────────────────
+  const fundTotals = {};
+  const fundCounts = {};
+  let grandTotal = 0;
+
+  donations.forEach(r => {
+    const f   = r.fund || 'Unknown';
+    const amt = parseFloat(r.amount) || 0;
+    fundTotals[f] = (fundTotals[f] || 0) + amt;
+    fundCounts[f] = (fundCounts[f] || 0) + 1;
+    grandTotal    += amt;
+  });
+
+  const summaryBody = Object.keys(fundTotals).sort().map(f => [
+    f,
+    fundCounts[f],
+    '£' + fundTotals[f].toFixed(2),
+  ]);
+  summaryBody.push(['Total', donations.length, '£' + grandTotal.toFixed(2)]);
+
+  doc.autoTable({
+    head:         [['Fund', 'Donations', 'Total']],
+    body:          summaryBody,
+    startY:        57,
+    theme:        'grid',
+    styles:        { fontSize: 9 },
+    columnStyles:  { 1: { halign: 'center' }, 2: { halign: 'right' } },
+    headStyles:    { fillColor: [40, 80, 160] },
+  });
+
+  const summaryEndY = doc.lastAutoTable.finalY;
+
+  // ── Detailed donations table ─────────────────────────────────────
+  doc.setFontSize(11);
+  doc.text('Donation Details', 10, summaryEndY + 10);
+
+  const detailBody = donations.map(r => [
+    fmtDate(r.date),
+    ((r.first_name || '') + ' ' + (r.surname || '')).trim(),
+    r.fund            || '',
+    r.gift_aid_status || '',
+    r.notes           || '',
+    '£' + (parseFloat(r.amount) || 0).toFixed(2),
+  ]);
+
+  doc.autoTable({
+    head:         [['Date', 'Donor', 'Fund', 'Gift Aid', 'Notes', 'Amount']],
+    body:          detailBody,
+    startY:        summaryEndY + 14,
+    theme:        'grid',
+    styles:        { fontSize: 8 },
+    columnStyles:  { 5: { halign: 'right' } },
+    headStyles:    { fillColor: [40, 80, 160] },
+  });
+
+  doc.setFontSize(8);
+  doc.setTextColor('#888888');
+  doc.text(
+    `Generated ${fmtDate(new Date())} — ${donations.length} record(s)`,
+    10,
+    doc.lastAutoTable.finalY + 8,
+  );
+
+  console.log(`Donations PDF generated (${donations.length} rows)`);
+  return Buffer.from(doc.output('arraybuffer'));
+}
+
+module.exports = { generatePDF, generateTransactionPDF, generateDonationsPDF };

@@ -187,6 +187,18 @@ async function initDb() {
       )
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS terms_acceptance (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        username TEXT NOT NULL,
+        email TEXT NOT NULL,
+        terms_version TEXT NOT NULL DEFAULT '1.0',
+        ip_address TEXT,
+        accepted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
     console.log('Database schema initialised.');
   } catch (err) {
     console.error('Error initialising database schema:', err.message);
