@@ -21,7 +21,7 @@ const currentYear = new Date().getFullYear();
 const csvGenerator = require('./csvGenerator')
 const bankRouter   = require('./routes/bank')
 const tlSync       = require('./truelayer/sync')
-const { sendStatementByEmail, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendNewUserAddedEmail, sendDonationReceivedEmail } = require('./emailer');
+const { sendStatementByEmail, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendNewUserAddedEmail, sendDonationReceivedEmail, sendTotalsExportEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
@@ -483,7 +483,8 @@ app.get("/terms-and-conditions", (_, res) => res.render("terms-and-conditions"))
       const type = req.body.type;
       const description = req.body.description;
       const loggedInName = req.session.name;
-      const date = req.body.date;
+      const rawDate = req.body.date;
+      const date = rawDate ? new Date(rawDate).toISOString().split('T')[0] : null;
       const paid_in = req.body.paid_in;
 
       req.session.date = date;
@@ -730,54 +731,53 @@ schedule.scheduleJob('0 */6 * * *', async () => {
 });
 
 
-app.get("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
+app.post("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
-    const sql = "SELECT * FROM transactions WHERE date >= '2025-01-01' AND date <= '2025-12-31' ORDER BY type";
-    try {
-        const result = await pool.query(sql);
-        const rows = result.rows;
-        const totalPaidInByType = {};
-        const totalPaidOutByType = {};
-        try {
-            const types = await dbHelper.getAllTransactionTypes();
-            types.forEach(type => {
-                const typeTransactions = rows.filter(row => row.type === type);
-                const totalPaidIn = typeTransactions.reduce((total, transaction) => {
-                    const paidIn = parseFloat(transaction.paid_in) || 0;
-                    if (!isNaN(paidIn)) total += paidIn;
-                    return total;
-                }, 0);
-                const totalPaidOut = typeTransactions.reduce((total, transaction) => {
-                    const paidOut = parseFloat(transaction.paid_out) || 0;
-                    if (!isNaN(paidOut)) total += paidOut;
-                    return total;
-                }, 0);
-                totalPaidInByType[type] = parseFloat(totalPaidIn.toFixed(2));
-                totalPaidOutByType[type] = parseFloat(totalPaidOut.toFixed(2));
-            });
-            await csvGenerator.writeTotalPaidInOutCsv(types, totalPaidInByType, totalPaidOutByType);
-            try {
-                await createAndEmail('total_paid_in_out', 'ProBooks Accounting - Totals Export CSV File', 'totals export csv file');
-                console.log('Totals sent via email!');
-                log(loggedInName + ': Totals export sent via email');
-                req.flash('success', 'Totals export sent via email successfully.');
-            } catch (error) {
-                console.error("Error sending totals email" + error);
-                log(loggedInName + ': Error sending totals email ' + error);
-                req.flash('error', 'Error sending totals email.');
-            }
-            res.redirect('/admin');
-        } catch (error) {
-            req.flash('error', 'Error getting transaction types.');
-            log(loggedInName + ': Error getting transaction types: ' + error);
-            console.error("Error getting transaction types:", error);
-            return res.redirect('/admin');
-        }
-    } catch (err) {
-        req.flash('error', 'Error retrieving data for transactions.');
-        log(loggedInName + ': Error retrieving data for transactions export - ' + err.message);
-        return res.redirect('/admin');
-    }
+  const { start_date, end_date, email } = req.body;
+
+  if (!start_date || !end_date || !email) {
+    return res.status(400).json({ error: 'Date range and recipient email are required.' });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM transactions WHERE date >= $1 AND date <= $2 ORDER BY type',
+      [start_date, end_date]
+    );
+    const rows = result.rows;
+    const types = await dbHelper.getAllTransactionTypes();
+
+    const totalPaidInByType  = {};
+    const totalPaidOutByType = {};
+    types.forEach(type => {
+      const txns = rows.filter(r => r.type === type);
+      totalPaidInByType[type]  = parseFloat(txns.reduce((t, r) => t + (parseFloat(r.paid_in)  || 0), 0).toFixed(2));
+      totalPaidOutByType[type] = parseFloat(txns.reduce((t, r) => t + (parseFloat(r.paid_out) || 0), 0).toFixed(2));
+    });
+
+    // Build CSV in memory
+    const csvLines = ['Type,Paid In,Paid Out'];
+    types.forEach(type => {
+      csvLines.push(`${escapeCsvField(type)},${totalPaidInByType[type]},${totalPaidOutByType[type]}`);
+    });
+    const csvBuffer = Buffer.from(csvLines.join('\n') + '\n', 'utf8');
+
+    // Build PDF in memory
+    const pdfBuffer = await pdfGenerator.generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, { startDate: start_date, endDate: end_date });
+
+    const csvFilename = `totals_export_${start_date}_to_${end_date}.csv`;
+    const pdfFilename = `totals_export_${start_date}_to_${end_date}.pdf`;
+
+    await sendTotalsExportEmail(email, csvBuffer, pdfBuffer, csvFilename, pdfFilename);
+
+    console.log(`Totals export sent to ${email}`);
+    log(`${loggedInName}: Totals export (CSV + PDF) sent to ${email}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error generating totals export:', err.message);
+    log(`${loggedInName}: Error generating totals export: ${err.message}`);
+    res.status(500).json({ error: 'Error generating totals export.' });
+  }
 });
 
 app.get('/export-giftaid-claims', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {

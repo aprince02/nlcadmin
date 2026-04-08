@@ -202,6 +202,22 @@ async function sendDonationReceivedEmail(member, donation) {
   }
 }
 
+async function sendTotalsExportEmail(to, csvBuffer, pdfBuffer, csvFilename, pdfFilename) {
+  const transporter = nodemailer.createTransport(emailConfig);
+  const mailOptions = {
+    from: sender,
+    to,
+    subject: 'ProBooks Accounting - Totals Export',
+    text: 'Please find attached the totals export as both a CSV and PDF file.' + emailFooter,
+    attachments: [
+      { filename: csvFilename, content: csvBuffer, contentType: 'text/csv' },
+      { filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' },
+    ],
+  };
+  const info = await transporter.sendMail(mailOptions);
+  console.log('Totals export email sent:', info.response);
+}
+
 module.exports = {
   createAndEmail,
   sendStatementByEmail,
@@ -210,5 +226,6 @@ module.exports = {
   sendTransactionsEmail,
   sendUpdateSuggestionEmail,
   sendNewUserAddedEmail,
-  sendDonationReceivedEmail
+  sendDonationReceivedEmail,
+  sendTotalsExportEmail,
 };

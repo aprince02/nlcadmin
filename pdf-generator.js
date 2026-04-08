@@ -267,4 +267,61 @@ async function generateDonationsPDF(donations, { fund, startDate, endDate } = {}
   return Buffer.from(doc.output('arraybuffer'));
 }
 
-module.exports = { generatePDF, generateTransactionPDF, generateDonationsPDF };
+async function generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, { startDate, endDate } = {}) {
+  const doc = new jsPDF();
+
+  const logoPath = "css/logo.png";
+  const logoData = fs.readFileSync(logoPath);
+
+  doc.addImage(logoData, "PNG", 1, 1, 35, 35);
+  doc.setFontSize(12);
+  doc.text('NewLife Church Sunderland', 135, 10);
+  doc.setFontSize(10);
+  doc.text('Tel: 07737188124',            135, 16);
+  doc.text('Email: info@nlcsunderland.uk', 135, 21);
+  doc.text('Web: www.nlcsunderland.uk',    135, 26);
+  doc.text('Charity No. 117881',           135, 31);
+  doc.line(0, 37, 250, 38, 'S');
+
+  doc.setFontSize(14);
+  doc.text('Transaction Totals Export', 10, 45);
+
+  doc.setFontSize(9);
+  doc.setTextColor('#555555');
+  const dateLabel = (startDate ? fmtDate(startDate) : '—') + ' to ' + (endDate ? fmtDate(endDate) : '—');
+  doc.text(`Period: ${dateLabel}`, 10, 52);
+  doc.setTextColor('#000000');
+
+  let grandPaidIn  = 0;
+  let grandPaidOut = 0;
+  const body = types.map(type => {
+    const paidIn  = totalPaidInByType[type]  || 0;
+    const paidOut = totalPaidOutByType[type] || 0;
+    grandPaidIn  += paidIn;
+    grandPaidOut += paidOut;
+    return [type, '£' + paidIn.toFixed(2), '£' + paidOut.toFixed(2)];
+  });
+  body.push(['Total', '£' + grandPaidIn.toFixed(2), '£' + grandPaidOut.toFixed(2)]);
+
+  doc.autoTable({
+    head:         [['Type', 'Paid In', 'Paid Out']],
+    body,
+    startY:        57,
+    theme:        'grid',
+    styles:        { fontSize: 9 },
+    columnStyles:  { 1: { halign: 'right' }, 2: { halign: 'right' } },
+    headStyles:    { fillColor: [40, 80, 160] },
+  });
+
+  doc.setFontSize(8);
+  doc.setTextColor('#888888');
+  doc.text(
+    `Generated ${fmtDate(new Date())} — ${types.length} type(s)`,
+    10,
+    doc.lastAutoTable.finalY + 8,
+  );
+
+  return Buffer.from(doc.output('arraybuffer'));
+}
+
+module.exports = { generatePDF, generateTransactionPDF, generateDonationsPDF, generateTotalsPDF };
