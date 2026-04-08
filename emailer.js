@@ -21,13 +21,14 @@ const sender = '"ProBooks Accounting" <mailer@probooksaccounting.co.uk>'
 const receiver = 'albinm65@gmail.com';
 const emailFooter = "\n\n\n\nThank you for using our services!\n\nIf you have any doubts using our services, please reply to this email\n\n\n\n Probooks Accounting © - Alpha Media Productions Ltd."
 
+// Single shared transporter — pool:true only benefits if the same instance is reused
+const transporter = nodemailer.createTransport(emailConfig);
+
 async function createAndEmail(fileType, subject, message) {
   const fileName = `${fileType}.csv`;
   const backupFilename = `${fileType}_backup.csv`;
 
   fs.copyFileSync(fileName, backupFilename);
-
-  const transporter = nodemailer.createTransport(emailConfig);
 
   const mailOptions = {
     from: sender,
@@ -54,8 +55,6 @@ async function createAndEmail(fileType, subject, message) {
 }
 
 async function sendStatementByEmail(pdfPath) {
-  const transporter = nodemailer.createTransport(emailConfig);
-
   const mailOptions = {
     from: sender,
     to: receiver,
@@ -79,8 +78,6 @@ async function sendStatementByEmail(pdfPath) {
 }
 
 async function sendTransactionsEmail(pdfPath, receiverEmail) {
-  const transporter = nodemailer.createTransport(emailConfig);
-
   const mailOptions = {
     from: sender,
     to: receiverEmail,
@@ -108,7 +105,6 @@ async function createAndEmailDBBackup() {
   const backupFilename = 'db_backup.sqlite';
   fs.copyFileSync(dbFilename, backupFilename);
 
-  const transporter = nodemailer.createTransport(emailConfig);
   const mailOptions = {
     from: sender,
     to: 'albinm65@gmail.com',
@@ -133,8 +129,6 @@ async function createAndEmailDBBackup() {
 }
 
 async function emailMemberForUpdate (row) {
-  const transporter = nodemailer.createTransport(emailConfig);
-  
   link = "https://probooksaccounting.co.uk/edit-member/"+row.id;
   const mailOptions = {
     from: sender,
@@ -152,8 +146,6 @@ async function emailMemberForUpdate (row) {
 }
 
 async function sendUpdateSuggestionEmail(suggestion, user) {
-  const transporter = nodemailer.createTransport(emailConfig);
-
   const mailOptions = {
     from: sender,
     to: "albinm65@gmail.com",
@@ -169,8 +161,6 @@ async function sendUpdateSuggestionEmail(suggestion, user) {
 }
 
 async function sendNewUserAddedEmail(user) {
-  const transporter = nodemailer.createTransport(emailConfig);
-
   const mailOptions = {
     from: sender,
     to: "albinm65@gmail.com",
@@ -186,8 +176,6 @@ async function sendNewUserAddedEmail(user) {
 }
 
 async function sendDonationReceivedEmail(member, donation) {
-  const transporter = nodemailer.createTransport(emailConfig);
-
   const mailOptions = {
     from: sender,
     to: member.email,
@@ -203,7 +191,6 @@ async function sendDonationReceivedEmail(member, donation) {
 }
 
 async function sendTotalsExportEmail(to, csvBuffer, pdfBuffer, csvFilename, pdfFilename) {
-  const transporter = nodemailer.createTransport(emailConfig);
   const mailOptions = {
     from: sender,
     to,
@@ -218,6 +205,17 @@ async function sendTotalsExportEmail(to, csvBuffer, pdfBuffer, csvFilename, pdfF
   console.log('Totals export email sent:', info.response);
 }
 
+async function sendOtpEmail(email, otp) {
+  const mailOptions = {
+    from: sender,
+    to: email,
+    subject: 'ProBooks Accounting — Email Verification Code',
+    text: `Your verification code is: ${otp}\n\nThis code expires in 10 minutes. Do not share it with anyone.\n\nIf you did not request this, please ignore this email.${emailFooter}`,
+  };
+  const info = await transporter.sendMail(mailOptions);
+  console.log('OTP email sent:', info.response);
+}
+
 module.exports = {
   createAndEmail,
   sendStatementByEmail,
@@ -228,4 +226,5 @@ module.exports = {
   sendNewUserAddedEmail,
   sendDonationReceivedEmail,
   sendTotalsExportEmail,
+  sendOtpEmail,
 };

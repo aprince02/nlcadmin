@@ -21,7 +21,7 @@ const currentYear = new Date().getFullYear();
 const csvGenerator = require('./csvGenerator')
 const bankRouter   = require('./routes/bank')
 const tlSync       = require('./truelayer/sync')
-const { sendStatementByEmail, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendNewUserAddedEmail, sendDonationReceivedEmail, sendTotalsExportEmail } = require('./emailer');
+const { sendStatementByEmail, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendNewUserAddedEmail, sendDonationReceivedEmail, sendTotalsExportEmail, sendOtpEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
@@ -439,40 +439,150 @@ app.get("/no-donations/:id", requireLogin, checkApprovedUser, (req, res) => {
     res.render("no-donations", { id: id, loggedInName: loggedInName });
     });
 
+// ── OTP helpers ────────────────────────────────────────────────────
+const OTP_EXPIRY_MS   = 10 * 60 * 1000; // 10 minutes
+const OTP_MAX_ATTEMPTS = 3;
+
+function setOtpSession(session, otp) {
+  session.otp         = otp;
+  session.otpExpiry   = Date.now() + OTP_EXPIRY_MS;
+  session.otpAttempts = 0;
+}
+
+function clearOtpSession(session) {
+  delete session.pendingUser;
+  delete session.otp;
+  delete session.otpExpiry;
+  delete session.otpAttempts;
+}
+// ───────────────────────────────────────────────────────────────────
+
 app.get("/register", (req, res) => res.render("register"));
 
-app.post("/register", (req, res) => {
-    if (!req.body.terms_accepted) {
-        req.flash('error', 'You must agree to the Terms & Conditions to create an account.');
-        return res.redirect("/register");
+app.post("/register", async (req, res) => {
+  if (!req.body.terms_accepted) {
+    req.flash('error', 'You must agree to the Terms & Conditions to create an account.');
+    return res.redirect("/register");
+  }
+
+  const { username, email, password, security_question } = req.body;
+
+  try {
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
+      req.flash('error', 'An account with this email already exists.');
+      return res.redirect("/register");
     }
-    const password = req.body.password;
-    bcrypt.genSalt(saltRounds, function(err, salt) {
-        bcrypt.hash(password, salt, async function(err, hash) {
-            const username = req.body.username;
-            const email    = req.body.email;
-            try {
-                const result = await pool.query(
-                    'INSERT INTO users (name, email, password, role, security_question, approval) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-                    [username, email, hash, 'user', req.body.security_question, 'unapproved']
-                );
-                const userId   = result.rows[0].id;
-                const ipAddress = req.ip || req.headers['x-forwarded-for'] || null;
-                await pool.query(
-                    'INSERT INTO terms_acceptance (user_id, username, email, terms_version, ip_address) VALUES ($1,$2,$3,$4,$5)',
-                    [userId, username, email, '1.0', ipAddress]
-                );
-                req.flash('success', 'New account created successfully.');
-                log('New account created: ' + username);
-                sendNewUserAddedEmail([username, email, hash, 'user', req.body.security_question, 'unapproved']);
-                return res.redirect("/login");
-            } catch (dbErr) {
-                req.flash('error', 'Error registering new account, try again.');
-                log('Error registering new account: ' + dbErr.message);
-                return res.redirect("/register");
-            }
-        });
-    });
+  } catch (err) {
+    req.flash('error', 'Error checking email, please try again.');
+    return res.redirect("/register");
+  }
+
+  let hash;
+  try {
+    const salt = await bcrypt.genSalt(saltRounds);
+    hash = await bcrypt.hash(password, salt);
+  } catch (err) {
+    req.flash('error', 'Error processing registration, please try again.');
+    return res.redirect("/register");
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  req.session.pendingUser = { username, email, hash, security_question };
+  setOtpSession(req.session, otp);
+
+  try {
+    await sendOtpEmail(email, otp);
+  } catch (err) {
+    console.error('Error sending OTP email:', err.message);
+    log('Error sending OTP email: ' + err.message);
+    req.flash('error', 'Could not send verification email. Please try again.');
+    return res.redirect("/register");
+  }
+
+  req.flash('success', `A 6-digit verification code has been sent to ${email}.`);
+  res.redirect("/verify-email");
+});
+
+app.get("/verify-email", (req, res) => {
+  if (!req.session.pendingUser) {
+    return res.redirect("/register");
+  }
+  res.render("verify-email", { email: req.session.pendingUser.email });
+});
+
+app.post("/verify-email", async (req, res) => {
+  const { pendingUser, otp: storedOtp, otpExpiry, otpAttempts } = req.session;
+
+  if (!pendingUser || !storedOtp) {
+    req.flash('error', 'Session expired. Please register again.');
+    return res.redirect("/register");
+  }
+
+  if (Date.now() > otpExpiry) {
+    clearOtpSession(req.session);
+    req.flash('error', 'Verification code has expired. Please register again.');
+    return res.redirect("/register");
+  }
+
+  if (otpAttempts >= OTP_MAX_ATTEMPTS) {
+    clearOtpSession(req.session);
+    req.flash('error', 'Too many failed attempts. Please register again.');
+    return res.redirect("/register");
+  }
+
+  if (req.body.otp !== storedOtp) {
+    req.session.otpAttempts = (otpAttempts || 0) + 1;
+    const remaining = OTP_MAX_ATTEMPTS - req.session.otpAttempts;
+    req.flash('error', `Invalid code. ${remaining} attempt(s) remaining.`);
+    return res.redirect("/verify-email");
+  }
+
+  // OTP correct — create the account
+  const { username, email, hash, security_question } = pendingUser;
+  try {
+    const result = await pool.query(
+      'INSERT INTO users (name, email, password, role, security_question, approval) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [username, email, hash, 'user', security_question, 'unapproved']
+    );
+    const userId    = result.rows[0].id;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || null;
+    await pool.query(
+      'INSERT INTO terms_acceptance (user_id, username, email, terms_version, ip_address) VALUES ($1,$2,$3,$4,$5)',
+      [userId, username, email, '1.0', ipAddress]
+    );
+
+    clearOtpSession(req.session);
+
+    req.flash('success', 'Email verified. Your account has been created and is awaiting approval.');
+    log('New account created (OTP verified): ' + username);
+    sendNewUserAddedEmail([username, email, hash, 'user', security_question, 'unapproved']);
+    return res.redirect("/login");
+  } catch (dbErr) {
+    req.flash('error', 'Error creating account. Please try again.');
+    log('Error creating account after OTP: ' + dbErr.message);
+    return res.redirect("/register");
+  }
+});
+
+app.post("/resend-otp", async (req, res) => {
+  const { pendingUser } = req.session;
+  if (!pendingUser) {
+    req.flash('error', 'Session expired. Please register again.');
+    return res.redirect("/register");
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  setOtpSession(req.session, otp);
+
+  try {
+    await sendOtpEmail(pendingUser.email, otp);
+    req.flash('success', `A new code has been sent to ${pendingUser.email}.`);
+  } catch (err) {
+    console.error('Error resending OTP:', err.message);
+    req.flash('error', 'Could not resend email. Please try again.');
+  }
+  res.redirect("/verify-email");
 });
 
 app.get("/privacy-policy", (_, res) => res.render("privacy-policy"));

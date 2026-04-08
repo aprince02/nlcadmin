@@ -1,0 +1,61 @@
+<%- include("_authHeader") -%>
+
+<main class="pb-auth-page">
+  <div class="pb-auth-wrapper">
+
+    <img src="/css/probooks.png" alt="ProBooks" class="pb-auth-brand-img">
+
+    <div class="pb-auth-card">
+      <h2 class="pb-auth-card-title">Verify Your Email</h2>
+      <p style="font-size:0.85rem;color:var(--pb-gray-400);text-align:center;margin-bottom:1.5rem;">
+        A 6-digit verification code was sent to<br>
+        <strong style="color:var(--pb-gray-200)"><%= email %></strong>.<br>
+        Enter it below to complete your registration.
+      </p>
+
+      <form action="/verify-email" method="post">
+        <div class="pb-auth-field">
+          <label class="pb-auth-label" for="otp">VERIFICATION CODE</label>
+          <div class="pb-auth-input-wrap">
+            <i class="bi bi-shield-lock pb-auth-input-icon"></i>
+            <input
+              required
+              type="text"
+              id="otp"
+              name="otp"
+              class="pb-auth-input"
+              placeholder="000000"
+              maxlength="6"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              pattern="[0-9]{6}"
+              style="letter-spacing:0.35em;font-size:1.3rem;text-align:center;"
+            >
+          </div>
+        </div>
+
+        <button type="submit" class="pb-auth-submit">Verify &rarr;</button>
+      </form>
+
+      <hr class="pb-auth-divider">
+
+      <div class="pb-auth-links pb-auth-links-center">
+        <form action="/resend-otp" method="post" style="display:inline;">
+          <button
+            type="submit"
+            style="background:none;border:none;padding:0;font-size:0.82rem;color:var(--pb-accent);cursor:pointer;text-decoration:underline;"
+          >Didn't receive a code? Resend</button>
+        </form>
+      </div>
+
+      <div class="pb-auth-links pb-auth-links-center" style="margin-top:0.75rem;">
+        <a href="/register">Back to registration</a>
+      </div>
+    </div>
+
+    <p class="pb-auth-footer-text">&copy; <%= new Date().getFullYear() %> ProBooks. Church Financial Administration.</p>
+
+  </div>
+</main>
+
+<%- include("_authFooter") -%>
