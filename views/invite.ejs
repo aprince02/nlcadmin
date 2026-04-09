@@ -1,0 +1,61 @@
+<%- include("_authHeader") -%>
+
+<main class="pb-auth-page">
+  <div class="pb-auth-wrapper">
+
+    <img src="/css/probooks.png" alt="ProBooks" class="pb-auth-brand-img">
+
+    <div class="pb-auth-card">
+      <h2 class="pb-auth-card-title">Accept Invitation</h2>
+      <p style="font-size:0.85rem;color:var(--pb-gray-400);margin-bottom:1.2rem;">
+        You've been invited to join <strong><%= invite.charity_name %></strong> as a <strong><%= invite.role %></strong>.<br>
+        Complete your account setup below.
+      </p>
+
+      <form action="/invite/<%= token %>" method="post">
+        <div class="pb-auth-field">
+          <label class="pb-auth-label">EMAIL ADDRESS</label>
+          <div class="pb-auth-input-wrap">
+            <i class="bi bi-envelope pb-auth-input-icon"></i>
+            <input type="email" class="pb-auth-input" value="<%= invite.email %>" disabled>
+          </div>
+        </div>
+
+        <div class="pb-auth-field">
+          <label class="pb-auth-label" for="username">YOUR NAME</label>
+          <div class="pb-auth-input-wrap">
+            <i class="bi bi-person pb-auth-input-icon"></i>
+            <input required type="text" id="username" name="username" class="pb-auth-input" placeholder="Enter your full name">
+          </div>
+        </div>
+
+        <div class="pb-auth-field">
+          <label class="pb-auth-label" for="password">PASSWORD</label>
+          <div class="pb-auth-input-wrap">
+            <i class="bi bi-lock pb-auth-input-icon"></i>
+            <input required id="password" name="password" type="password" class="pb-auth-input pb-auth-input-pwd" placeholder="••••••••" minlength="8">
+            <button type="button" class="pb-auth-eye" onclick="togglePasswordVisibility()" aria-label="Toggle password visibility">
+              <i class="bi bi-eye" id="eyeIcon"></i>
+            </button>
+          </div>
+          <div style="font-size:0.7rem;color:var(--pb-gray-400);margin-top:0.3rem;">Must be at least 8 characters.</div>
+        </div>
+
+        <div class="pb-auth-field">
+          <label class="pb-auth-label" for="security_question">NAME OF FIRST SCHOOL</label>
+          <div class="pb-auth-input-wrap">
+            <i class="bi bi-shield-check pb-auth-input-icon"></i>
+            <input required type="text" id="security_question" name="security_question" class="pb-auth-input" placeholder="Used for password recovery">
+          </div>
+        </div>
+
+        <button type="submit" class="pb-auth-submit">Create Account &rarr;</button>
+      </form>
+    </div>
+
+    <p class="pb-auth-footer-text">&copy; <%= new Date().getFullYear() %> ProBooks. Church Financial Administration.</p>
+
+  </div>
+</main>
+
+<%- include("_authFooter") -%>

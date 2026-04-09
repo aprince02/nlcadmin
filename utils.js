@@ -21,12 +21,14 @@ function formatted_date() {
     return today;
 }
 
-function log(update) {
+function log(update, charityId) {
     const computerName = os.hostname();
-    pool.query(
-        'INSERT INTO console_logs (timestamp, "user", log_message) VALUES (NOW(), $1, $2)',
-        [computerName, update]
-    ).catch(err => console.error(err.message));
+    // charityId is optional — logs without a tenant context (e.g. startup errors) are allowed
+    const sql = charityId
+      ? 'INSERT INTO console_logs (timestamp, "user", log_message, charity_id) VALUES (NOW(), $1, $2, $3)'
+      : 'INSERT INTO console_logs (timestamp, "user", log_message) VALUES (NOW(), $1, $2)';
+    const params = charityId ? [computerName, update, charityId] : [computerName, update];
+    pool.query(sql, params).catch(err => console.error(err.message));
 }
 
 function readCSVAndProcess(csvFilePath, req, res, next) {
@@ -73,8 +75,8 @@ function readCSVAndProcess(csvFilePath, req, res, next) {
 
         const sql = `
             INSERT INTO transactions (
-                date, transaction_type, type, description, paid_out, paid_in, balance, notes
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                date, transaction_type, type, description, paid_out, paid_in, balance, notes, charity_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         `;
 
         const params = [
@@ -85,12 +87,13 @@ function readCSVAndProcess(csvFilePath, req, res, next) {
             row['Paid Out'],
             row['Paid In'],
             row.Balance,
-            null
+            null,
+            req.charityId
         ];
 
         pool.query(sql, params)
-            .then(() => log("Row inserted successfully: " + row.Description))
-            .catch(err => log("Error inserting row into the database: " + row.Description + " " + err.message));
+            .then(() => log("Row inserted successfully: " + row.Description, req.charityId))
+            .catch(err => log("Error inserting row into the database: " + row.Description + " " + err.message, req.charityId));
     });
 
     fs.unlinkSync(csvFilePath);
@@ -117,6 +120,21 @@ function readCSVAndProcess(csvFilePath, req, res, next) {
         res.redirect('/login');
     }}
 
+/**
+ * Reads charityId from the session and attaches it to req.charityId.
+ * Must be used after requireLogin on all routes that access tenant data.
+ * Never trusts charity_id from the request body/query — always from session.
+ */
+function injectCharityId(req, res, next) {
+  const charityId = req.session.charityId;
+  if (!charityId) {
+    req.flash('error', 'Session error. Please log in again.');
+    return res.redirect('/login');
+  }
+  req.charityId = charityId;
+  next();
+}
+
 function checkUserRole(req, res, next) {
     if (req.session.role === 'admin') {
         next();
@@ -132,6 +150,14 @@ function checkSuperAdmin(req, res, next) {
       next();
   } else {
       req.flash('error', 'Only Super Admins are allowed to use this functionality.');
+      res.redirect('/admin');
+  }};
+
+function checkAdmin(req, res, next) {
+  if (req.session.role === 'admin' || req.session.role === 'super admin') {
+      next();
+  } else {
+      req.flash('error', 'Only Admins are allowed to use this functionality.');
       res.redirect('/admin');
   }};
 
@@ -182,9 +208,11 @@ module.exports = {
     readCSVAndProcess,
     convertDateFormat,
     requireLogin,
+    injectCharityId,
     checkUserRole,
     exportDonationsCsv,
     checkSuperAdmin,
+    checkAdmin,
     checkApprovedUser
 }
 

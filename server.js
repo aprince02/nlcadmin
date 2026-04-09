@@ -15,13 +15,15 @@ const dayjs = require('dayjs');
 const path = require('path');
 const multer = require('multer');
 const schedule = require('node-schedule');
-const { requireLogin, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser } = require('./utils');
+const { requireLogin, injectCharityId, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser } = require('./utils');
 const dbHelper = require('./dbHelper')
 const currentYear = new Date().getFullYear();
 const csvGenerator = require('./csvGenerator')
-const bankRouter   = require('./routes/bank')
-const tlSync       = require('./truelayer/sync')
-const { sendStatementByEmail, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendNewUserAddedEmail, sendDonationReceivedEmail, sendTotalsExportEmail, sendOtpEmail } = require('./emailer');
+const bankRouter        = require('./routes/bank')
+const invitesRouter     = require('./routes/invites')
+const superAdminRouter  = require('./routes/superadmin')
+const tlSync            = require('./truelayer/sync')
+const { sendStatementByEmail, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendDonationReceivedEmail, sendTotalsExportEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
@@ -38,15 +40,23 @@ app.use(session({
 app.use(flash());
 app.use(function(req, res, next){
     res.locals.message = req.flash();
-    dbHelper.getDistinctYears().then(years => {
-      res.locals.availableYears = years;
-      next();
-    }).catch(() => {
+    const charityId = req.session?.charityId;
+    if (charityId) {
+      dbHelper.getDistinctYears(charityId).then(years => {
+        res.locals.availableYears = years;
+        next();
+      }).catch(() => {
+        res.locals.availableYears = [];
+        next();
+      });
+    } else {
       res.locals.availableYears = [];
       next();
-    });
+    }
 });
 app.use(bankRouter);
+app.use(invitesRouter);
+app.use(superAdminRouter);
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
@@ -60,23 +70,23 @@ app.listen(8000, () => {
   console.log("Server running on port: %PORT%".replace("%PORT%",8000))
 });
 
-  app.get("/admin", requireLogin, checkApprovedUser, async (req, res) => {
+  app.get("/admin", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
     try {
       const [transactionTypes, donationTypes] = await Promise.all([
-        dbHelper.getAllTransactionTypes(),
-        dbHelper.getAllDonationTypes(),
+        dbHelper.getAllTransactionTypes(req.charityId),
+        dbHelper.getAllDonationTypes(req.charityId),
       ]);
-      res.render("admin", { loggedInName, transactionTypes, donationTypes });
+      res.render("admin", { loggedInName, transactionTypes, donationTypes, isSuperAdmin: req.session.role === 'super admin' });
     } catch (err) {
       console.error('Error loading admin page:', err.message);
-      res.render("admin", { loggedInName, transactionTypes: [], donationTypes: [] });
+      res.render("admin", { loggedInName, transactionTypes: [], donationTypes: [], isSuperAdmin: req.session.role === 'super admin' });
     }
   });
 
   const membersPerPage = 15;
 
-  app.get("/claimants/:page", requireLogin, checkApprovedUser, async (req, res) => {
+  app.get("/claimants/:page", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
       try {
           const currentPage = parseInt(req.params.page) || 1;
@@ -84,11 +94,11 @@ app.listen(8000, () => {
           const search = (req.query.search || '').trim();
           let rows, totalCount;
           if (search) {
-            rows = await dbHelper.searchMembers(search, startIndex, membersPerPage);
-            totalCount = await dbHelper.searchMembersCount(search);
+            rows = await dbHelper.searchMembers(search, startIndex, membersPerPage, req.charityId);
+            totalCount = await dbHelper.searchMembersCount(search, req.charityId);
           } else {
-            rows = await dbHelper.getMembersPaginated(startIndex, membersPerPage);
-            totalCount = await dbHelper.getMembersCount();
+            rows = await dbHelper.getMembersPaginated(startIndex, membersPerPage, req.charityId);
+            totalCount = await dbHelper.getMembersCount(req.charityId);
           }
           const totalPages = Math.ceil(totalCount / membersPerPage);
           res.render("claimants", { model: rows, loggedInName: loggedInName, currentPage: currentPage, totalPages: totalPages, search: search });
@@ -99,7 +109,7 @@ app.listen(8000, () => {
       }
   });
 
-app.get("/yearly-transactions/:year/:page", requireLogin, checkApprovedUser, async (req, res) => {
+app.get("/yearly-transactions/:year/:page", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const year = req.params.year;
   const rowsPerPage = 100;
   let currentPage = parseInt(req.params.page) || 1;
@@ -110,10 +120,10 @@ app.get("/yearly-transactions/:year/:page", requireLogin, checkApprovedUser, asy
   const loggedInName = req.session.name;
   try {
     const [rowsResult, typesResult, countResult, donationTypesResult] = await Promise.all([
-      pool.query('SELECT * FROM transactions WHERE date >= $1 AND date <= $2 ORDER BY date DESC LIMIT $3 OFFSET $4', [startDate, endDate, rowsPerPage, startIndex]),
-      pool.query('SELECT type FROM transaction_types'),
-      pool.query('SELECT COUNT(*) AS totalrows FROM transactions WHERE date >= $1 AND date <= $2', [startDate, endDate]),
-      pool.query('SELECT type FROM donation_types ORDER BY type ASC'),
+      pool.query('SELECT * FROM transactions WHERE date >= $1 AND date <= $2 AND charity_id = $3 ORDER BY date DESC LIMIT $4 OFFSET $5', [startDate, endDate, req.charityId, rowsPerPage, startIndex]),
+      pool.query('SELECT type FROM transaction_types WHERE charity_id = $1', [req.charityId]),
+      pool.query('SELECT COUNT(*) AS totalrows FROM transactions WHERE date >= $1 AND date <= $2 AND charity_id = $3', [startDate, endDate, req.charityId]),
+      pool.query('SELECT type FROM donation_types WHERE charity_id = $1 ORDER BY type ASC', [req.charityId]),
     ]);
     const totalRows = parseInt(countResult.rows[0].totalrows, 10);
     const totalPages = Math.ceil(totalRows / rowsPerPage);
@@ -133,32 +143,33 @@ app.get("/yearly-transactions/:year/:page", requireLogin, checkApprovedUser, asy
   }
 });
 
-app.get("/edit/:id", async (req, res) => {
+app.get("/edit/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
     try {
       const loggedInName = req.session.name;
       const id = req.params.id;
-      const row = await dbHelper.getMemberWithId(id);
+      const row = await dbHelper.getMemberWithId(id, req.charityId);
+      if (!row) return res.status(404).redirect("/claimants/1");
       res.render("edit", {member: row, loggedInName: loggedInName});
     } catch (error) {
       console.error('Error rendering edit member page:', error);
-      log(loggedInName + ': Error rendering edit member page:' + error)
-      return res.redirect("/claimants/:page")
+      log('Error rendering edit member page:' + error, req.charityId);
+      return res.redirect("/claimants/1")
     }});
 
-app.post("/edit/:id", async (req, res) => {
+app.post("/edit/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
     const id = req.params.id;
-    const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
-    const sql = "UPDATE members SET first_name = $1, surname = $2, banking_name = $3, date_of_birth = $4, sex = $5, email = $6, phone_number = $7, address_line_1 = $8, address_line_2 = $9, city = $10, postcode = $11, baptised = $12, baptised_date = $13, holy_spirit = $14, native_church = $15, children_details = $16, emergency_contact_1 = $17, emergency_contact_1_name = $18, emergency_contact_2 = $19, emergency_contact_2_name = $20, occupation_studies = $21, title = $22, house_number = $23, spouse_name = $24 WHERE id = $25";
+    const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id, req.charityId];
+    const sql = "UPDATE members SET first_name = $1, surname = $2, banking_name = $3, date_of_birth = $4, sex = $5, email = $6, phone_number = $7, address_line_1 = $8, address_line_2 = $9, city = $10, postcode = $11, baptised = $12, baptised_date = $13, holy_spirit = $14, native_church = $15, children_details = $16, emergency_contact_1 = $17, emergency_contact_1_name = $18, emergency_contact_2 = $19, emergency_contact_2_name = $20, occupation_studies = $21, title = $22, house_number = $23, spouse_name = $24 WHERE id = $25 AND charity_id = $26";
     try {
         await pool.query(sql, claimant);
         req.flash('success', 'Member details updated successfully.');
         console.log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name);
-        log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name);
-        res.redirect("/claimants/:page");
+        log("Updated details for member with ID: " + id + " and first name: " + req.body.first_name, req.charityId);
+        res.redirect("/claimants/1");
     } catch (err) {
         console.error(err.message);
-        log(err.message);
-        res.redirect("/claimants/:page");
+        log(err.message, req.charityId);
+        res.redirect("/claimants/1");
     }
     });
 
@@ -195,9 +206,9 @@ app.get("/create", requireLogin, checkApprovedUser, (req, res) => {
     res.render("create", { member: {}, bank_account: {} , loggedInName: loggedInName });
   });
 
-app.post("/create", requireLogin, checkApprovedUser, async (req, res) => {
+app.post("/create", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   try {
-    await dbHelper.addNewMember(req);
+    await dbHelper.addNewMember(req, req.charityId);
     req.flash('success', 'New member added successfully.');
     console.log("Added new member with first name: " + req.body.first_name + " and last name: " + req.body.surname)
     log("Added new member with first name: " + req.body.first_name + " and last name: " + req.body.surname)
@@ -209,42 +220,43 @@ app.post("/create", requireLogin, checkApprovedUser, async (req, res) => {
     res.redirect("/claimants/:page");
   }});
 
-app.get("/delete/:id", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+app.get("/delete/:id", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
     try {
       const loggedInName = req.session.name;
       const id = req.params.id;
-      const row = await dbHelper.getMemberWithId(id);
+      const row = await dbHelper.getMemberWithId(id, req.charityId);
+      if (!row) return res.status(404).redirect("/claimants/1");
       res.render("delete", {member: row, loggedInName: loggedInName});
     } catch (error) {
       console.error('Error rendering delete member page:', error);
-      return res.redirect("/claimants/:page")
+      return res.redirect("/claimants/1")
     }});
 
-app.post("/delete/:id", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+app.post("/delete/:id", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     try {
-        await pool.query("DELETE FROM members WHERE id = $1", [id]);
+        await pool.query("DELETE FROM members WHERE id = $1 AND charity_id = $2", [id, req.charityId]);
         req.flash('success', 'Member deleted successfully.');
         console.log("Deleted member with id: " + id);
-        log(loggedInName + ": Deleted member with id: " + id);
-        res.redirect("/claimants/:page");
+        log(loggedInName + ": Deleted member with id: " + id, req.charityId);
+        res.redirect("/claimants/1");
     } catch (err) {
         console.error(err.message);
-        res.redirect("/claimants/:page");
+        res.redirect("/claimants/1");
     }
     });
 
-    app.get("/all-donations/:page", requireLogin, checkApprovedUser, async (req, res) => {
+    app.get("/all-donations/:page", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
       const donationsPerPage = 100;
         const loggedInName = req.session.name;
         const currentPage = parseInt(req.params.page) || 1;
         const startIndex = (currentPage - 1) * donationsPerPage;
         try {
             const [rowsResult, countResult, dtResult] = await Promise.all([
-                pool.query('SELECT * FROM donations ORDER BY date DESC LIMIT $1 OFFSET $2', [donationsPerPage, startIndex]),
-                pool.query('SELECT COUNT(*) AS totalcount FROM donations'),
-                pool.query('SELECT type FROM donation_types ORDER BY type ASC'),
+                pool.query('SELECT * FROM donations WHERE charity_id = $1 ORDER BY date DESC LIMIT $2 OFFSET $3', [req.charityId, donationsPerPage, startIndex]),
+                pool.query('SELECT COUNT(*) AS totalcount FROM donations WHERE charity_id = $1', [req.charityId]),
+                pool.query('SELECT type FROM donation_types WHERE charity_id = $1 ORDER BY type ASC', [req.charityId]),
             ]);
             const totalDonations = parseInt(countResult.rows[0].totalcount, 10);
             const totalPages = Math.ceil(totalDonations / donationsPerPage);
@@ -257,10 +269,10 @@ app.post("/delete/:id", requireLogin, checkUserRole, checkApprovedUser, async (r
         }
     });
 
-app.get("/select-giver", requireLogin, checkApprovedUser, async (req, res) => {
+app.get("/select-giver", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   try {
     const loggedInName = req.session.name;
-    const rows = await dbHelper.getAllActiveMembers();
+    const rows = await dbHelper.getAllActiveMembers(req.charityId);
     const autoclose = req.query.autoclose === '1' ? '1' : '';
     res.render("select-giver", {row: rows, loggedInName: loggedInName, autoclose});
   } catch (error) {
@@ -295,21 +307,22 @@ app.get("/select-giver", requireLogin, checkApprovedUser, async (req, res) => {
   return null;
 }
 
-app.get("/donation-added", requireLogin, checkApprovedUser, (req, res) => {
+app.get("/donation-added", requireLogin, injectCharityId, checkApprovedUser, (req, res) => {
   const loggedInName = req.session.name;
   const autoclose = req.query.autoclose === '1';
   res.render("donation-added", { loggedInName, autoclose });
 });
 
-app.get("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
+app.get("/add-donation/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   try {
     const loggedInName = req.session.name;
     const id = req.params.id;
     const donationDate = req.session.date;
     const donationDescription = req.session.description;
     const donationAmount = req.session.incoming;
-    const row = await dbHelper.getMemberWithId(id);
-    const types = await dbHelper.getAllDonationTypes();
+    const row = await dbHelper.getMemberWithId(id, req.charityId);
+    if (!row) return res.status(404).redirect("/claimants/1");
+    const types = await dbHelper.getAllDonationTypes(req.charityId);
 
     const preselectedFund = guessFundFromDescription(donationDescription, types);
     console.log("Preselected fund based on description: " + preselectedFund);
@@ -332,12 +345,13 @@ app.get("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) =
 });
 
 
-app.get("/edit-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
+app.get("/edit-donation/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   try {
     const loggedInName = req.session.name;
     const id = req.params.id;
-    const row = await dbHelper.getDonationWithId(id);
-    const types = await dbHelper.getAllDonationTypes();
+    const row = await dbHelper.getDonationWithId(id, req.charityId);
+    if (!row) return res.status(404).redirect("/all-donations/1");
+    const types = await dbHelper.getAllDonationTypes(req.charityId);
     res.render("edit-donation", { row: row, loggedInName: loggedInName,  types: types});
   } catch (error) {
     console.error('Error rendering edit donation page:', error);
@@ -345,13 +359,13 @@ app.get("/edit-donation/:id", requireLogin, checkApprovedUser, async (req, res) 
     return res.redirect("/claimants/:page")
   }});
 
-app.post("/edit-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
+app.post("/edit-donation/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     try {
         await pool.query(
-            'UPDATE donations SET date = $1, notes = $2, fund = $3, amount = $4, method = $5 WHERE id = $6',
-            [req.body.date, req.body.notes, req.body.fund, req.body.amount, req.body.method, id]
+            'UPDATE donations SET date = $1, notes = $2, fund = $3, amount = $4, method = $5 WHERE id = $6 AND charity_id = $7',
+            [req.body.date, req.body.notes, req.body.fund, req.body.amount, req.body.method, id, req.charityId]
         );
         req.flash('success', 'Donation edited successfully!');
         console.log("Edited donation with id: " + id);
@@ -364,11 +378,11 @@ app.post("/edit-donation/:id", requireLogin, checkApprovedUser, async (req, res)
     }
     });
 
-    app.get("/delete-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
+    app.get("/delete-donation/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
       const id = req.params.id;
       const loggedInName = req.session.name;
       try {
-          await pool.query('DELETE FROM donations WHERE id = $1', [id]);
+          await pool.query('DELETE FROM donations WHERE id = $1 AND charity_id = $2', [id, req.charityId]);
           req.flash('success', 'Donation deleted successfully!');
           console.log("Deleted donation with id: " + id);
           log(loggedInName + ': deleted donation with id: ' + id);
@@ -381,21 +395,21 @@ app.post("/edit-donation/:id", requireLogin, checkApprovedUser, async (req, res)
       }
       });
 
-      app.post("/add-donation/:id", requireLogin, checkApprovedUser, async (req, res) => {
+      app.post("/add-donation/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
         const id = req.params.id;
         const loggedInName = req.session.name;
         try {
             await pool.query(
-                'INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-                [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, 'Bank', 'Unclaimed', req.body.notes]
+                'INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes, charity_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+                [id, req.body.first_name, req.body.surname, req.body.amount, req.body.date, req.body.fund, 'Bank', 'Unclaimed', req.body.notes, req.charityId]
             );
             req.flash('success', 'Donation added successfully.');
             console.log("Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname);
             log(loggedInName + ": Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname);
             try {
-                const member = await dbHelper.getMemberWithId(id);
+                const member = await dbHelper.getMemberWithId(id, req.charityId);
                 await sendDonationReceivedEmail(member, req.body);
-                log(loggedInName + ": Donation added email sent for: " + member.first_name);
+                log(loggedInName + ": Donation added email sent for: " + member.first_name, req.charityId);
             } catch (emailError) {
                 console.error('Error sending donation added email:', emailError.message);
                 log(loggedInName + ": Error sending donation added email: " + emailError.message);
@@ -410,11 +424,11 @@ app.post("/edit-donation/:id", requireLogin, checkApprovedUser, async (req, res)
         }
     });
 
-app.get("/donations/:id", requireLogin, checkApprovedUser, async (req, res) => {
+app.get("/donations/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     try {
-        const result = await pool.query('SELECT * FROM donations WHERE member_id = $1 ORDER BY date DESC', [id]);
+        const result = await pool.query('SELECT * FROM donations WHERE member_id = $1 AND charity_id = $2 ORDER BY date DESC', [id, req.charityId]);
         const rows = result.rows;
         if (!rows || rows.length === 0) {
             return res.redirect("/no-donations/" + encodeURI(id));
@@ -423,7 +437,7 @@ app.get("/donations/:id", requireLogin, checkApprovedUser, async (req, res) => {
         const surname = rows[0].surname || "";
         let totalAmount = 0;
         rows.forEach((row) => { totalAmount += parseFloat(row.amount) || 0; });
-        const dtResult = await pool.query('SELECT type FROM donation_types ORDER BY type ASC');
+        const dtResult = await pool.query('SELECT type FROM donation_types WHERE charity_id = $1 ORDER BY type ASC', [req.charityId]);
         const donationTypes = dtResult.rows.map(r => r.type);
         res.render("donations", { model: rows, id, loggedInName, firstName, surname, totalAmount, donationTypes });
     } catch (err) {
@@ -433,162 +447,19 @@ app.get("/donations/:id", requireLogin, checkApprovedUser, async (req, res) => {
     }
     });
 
-app.get("/no-donations/:id", requireLogin, checkApprovedUser, (req, res) => {
+app.get("/no-donations/:id", requireLogin, injectCharityId, checkApprovedUser, (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
     res.render("no-donations", { id: id, loggedInName: loggedInName });
     });
 
-// ── OTP helpers ────────────────────────────────────────────────────
-const OTP_EXPIRY_MS   = 10 * 60 * 1000; // 10 minutes
-const OTP_MAX_ATTEMPTS = 3;
 
-function setOtpSession(session, otp) {
-  session.otp         = otp;
-  session.otpExpiry   = Date.now() + OTP_EXPIRY_MS;
-  session.otpAttempts = 0;
-}
-
-function clearOtpSession(session) {
-  delete session.pendingUser;
-  delete session.otp;
-  delete session.otpExpiry;
-  delete session.otpAttempts;
-}
-// ───────────────────────────────────────────────────────────────────
-
-app.get("/register", (req, res) => res.render("register"));
-
-app.post("/register", async (req, res) => {
-  if (!req.body.terms_accepted) {
-    req.flash('error', 'You must agree to the Terms & Conditions to create an account.');
-    return res.redirect("/register");
-  }
-
-  const { username, email, password, security_question } = req.body;
-
-  try {
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    if (existing.rows.length > 0) {
-      req.flash('error', 'An account with this email already exists.');
-      return res.redirect("/register");
-    }
-  } catch (err) {
-    req.flash('error', 'Error checking email, please try again.');
-    return res.redirect("/register");
-  }
-
-  let hash;
-  try {
-    const salt = await bcrypt.genSalt(saltRounds);
-    hash = await bcrypt.hash(password, salt);
-  } catch (err) {
-    req.flash('error', 'Error processing registration, please try again.');
-    return res.redirect("/register");
-  }
-
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  req.session.pendingUser = { username, email, hash, security_question };
-  setOtpSession(req.session, otp);
-
-  try {
-    await sendOtpEmail(email, otp);
-  } catch (err) {
-    console.error('Error sending OTP email:', err.message);
-    log('Error sending OTP email: ' + err.message);
-    req.flash('error', 'Could not send verification email. Please try again.');
-    return res.redirect("/register");
-  }
-
-  req.flash('success', `A 6-digit verification code has been sent to ${email}.`);
-  res.redirect("/verify-email");
-});
-
-app.get("/verify-email", (req, res) => {
-  if (!req.session.pendingUser) {
-    return res.redirect("/register");
-  }
-  res.render("verify-email", { email: req.session.pendingUser.email });
-});
-
-app.post("/verify-email", async (req, res) => {
-  const { pendingUser, otp: storedOtp, otpExpiry, otpAttempts } = req.session;
-
-  if (!pendingUser || !storedOtp) {
-    req.flash('error', 'Session expired. Please register again.');
-    return res.redirect("/register");
-  }
-
-  if (Date.now() > otpExpiry) {
-    clearOtpSession(req.session);
-    req.flash('error', 'Verification code has expired. Please register again.');
-    return res.redirect("/register");
-  }
-
-  if (otpAttempts >= OTP_MAX_ATTEMPTS) {
-    clearOtpSession(req.session);
-    req.flash('error', 'Too many failed attempts. Please register again.');
-    return res.redirect("/register");
-  }
-
-  if (req.body.otp !== storedOtp) {
-    req.session.otpAttempts = (otpAttempts || 0) + 1;
-    const remaining = OTP_MAX_ATTEMPTS - req.session.otpAttempts;
-    req.flash('error', `Invalid code. ${remaining} attempt(s) remaining.`);
-    return res.redirect("/verify-email");
-  }
-
-  // OTP correct — create the account
-  const { username, email, hash, security_question } = pendingUser;
-  try {
-    const result = await pool.query(
-      'INSERT INTO users (name, email, password, role, security_question, approval) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-      [username, email, hash, 'user', security_question, 'unapproved']
-    );
-    const userId    = result.rows[0].id;
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] || null;
-    await pool.query(
-      'INSERT INTO terms_acceptance (user_id, username, email, terms_version, ip_address) VALUES ($1,$2,$3,$4,$5)',
-      [userId, username, email, '1.0', ipAddress]
-    );
-
-    clearOtpSession(req.session);
-
-    req.flash('success', 'Email verified. Your account has been created and is awaiting approval.');
-    log('New account created (OTP verified): ' + username);
-    sendNewUserAddedEmail([username, email, hash, 'user', security_question, 'unapproved']);
-    return res.redirect("/login");
-  } catch (dbErr) {
-    req.flash('error', 'Error creating account. Please try again.');
-    log('Error creating account after OTP: ' + dbErr.message);
-    return res.redirect("/register");
-  }
-});
-
-app.post("/resend-otp", async (req, res) => {
-  const { pendingUser } = req.session;
-  if (!pendingUser) {
-    req.flash('error', 'Session expired. Please register again.');
-    return res.redirect("/register");
-  }
-
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  setOtpSession(req.session, otp);
-
-  try {
-    await sendOtpEmail(pendingUser.email, otp);
-    req.flash('success', `A new code has been sent to ${pendingUser.email}.`);
-  } catch (err) {
-    console.error('Error resending OTP:', err.message);
-    req.flash('error', 'Could not resend email. Please try again.');
-  }
-  res.redirect("/verify-email");
-});
+app.get("/register", (req, res) => res.redirect("/login"));
 
 app.get("/privacy-policy", (_, res) => res.render("privacy-policy"));
 app.get("/terms-and-conditions", (_, res) => res.render("terms-and-conditions"));
 
-    app.post("/save-transaction/:id", requireLogin, checkApprovedUser, async (req, res) => {
+    app.post("/save-transaction/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
       const id = req.params.id;
       const type = req.body.type;
       const description = req.body.description;
@@ -605,18 +476,18 @@ app.get("/terms-and-conditions", (_, res) => res.render("terms-and-conditions"))
       });
 
       try {
-          await pool.query('UPDATE transactions SET type = $1, description = $2 WHERE id = $3', [type, description, id]);
+          await pool.query('UPDATE transactions SET type = $1, description = $2 WHERE id = $3 AND charity_id = $4', [type, description, id, req.charityId]);
           console.log(`Transaction with ID: ${id} saved with type: ${type}`);
-          log(`${loggedInName}: Transaction with ID: ${id} saved with type: ${type}`);
+          log(`${loggedInName}: Transaction with ID: ${id} saved with type: ${type}`, req.charityId);
           req.flash('success', 'Transaction type saved successfully.');
 
           if (type === "Offering" || type === "Sunday School Offering") {
               try {
                   await pool.query(`
-                      INSERT INTO offering_claim (transaction_id, type, date, description, amount, claimed)
-                      VALUES ($1, $2, $3, $4, $5, $6)
+                      INSERT INTO offering_claim (transaction_id, type, date, description, amount, claimed, charity_id)
+                      VALUES ($1, $2, $3, $4, $5, $6, $7)
                       ON CONFLICT (transaction_id) DO UPDATE SET date = EXCLUDED.date, type = EXCLUDED.type, amount = EXCLUDED.amount
-                  `, [id, type, date, description, paid_in, 'Unclaimed']);
+                  `, [id, type, date, description, paid_in, 'Unclaimed', req.charityId]);
                   console.log(`Transaction ID ${id} added to offering_claim table.`);
                   log(`${loggedInName}: Transaction ID ${id} added to offering_claim table.`);
               } catch (offerErr) {
@@ -653,10 +524,11 @@ app.post("/login", async (req, res) => {
             if (err) {
                 console.error(err.message);
             } else if (match === true) {
-                req.session.email = email;
-                req.session.name = row.name;
-                req.session.role = row.role;
-                req.session.approval = row.approval;
+                req.session.email     = email;
+                req.session.name      = row.name;
+                req.session.role      = row.role;
+                req.session.approval  = row.approval;
+                req.session.charityId = row.charity_id;
                 console.log("User " + req.session.name + " logged in");
                 const fingerprintData = req.fingerprint;
                 console.log(`Logged in user device fingerprint: ${JSON.stringify(fingerprintData)}`);
@@ -722,10 +594,10 @@ app.post("/forgot-password", async (req, res) => {
   }
 });
 
-app.get('/export-transactions', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
+app.get('/export-transactions', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
   try {
-    const result = await pool.query('SELECT * FROM transactions');
+    const result = await pool.query('SELECT * FROM transactions WHERE charity_id = $1', [req.charityId]);
     const rows = result.rows;
     const csvWrite = csvWriter({
       path: 'transactions.csv',
@@ -748,15 +620,15 @@ app.get('/export-transactions', requireLogin, checkUserRole, checkApprovedUser, 
   }
 });
 
-app.post('/export-donations', requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+app.post('/export-donations', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
     const { fund, start_date, end_date } = req.body;
 
-    // Build query with optional filters
-    let query = 'SELECT * FROM donations WHERE 1=1';
-    const params = [];
-    let idx = 1;
+    // Build query with optional filters — always scoped to charity
+    let query = 'SELECT * FROM donations WHERE charity_id = $1';
+    const params = [req.charityId];
+    let idx = 2;
     if (start_date)             { query += ` AND date >= $${idx++}`; params.push(start_date); }
     if (end_date)               { query += ` AND date <= $${idx++}`; params.push(end_date); }
     if (fund && fund !== 'all') { query += ` AND fund = $${idx++}`;  params.push(fund); }
@@ -781,7 +653,7 @@ app.post('/export-donations', requireLogin, checkUserRole, checkApprovedUser, as
 });
 
 
-  app.get('/db-backup', requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+  app.get('/db-backup', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
     try {
       // Discover all tables in the public schema
@@ -830,18 +702,28 @@ app.post('/export-donations', requireLogin, checkUserRole, checkApprovedUser, as
     }
   });
 
-// TrueLayer bank sync — runs every 6 hours
+// TrueLayer bank sync — runs every 6 hours for all active charities
 schedule.scheduleJob('0 */6 * * *', async () => {
   try {
-    await tlSync.syncAll();
+    const pool = require('./database');
+    const { rows: charities } = await pool.query(
+      `SELECT id FROM charities WHERE is_active = 1`
+    );
+    for (const charity of charities) {
+      try {
+        await tlSync.syncAll(charity.id);
+      } catch (err) {
+        console.error(`[TrueLayer] Scheduled sync failed for charity ${charity.id}:`, err.message);
+        log(`TrueLayer scheduled sync failed for charity ${charity.id}: ` + err.message);
+      }
+    }
   } catch (err) {
-    console.error('[TrueLayer] Scheduled sync failed:', err.message);
-    log('TrueLayer scheduled sync failed: ' + err.message);
+    console.error('[TrueLayer] Scheduled sync: failed to fetch charities:', err.message);
   }
 });
 
 
-app.post("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
+app.post("/export-totals", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
   const { start_date, end_date, email } = req.body;
 
@@ -851,11 +733,11 @@ app.post("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async
 
   try {
     const result = await pool.query(
-      'SELECT * FROM transactions WHERE date >= $1 AND date <= $2 ORDER BY type',
-      [start_date, end_date]
+      'SELECT * FROM transactions WHERE date >= $1 AND date <= $2 AND charity_id = $3 ORDER BY type',
+      [start_date, end_date, req.charityId]
     );
     const rows = result.rows;
-    const types = await dbHelper.getAllTransactionTypes();
+    const types = await dbHelper.getAllTransactionTypes(req.charityId);
 
     const totalPaidInByType  = {};
     const totalPaidOutByType = {};
@@ -890,14 +772,14 @@ app.post("/export-totals", requireLogin, checkUserRole, checkApprovedUser, async
   }
 });
 
-app.get('/export-giftaid-claims', requireLogin, checkUserRole, checkApprovedUser, async function(req, res) {
+app.get('/export-giftaid-claims', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
   try {
     await csvGenerator.exportGiftAidClaimCsv(req, res);
     await createAndEmail('giftaid_claim', 'Gift Aid Claim Export', 'gift aid claim export csv file');
     console.log('Gift Aid Claim sent via email!');
-    log(loggedInName + ': Gift Aid Claim sent via email')
-    await pool.query(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed'`);
+    log(loggedInName + ': Gift Aid Claim sent via email', req.charityId)
+    await pool.query(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed' AND charity_id = $1`, [req.charityId]);
     console.log("Gift aid status updated successfully.");
     log(loggedInName + ': Gift aid status updated successfully');
     req.flash('success', 'Gift aid claims exported and updated successfully.');
@@ -918,16 +800,17 @@ app.get('/logout', (req, res) => {
         res.redirect('/');
       });
 
-      app.get("/generate-donor-pdf/:id", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+      app.get("/generate-donor-pdf/:id", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
         const loggedInName = req.session.name;
         try {
           const id = req.params.id;
-          const donor = await dbHelper.getMemberWithId(id);
-          const titheSql = "SELECT * FROM donations WHERE member_id = $1 AND date BETWEEN '2024-01-01' AND '2024-12-31' AND fund = 'Tithe' ORDER BY date ASC";
-          const donationSql = "SELECT * FROM donations WHERE member_id = $1 AND date BETWEEN '2024-01-01' AND '2024-12-31' AND fund != 'Tithe' ORDER BY date ASC";
+          const donor = await dbHelper.getMemberWithId(id, req.charityId);
+          if (!donor) return res.status(404).redirect("/claimants/1");
+          const titheSql = "SELECT * FROM donations WHERE member_id = $1 AND charity_id = $2 AND date BETWEEN '2024-01-01' AND '2024-12-31' AND fund = 'Tithe' ORDER BY date ASC";
+          const donationSql = "SELECT * FROM donations WHERE member_id = $1 AND charity_id = $2 AND date BETWEEN '2024-01-01' AND '2024-12-31' AND fund != 'Tithe' ORDER BY date ASC";
           Promise.all([
-            pool.query(titheSql, [id]).then(r => r.rows),
-            pool.query(donationSql, [id]).then(r => r.rows),
+            pool.query(titheSql, [id, req.charityId]).then(r => r.rows),
+            pool.query(donationSql, [id, req.charityId]).then(r => r.rows),
           ])
             .then(async ([tithe, donations]) => {
               try {
@@ -956,15 +839,15 @@ app.get('/logout', (req, res) => {
           return res.redirect("/claimants/:page")
         }});
 
-        app.post("/generate-transaction-pdf", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+        app.post("/generate-transaction-pdf", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
           const loggedInName = req.session.name;
           try {
             const { start_date, end_date, export: exportType } = req.body;
             let transactions;
             if (exportType === 'everything') {
-              transactions = await dbHelper.getAllTransactionsForPeriod(start_date, end_date);
+              transactions = await dbHelper.getAllTransactionsForPeriod(start_date, end_date, req.charityId);
             } else {
-              transactions = await dbHelper.getAllTransactionsWithOnly(start_date, end_date, exportType);
+              transactions = await dbHelper.getAllTransactionsWithOnly(start_date, end_date, exportType, req.charityId);
             }
             const pdfBuffer = await pdfGenerator.generateTransactionPDF(transactions);
             const filename  = `transactions_${start_date}_to_${end_date}.pdf`;
@@ -980,13 +863,13 @@ app.get('/logout', (req, res) => {
         });
         
   
-  app.get("/import-transactions", requireLogin, checkUserRole, checkApprovedUser, (req, res) => {
+  app.get("/import-transactions", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, (req, res) => {
     const loggedInName = req.session.name;
     
     res.render("import-transactions", {loggedInName: loggedInName });
   });
 
-  app.post("/import-transactions", requireLogin, checkUserRole, upload.single('csvfile'), (req, res) => {
+  app.post("/import-transactions", requireLogin, injectCharityId, checkUserRole, upload.single('csvfile'), (req, res) => {
     const loggedInName = req.session.name;
     if (!req.file) {
       req.flash('error', 'No file uploaded, try again!');
@@ -1018,10 +901,10 @@ app.post("/membership", async (req, res) => {
     res.redirect("/membership");
   }});
 
-  app.get("/addnewtransactiontype", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+  app.get("/addnewtransactiontype", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
     try {
-      const types = await dbHelper.getAllTransactionTypes();
+      const types = await dbHelper.getAllTransactionTypes(req.charityId);
       res.render("addnewtransactiontype", { loggedInName, types });
     } catch (error) {
       console.error('Error rendering addnewtransactiontype page:', error);
@@ -1029,18 +912,18 @@ app.post("/membership", async (req, res) => {
       return res.redirect("/admin")
     }});
 
-app.post("/addnewtransactiontype", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+app.post("/addnewtransactiontype", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
   const userInput = req.body.new_transaction_type;
   const loggedInName = req.session.name;
   try {
-    const types = await dbHelper.getAllTransactionTypes();
+    const types = await dbHelper.getAllTransactionTypes(req.charityId);
     if (types.includes(userInput)) {
       console.error(`${userInput} already exists.`);
-      log(loggedInName + `: ${userInput} already exists in transaction types`)
+      log(loggedInName + `: ${userInput} already exists in transaction types`, req.charityId)
       req.flash('error', 'Transaction type already exists.');
       return res.redirect("/addnewtransactiontype")
     } else {
-      await dbHelper.insertTransactionType(userInput);
+      await dbHelper.insertTransactionType(userInput, req.charityId);
       console.log(`${userInput} added successfully by: ` + loggedInName);
       log(loggedInName + `: ${userInput} transaction type added successfully`)
       req.flash('success', 'New transaction type added successfully.');
@@ -1053,10 +936,10 @@ app.post("/addnewtransactiontype", requireLogin, checkUserRole, checkApprovedUse
     return res.redirect("/admin")
   }});
 
-app.get("/addnewdonationtype", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+app.get("/addnewdonationtype", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
-    const types = await dbHelper.getAllDonationTypes();
+    const types = await dbHelper.getAllDonationTypes(req.charityId);
     res.render("addnewdonationtype", { loggedInName, types });
   } catch (error) {
     console.error('Error rendering addnewdonationtype page:', error);
@@ -1064,18 +947,18 @@ app.get("/addnewdonationtype", requireLogin, checkUserRole, checkApprovedUser, a
     return res.redirect("/admin")
   }});
 
-app.post("/addnewdonationtype", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+app.post("/addnewdonationtype", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
 const userInput = req.body.new_donation_type;
 const loggedInName = req.session.name;
 try {
-  const types = await dbHelper.getAllDonationTypes();
+  const types = await dbHelper.getAllDonationTypes(req.charityId);
   if (types.includes(userInput)) {
     console.error(`${userInput} already exists.`);
     req.flash('error', 'Donation type already exists.');
-    log(loggedInName + `: ${userInput} donation type already exists`)
+    log(loggedInName + `: ${userInput} donation type already exists`, req.charityId)
     return res.redirect("/addnewdonationtype")
   } else {
-    await dbHelper.insertDonationType(userInput);
+    await dbHelper.insertDonationType(userInput, req.charityId);
     console.log(`${userInput} added successfully by: ` + loggedInName);
     log(loggedInName + `: ${userInput} donation type added successfully`)
     req.flash('success', 'New donation type added successfully.');
@@ -1088,11 +971,12 @@ try {
   return res.redirect("/admin")
 }});
 
-  app.get("/send-update-request/:id", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+  app.get("/send-update-request/:id", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
     const id = req.params.id;
     try {
-      const row = await dbHelper.getMemberWithId(id);
+      const row = await dbHelper.getMemberWithId(id, req.charityId);
+      if (!row) return res.status(404).redirect("/claimants/1");
       if (row && row.email) {
         try {
             emailMemberForUpdate(row);
@@ -1116,10 +1000,10 @@ try {
       return res.redirect("/claimants/:page")
     }});
 
-app.get("/update-users", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+app.get("/update-users", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
-    const users = await dbHelper.getAllUsers();
+    const users = await dbHelper.getAllUsers(req.charityId);
     res.render("update-users", { loggedInName, users });
   } catch (error) {
     console.error('Error rendering update-users page:', error);
@@ -1127,11 +1011,11 @@ app.get("/update-users", requireLogin, checkUserRole, checkApprovedUser, async (
     return res.redirect("/admin")
   }});
 
-app.post("/update-users", requireLogin, checkUserRole, checkApprovedUser, async (req, res) => {
+app.post("/update-users", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   console.log(req.body.approval)
   try {
-    const user = await dbHelper.getUserById(req.body.id);
+    const user = await dbHelper.getUserById(req.body.id, req.charityId);
     if (user.role === 'admin' && req.body.role === 'super admin') {
       req.flash('error', 'Admins cannot change their role to Super Admin');
       return res.redirect("/update-users");
@@ -1144,7 +1028,7 @@ app.post("/update-users", requireLogin, checkUserRole, checkApprovedUser, async 
       req.flash('error', 'Super Admin role cannot be changed. Please contact the development team if this change is necessary.');
       return res.redirect("/update-users");
     }  
-    await dbHelper.updateUser(req);
+    await dbHelper.updateUser(req, req.charityId);
     req.flash('success', 'User has been updated successfully');
     console.log("Updated user with first name: " + req.body.name + " and email: " + req.body.email + " and role: " + req.body.role)
     log(loggedInName + ": Updated user with first name: " + req.body.name + " and email: " + req.body.email + " and role: " + req.body.role + " and approval: " + req.body.approval) 
@@ -1156,7 +1040,7 @@ app.post("/update-users", requireLogin, checkUserRole, checkApprovedUser, async 
     res.redirect("/update-users");
   }});
 
-  app.get("/software-logs/:page", requireLogin, checkSuperAdmin, checkApprovedUser, async (req, res) => {
+  app.get("/software-logs/:page", requireLogin, injectCharityId, checkSuperAdmin, checkApprovedUser, async (req, res) => {
     const rowsPerPage = 50;
     let currentPage = parseInt(req.params.page) || 1;
     if (currentPage < 1) {
@@ -1165,7 +1049,7 @@ app.post("/update-users", requireLogin, checkUserRole, checkApprovedUser, async 
     const startIndex = (currentPage - 1) * rowsPerPage;
     const loggedInName = req.session.name;
     try {
-        const logging = await dbHelper.getLogsPaginated(startIndex, rowsPerPage);
+        const logging = await dbHelper.getLogsPaginated(startIndex, rowsPerPage, req.charityId);
         //const totalRows = await dbHelper.getLogsCount();
         const totalPages = Math.ceil(500 / rowsPerPage);
         res.render("software-logs", { 
@@ -1182,7 +1066,7 @@ app.post("/update-users", requireLogin, checkUserRole, checkApprovedUser, async 
 });
 
 // ── API: donor search (used by Add Donation modal) ─────────────────
-app.get('/api/members/search', requireLogin, checkApprovedUser, async (req, res) => {
+app.get('/api/members/search', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.json([]);
   try {
@@ -1191,14 +1075,15 @@ app.get('/api/members/search', requireLogin, checkApprovedUser, async (req, res)
       `SELECT id, first_name, surname, banking_name, spouse_name
        FROM members
        WHERE is_active = 1
-         AND (first_name ILIKE $1
-              OR surname ILIKE $2
-              OR (first_name || ' ' || surname) ILIKE $3
-              OR spouse_name ILIKE $4
-              OR banking_name ILIKE $5)
+         AND charity_id = $1
+         AND (first_name ILIKE $2
+              OR surname ILIKE $3
+              OR (first_name || ' ' || surname) ILIKE $4
+              OR spouse_name ILIKE $5
+              OR banking_name ILIKE $6)
        ORDER BY first_name ASC
        LIMIT 15`,
-      [like, like, like, like, like]
+      [req.charityId, like, like, like, like, like]
     );
     res.json(result.rows);
   } catch (err) {
@@ -1208,18 +1093,18 @@ app.get('/api/members/search', requireLogin, checkApprovedUser, async (req, res)
 });
 
 // ── API: add donation from modal (JSON) ────────────────────────────
-app.post('/api/donations/modal', requireLogin, checkApprovedUser, async (req, res) => {
+app.post('/api/donations/modal', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   const { member_id, first_name, surname, amount, date, fund, notes, gift_aid_status } = req.body;
   try {
     await pool.query(
-      'INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-      [member_id || null, first_name, surname, amount, date, fund, 'Bank', gift_aid_status || 'Unclaimed', notes || null]
+      'INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes, charity_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+      [member_id || null, first_name, surname, amount, date, fund, 'Bank', gift_aid_status || 'Unclaimed', notes || null, req.charityId]
     );
-    log(loggedInName + ': Added donation via modal for ' + first_name + ' ' + surname);
+    log(loggedInName + ': Added donation via modal for ' + first_name + ' ' + surname, req.charityId);
     try {
       if (member_id) {
-        const member = await dbHelper.getMemberWithId(member_id);
+        const member = await dbHelper.getMemberWithId(member_id, req.charityId);
         await sendDonationReceivedEmail(member, req.body);
       }
     } catch (emailErr) {
@@ -1233,15 +1118,15 @@ app.post('/api/donations/modal', requireLogin, checkApprovedUser, async (req, re
   }
 });
 
-app.get("/suggest-update", requireLogin, checkApprovedUser, (req, res) => {
+app.get("/suggest-update", requireLogin, injectCharityId, checkApprovedUser, (req, res) => {
   const loggedInName = req.session.name;
   res.render("suggest-update", { loggedInName });
 });
 
-app.get("/select-inactive", requireLogin, checkApprovedUser, async (req, res) => {
+app.get("/select-inactive", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
-    const result = await pool.query("SELECT * FROM members ORDER BY first_name ASC");
+    const result = await pool.query("SELECT * FROM members WHERE charity_id = $1 ORDER BY first_name ASC", [req.charityId]);
     res.render("select-inactive", { loggedInName, row: result.rows });
   } catch (err) {
     console.error("Error fetching donors:", err);
@@ -1250,26 +1135,26 @@ app.get("/select-inactive", requireLogin, checkApprovedUser, async (req, res) =>
 });
 
 
-app.post('/deactivate-donors', async (req, res) => {
+app.post('/deactivate-donors', requireLogin, injectCharityId, async (req, res) => {
   const selectedIds = req.body.selectedIds || [];
   const deactivateIds = Array.isArray(selectedIds) ? selectedIds : [selectedIds];
 
   const client = await pool.connect();
   try {
-    const allResult = await client.query('SELECT id FROM members');
+    const allResult = await client.query('SELECT id FROM members WHERE charity_id = $1', [req.charityId]);
     const allIds = allResult.rows.map(row => row.id.toString());
     const activateIds = allIds.filter(id => !deactivateIds.includes(id));
 
     await client.query('BEGIN');
 
     if (deactivateIds.length > 0) {
-      const placeholders = deactivateIds.map((_, i) => `$${i + 1}`).join(',');
-      await client.query(`UPDATE members SET is_active = 0 WHERE id IN (${placeholders})`, deactivateIds);
+      const placeholders = deactivateIds.map((_, i) => `$${i + 2}`).join(',');
+      await client.query(`UPDATE members SET is_active = 0 WHERE charity_id = $1 AND id IN (${placeholders})`, [req.charityId, ...deactivateIds]);
     }
 
     if (activateIds.length > 0) {
-      const placeholders = activateIds.map((_, i) => `$${i + 1}`).join(',');
-      await client.query(`UPDATE members SET is_active = 1 WHERE id IN (${placeholders})`, activateIds);
+      const placeholders = activateIds.map((_, i) => `$${i + 2}`).join(',');
+      await client.query(`UPDATE members SET is_active = 1 WHERE charity_id = $1 AND id IN (${placeholders})`, [req.charityId, ...activateIds]);
     }
 
     await client.query('COMMIT');
@@ -1283,7 +1168,7 @@ app.post('/deactivate-donors', async (req, res) => {
   }
 });
 
-app.get('/dashboard', requireLogin, checkApprovedUser, async (req, res) => {
+app.get('/dashboard', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
     const now = new Date();
@@ -1306,16 +1191,16 @@ app.get('/dashboard', requireLogin, checkApprovedUser, async (req, res) => {
       activeMembers,
       recentTransactions, recentDonations, topDonors
     ] = await Promise.all([
-      dbHelper.getAllTransactionsForYear(currentYear),
-      dbHelper.getAllDonationsForYear(currentYear),
-      dbHelper.getMonthlyTotals(currentYM),
-      dbHelper.getMonthlyTotals(prevYM),
-      dbHelper.getYTDDonationTotal(currentYear),
-      dbHelper.getMonthlyDonationCount(currentYM),
-      dbHelper.getMembersCount(),
-      dbHelper.getRecentTransactions(5),
-      dbHelper.getRecentDonations(5),
-      dbHelper.getTopDonors(currentYear, 5)
+      dbHelper.getAllTransactionsForYear(currentYear, req.charityId),
+      dbHelper.getAllDonationsForYear(currentYear, req.charityId),
+      dbHelper.getMonthlyTotals(currentYM, req.charityId),
+      dbHelper.getMonthlyTotals(prevYM, req.charityId),
+      dbHelper.getYTDDonationTotal(currentYear, req.charityId),
+      dbHelper.getMonthlyDonationCount(currentYM, req.charityId),
+      dbHelper.getMembersCount(req.charityId),
+      dbHelper.getRecentTransactions(5, req.charityId),
+      dbHelper.getRecentDonations(5, req.charityId),
+      dbHelper.getTopDonors(currentYear, 5, req.charityId)
     ]);
 
     const pctChange = (curr, prev) => {
@@ -1349,7 +1234,7 @@ app.get('/dashboard', requireLogin, checkApprovedUser, async (req, res) => {
   }
 });
 
-app.post("/suggest-update", requireLogin, checkApprovedUser, (req, res) => {
+app.post("/suggest-update", requireLogin, injectCharityId, checkApprovedUser, (req, res) => {
   const loggedInName = req.session.name;
   const suggestion = req.body.update_suggestion;
   try {

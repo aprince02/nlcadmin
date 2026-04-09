@@ -1,0 +1,72 @@
+<%- include("_loggedInHeader") -%>
+
+<div class="container py-4">
+  <h2 class="mb-4">Super Admin Panel</h2>
+
+  <div class="row g-4">
+
+    <!-- Create Charity -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Create New Charity</div>
+        <div class="card-body">
+          <form action="/admin/charities" method="post">
+            <div class="mb-3">
+              <label class="form-label">Charity Name</label>
+              <input required type="text" name="name" class="form-control" placeholder="NewLife Church Sunderland">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Slug <small class="text-muted">(unique, lowercase, no spaces)</small></label>
+              <input required type="text" name="slug" class="form-control" placeholder="newlife-sunderland" pattern="[a-z0-9\-]+" title="Lowercase letters, numbers and hyphens only">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Charity Contact Email <small class="text-muted">(optional)</small></label>
+              <input type="email" name="email" class="form-control" placeholder="info@charity.org">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">First Admin Email</label>
+              <input required type="email" name="admin_email" class="form-control" placeholder="admin@charity.org">
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Create Charity &amp; Send Invite</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Existing Charities -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Existing Charities</div>
+        <div class="card-body p-0">
+          <% if (charities.length === 0) { %>
+            <p class="text-muted p-3 mb-0">No charities yet.</p>
+          <% } else { %>
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Slug</th>
+                  <th>Active</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% charities.forEach(c => { %>
+                <tr>
+                  <td><%= c.id %></td>
+                  <td><%= c.name %></td>
+                  <td><code><%= c.slug %></code></td>
+                  <td><%= c.is_active ? 'Yes' : 'No' %></td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<%- include("_loggedInFooter") -%>

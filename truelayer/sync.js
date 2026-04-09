@@ -1,9 +1,11 @@
 /**
  * TrueLayer sync orchestrator.
  *
- * syncAll()  — called by the cron job and the manual "Sync Now" button.
+ * syncAll(charityId)  — called by the cron job and the manual "Sync Now" button.
  * Handles token refresh, balance fetch, transaction fetch, deduplication,
  * and writes a sync log entry for every run.
+ *
+ * charityId is required — all data is scoped to the requesting charity.
  */
 const tlDb   = require('./dbHelper');
 const mainDb = require('../dbHelper');
@@ -63,13 +65,14 @@ async function getValidAccessToken(connection) {
 /**
  * Sync balance for one account.
  */
-async function syncBalance(accessToken, accountId) {
+async function syncBalance(accessToken, accountId, charityId) {
   const balance = await api.getBalance(accessToken, accountId);
   await tlDb.insertBalance(
     accountId,
     balance.current,
     balance.available,
-    balance.currency
+    balance.currency,
+    charityId
   );
   await tlDb.insertSyncLog({
     accountId,
@@ -77,6 +80,7 @@ async function syncBalance(accessToken, accountId) {
     status: 'success',
     recordsFetched: 1,
     recordsInserted: 1,
+    charityId,
   });
 }
 
@@ -85,7 +89,7 @@ async function syncBalance(accessToken, accountId) {
  * Fetches the last 30 days by default; on first sync fetches 90 days.
  * Returns { fetched, inserted } counts.
  */
-async function syncTransactions(accessToken, accountId, lastSyncedAt) {
+async function syncTransactions(accessToken, accountId, lastSyncedAt, charityId) {
   // On first sync pull 12 months; after that pull since last sync with a 1-day buffer
   const from = lastSyncedAt
     ? new Date(new Date(lastSyncedAt).getTime() - 86_400_000).toISOString().split('T')[0]
@@ -112,6 +116,7 @@ async function syncTransactions(accessToken, accountId, lastSyncedAt) {
       category:          txn.transaction_category || null,
       status:            txn.transaction_classification?.includes('pending') ? 'pending' : 'posted',
       rawPayload:        JSON.stringify(txn),
+      charityId,
     });
 
     if (isNew) {
@@ -123,6 +128,7 @@ async function syncTransactions(accessToken, accountId, lastSyncedAt) {
         paidIn:          txn.amount > 0 ? txn.amount.toFixed(2) : null,
         paidOut:         txn.amount < 0 ? Math.abs(txn.amount).toFixed(2) : null,
         sourceRef:       `bank:${providerTxnId}`,
+        charityId,
       });
     }
   }
@@ -133,6 +139,7 @@ async function syncTransactions(accessToken, accountId, lastSyncedAt) {
     status: 'success',
     recordsFetched: rawTxns.length,
     recordsInserted: inserted,
+    charityId,
   });
 
   return { fetched: rawTxns.length, inserted };
@@ -141,9 +148,10 @@ async function syncTransactions(accessToken, accountId, lastSyncedAt) {
 /**
  * Full sync: balance + transactions for the active connection.
  * This is what the cron job and the manual button both call.
+ * charityId is required to scope all data to the correct tenant.
  */
-async function syncAll() {
-  const connection = await tlDb.getActiveConnection();
+async function syncAll(charityId) {
+  const connection = await tlDb.getActiveConnection(charityId);
 
   if (!connection) {
     console.log('[TrueLayer] No active bank connection — skipping sync.');
@@ -161,6 +169,7 @@ async function syncAll() {
         syncType: 'full',
         status: 'consent_expired',
         errorMessage: 'Open Banking consent expired. Re-authentication required.',
+        charityId,
       });
       return { consentExpired: true };
     }
@@ -171,7 +180,7 @@ async function syncAll() {
 
   // Sync balance
   try {
-    await syncBalance(accessToken, connection.account_id);
+    await syncBalance(accessToken, connection.account_id, charityId);
     result.balance = 'ok';
   } catch (err) {
     result.errors.push(`Balance sync failed: ${err.message}`);
@@ -180,12 +189,13 @@ async function syncAll() {
       syncType: 'balance',
       status: 'error',
       errorMessage: err.message,
+      charityId,
     });
   }
 
   // Sync transactions
   try {
-    const counts = await syncTransactions(accessToken, connection.account_id, connection.last_synced_at);
+    const counts = await syncTransactions(accessToken, connection.account_id, connection.last_synced_at, charityId);
     result.transactions = counts;
   } catch (err) {
     result.errors.push(`Transaction sync failed: ${err.message}`);
@@ -194,12 +204,13 @@ async function syncAll() {
       syncType: 'transactions',
       status: 'error',
       errorMessage: err.message,
+      charityId,
     });
   }
 
   // Backfill: ensure all bank_transactions are present in the main transactions table
   try {
-    const allBankTxns = await tlDb.getAllBankTransactions();
+    const allBankTxns = await tlDb.getAllBankTransactions(charityId);
     for (const row of allBankTxns) {
       await mainDb.importBankTransaction({
         date:            row.date,
@@ -208,6 +219,7 @@ async function syncAll() {
         paidIn:          row.amount > 0 ? Math.abs(row.amount).toFixed(2) : null,
         paidOut:         row.amount < 0 ? Math.abs(row.amount).toFixed(2) : null,
         sourceRef:       `bank:${row.provider_transaction_id}`,
+        charityId,
       });
     }
   } catch (err) {

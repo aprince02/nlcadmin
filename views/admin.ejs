@@ -67,18 +67,37 @@
         <a href="/select-inactive" class="pb-admin-btn">
           <i class="bi bi-person-dash pb-admin-btn-icon" aria-hidden="true"></i>Select Inactive Donors
         </a>
+        <% if (isSuperAdmin) { %>
         <a href="/db-backup" class="pb-admin-btn">
           <i class="bi bi-database-down pb-admin-btn-icon" aria-hidden="true"></i>Backup Database
         </a>
         <a href="/software-logs/1" class="pb-admin-btn">
           <i class="bi bi-code-slash pb-admin-btn-icon" aria-hidden="true"></i>Logs
         </a>
+        <% } %>
         <a href="/suggest-update" class="pb-admin-btn">
           <i class="bi bi-pencil-square pb-admin-btn-icon" aria-hidden="true"></i>Suggest Update
         </a>
         <a href="/dashboard" class="pb-admin-btn">
           <i class="bi bi-bar-chart pb-admin-btn-icon" aria-hidden="true"></i>View Dashboard
         </a>
+      </div>
+    </div>
+
+    <div class="pb-admin-section">
+      <div class="pb-admin-section-header">Organisation</div>
+      <div class="pb-admin-section-body">
+        <button type="button" class="pb-admin-btn" id="openInviteModal">
+          <i class="bi bi-envelope-plus pb-admin-btn-icon" aria-hidden="true"></i>Invite User
+        </button>
+        <button type="button" class="pb-admin-btn" id="openResendInviteModal">
+          <i class="bi bi-envelope-arrow-up pb-admin-btn-icon" aria-hidden="true"></i>Resend Invite
+        </button>
+        <% if (isSuperAdmin) { %>
+        <button type="button" class="pb-admin-btn" id="openCreateCharityModal">
+          <i class="bi bi-building-add pb-admin-btn-icon" aria-hidden="true"></i>Create Charity
+        </button>
+        <% } %>
       </div>
     </div>
 
@@ -378,6 +397,161 @@ document.addEventListener('DOMContentLoaded', function () {
     );
   });
 
+});
+</script>
+
+<!-- ── Invite User Modal ────────────────────────────────────────── -->
+<div class="modal fade" id="inviteModal" tabindex="-1" aria-labelledby="inviteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <h5 class="modal-title" id="inviteModalLabel"><i class="bi bi-envelope-plus me-2"></i>Invite User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="/charity/invite" method="post">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Email Address</label>
+            <input required type="email" name="email" class="form-control" placeholder="user@example.com">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Role</label>
+            <select required name="role" class="form-select">
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1"></i>Send Invite</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── Resend Invite Modal ──────────────────────────────────────── -->
+<div class="modal fade" id="resendInviteModal" tabindex="-1" aria-labelledby="resendInviteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <h5 class="modal-title" id="resendInviteModalLabel"><i class="bi bi-envelope-arrow-up me-2"></i>Resend Invite</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.85rem;color:var(--pb-gray-400);">Enter the email address of a pending invite to resend it. A new 48-hour token will be generated.</p>
+        <div class="mb-3">
+          <label class="form-label">Email Address</label>
+          <input required type="email" id="resendEmail" class="form-control" placeholder="user@example.com">
+        </div>
+        <div id="resendError" class="alert alert-danger d-none" role="alert"></div>
+        <div id="resendSuccess" class="alert alert-success d-none" role="alert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="resendSubmitBtn">
+          <span id="resendSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+          <i class="bi bi-send me-1" id="resendIcon"></i>Resend
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Create Charity Modal (super admin only) ──────────────────── -->
+<div class="modal fade" id="createCharityModal" tabindex="-1" aria-labelledby="createCharityModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <h5 class="modal-title" id="createCharityModalLabel"><i class="bi bi-building-add me-2"></i>Create Charity</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="/admin/charities" method="post">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Charity Name</label>
+            <input required type="text" name="name" class="form-control" placeholder="NewLife Church Sunderland">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Slug <small class="text-muted">(unique, lowercase, hyphens only)</small></label>
+            <input required type="text" name="slug" class="form-control" placeholder="newlife-sunderland" pattern="[a-z0-9\-]+" title="Lowercase letters, numbers and hyphens only">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Charity Contact Email <small class="text-muted">(optional)</small></label>
+            <input type="email" name="email" class="form-control" placeholder="info@charity.org">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">First Admin Email</label>
+            <input required type="email" name="admin_email" class="form-control" placeholder="admin@charity.org">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-building-add me-1"></i>Create &amp; Send Invite</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('openInviteModal')?.addEventListener('click', () => {
+    new bootstrap.Modal(document.getElementById('inviteModal')).show();
+  });
+
+  document.getElementById('openCreateCharityModal')?.addEventListener('click', () => {
+    new bootstrap.Modal(document.getElementById('createCharityModal')).show();
+  });
+
+  // Resend invite
+  const resendModal = new bootstrap.Modal(document.getElementById('resendInviteModal'));
+  document.getElementById('openResendInviteModal').addEventListener('click', () => {
+    document.getElementById('resendEmail').value = '';
+    document.getElementById('resendError').classList.add('d-none');
+    document.getElementById('resendSuccess').classList.add('d-none');
+    resendModal.show();
+  });
+
+  document.getElementById('resendSubmitBtn').addEventListener('click', async () => {
+    const email   = document.getElementById('resendEmail').value.trim();
+    const errBox  = document.getElementById('resendError');
+    const okBox   = document.getElementById('resendSuccess');
+    const spinner = document.getElementById('resendSpinner');
+    const icon    = document.getElementById('resendIcon');
+    const btn     = document.getElementById('resendSubmitBtn');
+
+    errBox.classList.add('d-none');
+    okBox.classList.add('d-none');
+    if (!email) { errBox.textContent = 'Please enter an email address.'; errBox.classList.remove('d-none'); return; }
+
+    spinner.classList.remove('d-none');
+    icon.classList.add('d-none');
+    btn.disabled = true;
+
+    // Super admins use the global endpoint; charity admins use the scoped one
+    const endpoint = <%= isSuperAdmin ? 'true' : 'false' %> ? '/admin/invite/resend' : '/charity/invite/resend';
+
+    try {
+      const res  = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Server error');
+      okBox.textContent = `Invite resent to ${email}.`;
+      okBox.classList.remove('d-none');
+    } catch (err) {
+      errBox.textContent = err.message || 'Failed to resend invite.';
+      errBox.classList.remove('d-none');
+    } finally {
+      spinner.classList.add('d-none');
+      icon.classList.remove('d-none');
+      btn.disabled = false;
+    }
+  });
 });
 </script>
 

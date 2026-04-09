@@ -1,0 +1,30 @@
+<%- include("_loggedInHeader") -%>
+
+<div class="container py-4" style="max-width:520px;">
+  <h2 class="mb-4">Invite User</h2>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form action="/charity/invite" method="post">
+        <div class="mb-3">
+          <label class="form-label">Email Address</label>
+          <input required type="email" name="email" class="form-control" placeholder="user@example.com">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Role</label>
+          <select required name="role" class="form-select">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Send Invite</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="mt-3">
+    <a href="/admin">&larr; Back to Admin</a>
+  </div>
+</div>
+
+<%- include("_loggedInFooter") -%>

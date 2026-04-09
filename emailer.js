@@ -205,6 +205,19 @@ async function sendTotalsExportEmail(to, csvBuffer, pdfBuffer, csvFilename, pdfF
   console.log('Totals export email sent:', info.response);
 }
 
+async function sendInviteEmail(email, token, role, charityName) {
+  const inviteUrl = `${process.env.APP_URL || 'https://probooksaccounting.co.uk'}/invite/${token}`;
+  const expiryHours = 48;
+  const mailOptions = {
+    from: sender,
+    to: email,
+    subject: `You've been invited to ProBooks Accounting`,
+    text: `You have been invited to join ${charityName} on ProBooks Accounting as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in ${expiryHours} hours.\n\nIf you did not expect this invitation, please ignore this email.${emailFooter}`,
+  };
+  const info = await transporter.sendMail(mailOptions);
+  console.log('Invite email sent:', info.response);
+}
+
 async function sendOtpEmail(email, otp) {
   const mailOptions = {
     from: sender,
@@ -227,4 +240,5 @@ module.exports = {
   sendDonationReceivedEmail,
   sendTotalsExportEmail,
   sendOtpEmail,
+  sendInviteEmail,
 };

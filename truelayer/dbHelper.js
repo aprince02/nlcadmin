@@ -1,27 +1,29 @@
 /**
  * Database helpers for TrueLayer bank tables.
  * Uses the same pg pool as the rest of the app.
+ * All functions require charityId to ensure full tenant isolation.
  */
 const pool = require('../database');
 
 // ── bank_connections ─────────────────────────────────────────────
 
-async function getActiveConnection() {
+async function getActiveConnection(charityId) {
   const result = await pool.query(
-    `SELECT * FROM bank_connections WHERE is_active = 1 ORDER BY id DESC LIMIT 1`
+    `SELECT * FROM bank_connections WHERE is_active = 1 AND charity_id = $1 ORDER BY id DESC LIMIT 1`,
+    [charityId]
   );
   return result.rows[0] || null;
 }
 
-async function upsertConnection({ accountId, accountName, accountType, accountNumber, sortCode,
+async function upsertConnection({ charityId, accountId, accountName, accountType, accountNumber, sortCode,
                                   currency, providerId, accessTokenEnc, refreshTokenEnc,
                                   tokenExpiresAt, consentExpiresAt }) {
   await pool.query(`
     INSERT INTO bank_connections
-      (account_id, account_name, account_type, account_number, sort_code,
+      (charity_id, account_id, account_name, account_type, account_number, sort_code,
        currency, provider_id, access_token_enc, refresh_token_enc,
        token_expires_at, consent_expires_at, is_active)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,1)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,1)
     ON CONFLICT (account_id) DO UPDATE SET
       account_name       = EXCLUDED.account_name,
       account_type       = EXCLUDED.account_type,
@@ -30,7 +32,7 @@ async function upsertConnection({ accountId, accountName, accountType, accountNu
       token_expires_at   = EXCLUDED.token_expires_at,
       consent_expires_at = EXCLUDED.consent_expires_at,
       is_active          = 1
-  `, [accountId, accountName, accountType, accountNumber, sortCode,
+  `, [charityId, accountId, accountName, accountType, accountNumber, sortCode,
       currency, providerId, accessTokenEnc, refreshTokenEnc,
       tokenExpiresAt, consentExpiresAt]);
 }
@@ -59,11 +61,11 @@ async function deactivateConnection(accountId) {
 
 // ── bank_balances ────────────────────────────────────────────────
 
-async function insertBalance(accountId, current, available, currency) {
+async function insertBalance(accountId, current, available, currency, charityId) {
   await pool.query(`
-    INSERT INTO bank_balances (account_id, current, available, currency)
-    VALUES ($1, $2, $3, $4)
-  `, [accountId, current, available, currency]);
+    INSERT INTO bank_balances (account_id, current, available, currency, charity_id)
+    VALUES ($1, $2, $3, $4, $5)
+  `, [accountId, current, available, currency, charityId]);
 }
 
 async function getLatestBalance(accountId) {
@@ -86,8 +88,8 @@ async function insertTransaction(tx) {
   const result = await pool.query(`
     INSERT INTO bank_transactions
       (account_id, provider_transaction_id, date, description,
-       amount, currency, transaction_type, merchant_name, category, status, raw_payload)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       amount, currency, transaction_type, merchant_name, category, status, raw_payload, charity_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
     ON CONFLICT (provider_transaction_id) DO NOTHING
     RETURNING id
   `, [
@@ -102,40 +104,43 @@ async function insertTransaction(tx) {
     tx.category,
     tx.status,
     tx.rawPayload,
+    tx.charityId,
   ]);
   return result.rowCount > 0; // true = new row, false = duplicate skipped
 }
 
-async function getRecentBankTransactions(limit = 10) {
+async function getRecentBankTransactions(charityId, limit = 10) {
   const result = await pool.query(`
     SELECT * FROM bank_transactions
+    WHERE charity_id = $1
     ORDER BY date DESC, imported_at DESC
-    LIMIT $1
-  `, [limit]);
+    LIMIT $2
+  `, [charityId, limit]);
   return result.rows;
 }
 
-async function getAllBankTransactions() {
+async function getAllBankTransactions(charityId) {
   const result = await pool.query(
-    `SELECT * FROM bank_transactions ORDER BY date ASC`
+    `SELECT * FROM bank_transactions WHERE charity_id = $1 ORDER BY date ASC`,
+    [charityId]
   );
   return result.rows;
 }
 
 // ── bank_sync_log ────────────────────────────────────────────────
 
-async function insertSyncLog({ accountId, syncType, status, recordsFetched, recordsInserted, errorMessage }) {
+async function insertSyncLog({ accountId, syncType, status, recordsFetched, recordsInserted, errorMessage, charityId }) {
   await pool.query(`
     INSERT INTO bank_sync_log
-      (account_id, sync_type, status, records_fetched, records_inserted, error_message)
-    VALUES ($1,$2,$3,$4,$5,$6)
-  `, [accountId, syncType, status, recordsFetched || 0, recordsInserted || 0, errorMessage || null]);
+      (account_id, sync_type, status, records_fetched, records_inserted, error_message, charity_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7)
+  `, [accountId, syncType, status, recordsFetched || 0, recordsInserted || 0, errorMessage || null, charityId]);
 }
 
-async function getRecentSyncLogs(limit = 20) {
+async function getRecentSyncLogs(charityId, limit = 20) {
   const result = await pool.query(`
-    SELECT * FROM bank_sync_log ORDER BY synced_at DESC LIMIT $1
-  `, [limit]);
+    SELECT * FROM bank_sync_log WHERE charity_id = $1 ORDER BY synced_at DESC LIMIT $2
+  `, [charityId, limit]);
   return result.rows;
 }
 

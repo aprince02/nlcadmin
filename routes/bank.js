@@ -14,17 +14,17 @@ const tlApi    = require('../truelayer/api');
 const tlSync   = require('../truelayer/sync');
 const tlDb     = require('../truelayer/dbHelper');
 const { encrypt } = require('../truelayer/crypto');
-const { requireLogin, checkApprovedUser } = require('../utils');
+const { requireLogin, injectCharityId, checkApprovedUser } = require('../utils');
 
 // ── Admin UI page ────────────────────────────────────────────────
 
-router.get('/admin/bank', requireLogin, checkApprovedUser, async (req, res) => {
+router.get('/admin/bank', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
-    const connection = await tlDb.getActiveConnection();
+    const connection = await tlDb.getActiveConnection(req.charityId);
     const balance    = connection ? await tlDb.getLatestBalance(connection.account_id) : null;
-    const syncLogs   = await tlDb.getRecentSyncLogs(15);
-    const recentTxns = connection ? await tlDb.getRecentBankTransactions(10) : [];
+    const syncLogs   = await tlDb.getRecentSyncLogs(req.charityId, 15);
+    const recentTxns = connection ? await tlDb.getRecentBankTransactions(req.charityId, 10) : [];
 
     // Warn if consent expires within 7 days
     let consentWarning = false;
@@ -52,7 +52,7 @@ router.get('/admin/bank', requireLogin, checkApprovedUser, async (req, res) => {
 
 // ── Step 1: Initiate OAuth ───────────────────────────────────────
 
-router.get('/bank/connect', requireLogin, checkApprovedUser, (req, res) => {
+router.get('/bank/connect', requireLogin, injectCharityId, checkApprovedUser, (req, res) => {
   const state = tlAuth.generateState();
   req.session.tlState = state;           // store for CSRF check on callback
   const url = tlAuth.buildAuthUrl(state);
@@ -62,7 +62,7 @@ router.get('/bank/connect', requireLogin, checkApprovedUser, (req, res) => {
 
 // ── Step 2: OAuth callback ───────────────────────────────────────
 
-router.get('/bank/callback', requireLogin, checkApprovedUser, async (req, res) => {
+router.get('/bank/callback', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const { code, state, error } = req.query;
 
   // User denied consent or TrueLayer returned an error
@@ -99,6 +99,7 @@ router.get('/bank/callback', requireLogin, checkApprovedUser, async (req, res) =
     const accountDetails = account.account_number || {};
 
     await tlDb.upsertConnection({
+      charityId:       req.charityId,
       accountId:       account.account_id,
       accountName:     account.display_name,
       accountType:     account.account_type,
@@ -113,7 +114,7 @@ router.get('/bank/callback', requireLogin, checkApprovedUser, async (req, res) =
     });
 
     // Immediately run a first sync so the dashboard has data
-    await tlSync.syncAll();
+    await tlSync.syncAll(req.charityId);
 
     req.flash('success', `Bank account connected: ${account.display_name}`);
     res.redirect('/admin/bank');
@@ -126,9 +127,9 @@ router.get('/bank/callback', requireLogin, checkApprovedUser, async (req, res) =
 
 // ── Manual sync ──────────────────────────────────────────────────
 
-router.post('/bank/sync', requireLogin, checkApprovedUser, async (req, res) => {
+router.post('/bank/sync', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   try {
-    const result = await tlSync.syncAll();
+    const result = await tlSync.syncAll(req.charityId);
 
     if (result.skipped) {
       req.flash('error', 'No active bank connection to sync.');
@@ -149,9 +150,9 @@ router.post('/bank/sync', requireLogin, checkApprovedUser, async (req, res) => {
 
 // ── Disconnect ───────────────────────────────────────────────────
 
-router.post('/bank/disconnect', requireLogin, checkApprovedUser, async (req, res) => {
+router.post('/bank/disconnect', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   try {
-    const connection = await tlDb.getActiveConnection();
+    const connection = await tlDb.getActiveConnection(req.charityId);
     if (connection) {
       await tlDb.deactivateConnection(connection.account_id);
     }
