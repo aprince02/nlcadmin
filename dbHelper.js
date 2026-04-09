@@ -443,6 +443,17 @@ async function getCharityById(charityId) {
   return result.rows[0] || null;
 }
 
+async function updateCharity(charityId, { name, email, phone, website, charity_no, treasurer_name, address }) {
+  await pool.query(
+    `UPDATE charities SET name=$1, email=$2, phone=$3, website=$4, charity_no=$5, treasurer_name=$6, address=$7 WHERE id=$8`,
+    [name, email, phone, website, charity_no, treasurer_name, address, charityId]
+  );
+}
+
+async function updateCharityLogo(charityId, logoPath) {
+  await pool.query(`UPDATE charities SET logo_path=$1 WHERE id=$2`, [logoPath, charityId]);
+}
+
 async function getTopDonors(year, limit, charityId) {
   const result = await pool.query(`
     SELECT first_name, surname, SUM(amount::FLOAT) AS total
@@ -493,4 +504,6 @@ module.exports = {
   getDistinctYears,
   importBankTransaction,
   getCharityById,
+  updateCharity,
+  updateCharityLogo,
 };

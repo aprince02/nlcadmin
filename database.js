@@ -12,15 +12,18 @@ async function initDb() {
   try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS charities (
-        id         SERIAL PRIMARY KEY,
-        name       TEXT NOT NULL,
-        slug       TEXT UNIQUE NOT NULL,
-        email      TEXT,
-        phone      TEXT,
-        website    TEXT,
-        charity_no TEXT,
-        is_active  INTEGER NOT NULL DEFAULT 1,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        id              SERIAL PRIMARY KEY,
+        name            TEXT NOT NULL,
+        slug            TEXT UNIQUE NOT NULL,
+        email           TEXT,
+        phone           TEXT,
+        website         TEXT,
+        charity_no      TEXT,
+        treasurer_name  TEXT,
+        address         TEXT,
+        logo_path       TEXT,
+        is_active       INTEGER NOT NULL DEFAULT 1,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
 
@@ -239,6 +242,11 @@ async function initDb() {
         charity_id     INTEGER NOT NULL REFERENCES charities(id)
       )
     `);
+
+    // Migrations — add new columns to existing charities rows if absent
+    await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS treasurer_name TEXT`);
+    await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS address TEXT`);
+    await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS logo_path TEXT`);
 
     console.log('Database schema initialised.');
   } catch (err) {

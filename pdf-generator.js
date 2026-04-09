@@ -15,108 +15,91 @@ function fmtDate(value) {
   return `${dd}-${mm}-${yyyy}`;
 }
 
-async function generatePDF(donor, tithe, donations, charity = {}) {
+async function generatePDF(donor, tithe, donations, charity = {}, startDate, endDate) {
   const doc = new jsPDF({ compress: true });
 
-  const logoPath = "css/logo.png";
+  // Use charity's uploaded logo if available, otherwise fall back to default
+  const logoPath = charity.logo_path
+    ? 'public' + charity.logo_path   // logo_path is e.g. /uploads/logos/xxx.png
+    : 'css/logo.png';
   const logoData = fs.readFileSync(logoPath);
   const fullName = donor.first_name + ' ' + donor.surname;
-  
+
   let totalAmount = 0;
   let giftaidClaimed = 0;
-    donations.forEach((row) => {
-      totalAmount += row.amount;
-      if (row.gift_aid_status === 'Claimed') {
-        giftaidClaimed += row.amount;
-      }
-    });
-    tithe.forEach((row) => {
-      totalAmount += row.amount;
-      if (row.gift_aid_status === 'Claimed') {
-        giftaidClaimed += row.amount;
-      }
-    });
-  const totalDonation = `£${totalAmount}`;
-  const giftaidClaimedTotal = `£${giftaidClaimed * 0.25}`
+  donations.forEach((row) => {
+    totalAmount += parseFloat(row.amount) || 0;
+    if (row.gift_aid_status === 'Claimed') giftaidClaimed += parseFloat(row.amount) || 0;
+  });
+  tithe.forEach((row) => {
+    totalAmount += parseFloat(row.amount) || 0;
+    if (row.gift_aid_status === 'Claimed') giftaidClaimed += parseFloat(row.amount) || 0;
+  });
+  const totalDonation = `£${totalAmount.toFixed(2)}`;
+  const giftaidClaimedTotal = `£${(giftaidClaimed * 0.25).toFixed(2)}`;
+
+  const periodLabel = (startDate ? fmtDate(startDate) : '—') + ' - ' + (endDate ? fmtDate(endDate) : '—');
 
   doc.addImage(logoData, "PNG", 1, 1, 35, 35);
   doc.text(charity.name || '', 135, 10);
   doc.setFontSize(12);
-  doc.text(charity.phone    ? 'Tel: '    + charity.phone    : '', 135, 15);
-  doc.text(charity.email    ? 'Email: '  + charity.email    : '', 135, 20);
-  doc.text(charity.website  ? 'Web: '    + charity.website  : '', 135, 25);
+  doc.text(charity.phone      ? 'Tel: '        + charity.phone      : '', 135, 15);
+  doc.text(charity.email      ? 'Email: '      + charity.email      : '', 135, 20);
+  doc.text(charity.website    ? 'Web: '        + charity.website    : '', 135, 25);
   doc.text(charity.charity_no ? 'Charity No. ' + charity.charity_no : '', 135, 30);
-  doc.line(0, 37, 250, 38, 'S')
-  doc.text(fullName,10, 43 )
-  doc.setFontSize(8)
+  doc.line(0, 37, 250, 38, 'S');
+  doc.text(fullName, 10, 43);
+  doc.setFontSize(8);
   doc.setTextColor('#7d7d81');
   doc.text("Probooks Accounting © - Alpha Media Productions Ltd.", 135, 43);
   doc.setFontSize(12);
   doc.setTextColor('#000000');
-  doc.text(donor.house_number + ' ' + donor.address_line_1, 10, 48)
-  doc.text(donor.postcode, 10, 53)
-  doc.text("Statement of Tithe/Donations", 10, 65)
+  doc.text((donor.house_number || '') + ' ' + (donor.address_line_1 || ''), 10, 48);
+  doc.text(donor.postcode || '', 10, 53);
+  doc.text("Statement of Tithe/Donations", 10, 65);
   doc.setFontSize(10);
-  doc.text("Period:", 10, 70)
-  doc.text("01/01/2024 - 31/12/2024", 90, 70)
-  doc.text("Total Tithe/Donations:", 10, 75)
-  doc.text(totalDonation, 90, 75)
-  doc.text("Gift Aid Claimed:", 10, 80)
-  doc.text(giftaidClaimedTotal, 90, 80)
-  
-  doc.setFontSize(15)
-  const options = {
-    underline: true
-  };
+  doc.text("Period:", 10, 70);
+  doc.text(periodLabel, 90, 70);
+  doc.text("Total Tithe/Donations:", 10, 75);
+  doc.text(totalDonation, 90, 75);
+  doc.text("Gift Aid Claimed:", 10, 80);
+  doc.text(giftaidClaimedTotal, 90, 80);
 
-  doc.textWithLink("Tithe", 95, 99, options);
-  doc.setFontSize(10)
+  doc.setFontSize(15);
+  doc.textWithLink("Tithe", 95, 99, { underline: true });
+  doc.setFontSize(10);
 
-  const titheBody = []; 
+  const titheBody = tithe.map(r => [fmtDate(r.date), `£${parseFloat(r.amount).toFixed(2)}`]);
 
-  for (let i = 0; i < tithe.length; i++) {
-    const row = [fmtDate(tithe[i].date), `£${tithe[i].amount}`];
-    titheBody.push(row);
-  }
-
-  const titheTable = doc.autoTable( {
+  const titheTable = doc.autoTable({
     head: [['Date', 'Amount']],
     body: titheBody, startY: 100, theme: 'grid',
-  })
+  });
 
   const titheTableEndY = titheTable.lastAutoTable.finalY;
+  const nextElementY = titheTableEndY + 15;
 
-  const margin = 15;
-  const nextElementY = titheTableEndY + margin;
-  doc.setFontSize(15)
+  doc.setFontSize(15);
   doc.text('Donations', 90, nextElementY);
 
-  const donationsBody = [];
+  const donationsBody = donations.map(r => [fmtDate(r.date), r.fund || '', `£${parseFloat(r.amount).toFixed(2)}`]);
 
-  for (let i = 0; i < donations.length; i++) {
-    const row = [fmtDate(donations[i].date), `${donations[i].fund}`, `£${donations[i].amount}`];
-    donationsBody.push(row);
-  }
-
-  const donationTable = doc.autoTable( {
+  const donationTable = doc.autoTable({
     head: [['Date', 'Fund', 'Amount']],
     body: donationsBody, startY: nextElementY + 1, theme: 'grid',
-  })
+  });
 
   const donationTableEndY = donationTable.lastAutoTable.finalY;
+  const treasurer = charity.treasurer_name || 'Treasurer';
 
-  doc.setFontSize(10)
-  doc.text("Thank you for your generous support, May God Bless You.", 10, donationTableEndY + 15)
-  doc.text("Rejoy Varghese", 10, donationTableEndY + 25)
-  doc.setFontSize(9)
-  doc.text("Treasurer", 10, donationTableEndY + 30)
+  doc.setFontSize(10);
+  doc.text("Thank you for your generous support, May God Bless You.", 10, donationTableEndY + 15);
+  doc.text(treasurer, 10, donationTableEndY + 25);
+  doc.setFontSize(9);
+  doc.text("Treasurer", 10, donationTableEndY + 30);
 
-  const fileName = `${fullName} - Statement of Donations.pdf`;
-  const pdfPath = fileName;
-  doc.autoPrint();
-  doc.save(fileName);
-  log( `Tithe/Donations PDF generated for ${fullName}`)
-  return pdfPath;
+  log(`Tithe/Donations PDF generated for ${fullName}`);
+  return Buffer.from(doc.output('arraybuffer'));
 }
 
 async function generateTransactionPDF(transactions) {
@@ -176,7 +159,7 @@ async function generateTransactionPDF(transactions) {
 async function generateDonationsPDF(donations, { fund, startDate, endDate } = {}, charity = {}) {
   const doc = new jsPDF();
 
-  const logoPath = "css/logo.png";
+  const logoPath = charity.logo_path ? 'public' + charity.logo_path : 'css/logo.png';
   const logoData = fs.readFileSync(logoPath);
 
   // ── Header ──────────────────────────────────────────────────────
@@ -270,7 +253,7 @@ async function generateDonationsPDF(donations, { fund, startDate, endDate } = {}
 async function generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, { startDate, endDate } = {}, charity = {}) {
   const doc = new jsPDF();
 
-  const logoPath = "css/logo.png";
+  const logoPath = charity.logo_path ? 'public' + charity.logo_path : 'css/logo.png';
   const logoData = fs.readFileSync(logoPath);
 
   doc.addImage(logoData, "PNG", 1, 1, 35, 35);

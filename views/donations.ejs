@@ -27,7 +27,7 @@
     </div>
     <div class="pb-page-actions d-print-none d-flex gap-2 flex-wrap">
       <button class="btn btn-primary btn-sm" id="openAddDonationBtn"><i class="bi bi-plus-circle me-1"></i>Add Donation</button>
-      <a class="btn btn-secondary btn-sm" href="/generate-donor-pdf/<%= id %>"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+      <button class="btn btn-secondary btn-sm" id="openPdfModalBtn"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
       <a class="btn btn-secondary btn-sm" href="/send-update-request/<%= id %>"><i class="bi bi-envelope me-1"></i>Request Update</a>
       <a class="btn btn-outline-secondary btn-sm" href="/claimants/1"><i class="bi bi-arrow-left me-1"></i>Return</a>
     </div>
@@ -236,6 +236,194 @@ document.addEventListener('DOMContentLoaded', function () {
       spinner.classList.add('d-none');
       submitIcon.classList.remove('d-none');
       submitBtn.disabled = false;
+    }
+  });
+});
+</script>
+
+<!-- ── Donor PDF Modal ─────────────────────────────────────────── -->
+<div class="modal fade" id="donorPdfModal" tabindex="-1" aria-labelledby="donorPdfModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header pb-modal-header">
+        <div>
+          <h5 class="modal-title mb-0" id="donorPdfModalLabel">
+            <i class="bi bi-file-earmark-pdf me-2"></i>Generate Statement PDF
+          </h5>
+          <small class="text-muted">for <%= firstName %> <%= surname %></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Date range -->
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label" for="pdf_start_date">From</label>
+            <input type="date" class="form-control" id="pdf_start_date">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label" for="pdf_end_date">To</label>
+            <input type="date" class="form-control" id="pdf_end_date">
+          </div>
+        </div>
+
+        <!-- Action -->
+        <div class="mb-3">
+          <label class="form-label">Action</label>
+          <div class="d-flex gap-3">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="pdf_action" id="pdf_action_download" value="download" checked>
+              <label class="form-check-label" for="pdf_action_download"><i class="bi bi-download me-1"></i>Download</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="pdf_action" id="pdf_action_email" value="email">
+              <label class="form-check-label" for="pdf_action_email"><i class="bi bi-envelope me-1"></i>Email</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Email field (shown only when email is selected) -->
+        <div class="mb-3 d-none" id="pdf_email_row">
+          <label class="form-label" for="pdf_email_to">Send to email</label>
+          <input type="email" class="form-control" id="pdf_email_to" placeholder="recipient@example.com">
+          <div class="form-text" id="pdf_email_hint"></div>
+        </div>
+
+        <!-- Warning: no donations in range -->
+        <div id="pdf_empty_warning" class="alert alert-warning d-none" role="alert">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>No donations found in the selected date range.
+        </div>
+
+        <!-- Error -->
+        <div id="pdf_error" class="alert alert-danger d-none" role="alert"></div>
+
+        <!-- Success -->
+        <div id="pdf_success" class="alert alert-success d-none" role="alert"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="generatePdfBtn">
+          <span id="pdfBtnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+          <i class="bi bi-file-earmark-pdf me-1" id="pdfBtnIcon"></i>Generate
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const donorId    = '<%= id %>';
+  const donorEmail = '<%= typeof donorEmail !== "undefined" ? donorEmail : "" %>';
+
+  const bsModal     = new bootstrap.Modal(document.getElementById('donorPdfModal'));
+  const startInput  = document.getElementById('pdf_start_date');
+  const endInput    = document.getElementById('pdf_end_date');
+  const emailRow    = document.getElementById('pdf_email_row');
+  const emailInput  = document.getElementById('pdf_email_to');
+  const emailHint   = document.getElementById('pdf_email_hint');
+  const emptyWarn   = document.getElementById('pdf_empty_warning');
+  const errorBox    = document.getElementById('pdf_error');
+  const successBox  = document.getElementById('pdf_success');
+  const generateBtn = document.getElementById('generatePdfBtn');
+  const spinner     = document.getElementById('pdfBtnSpinner');
+  const btnIcon     = document.getElementById('pdfBtnIcon');
+
+  document.getElementById('openPdfModalBtn').addEventListener('click', function () {
+    // Default to current year
+    const now = new Date();
+    startInput.value = now.getFullYear() + '-01-01';
+    endInput.value   = now.getFullYear() + '-12-31';
+    emailInput.value = donorEmail;
+    emailHint.textContent = donorEmail ? 'Donor email pre-filled.' : '';
+    emailRow.classList.add('d-none');
+    emptyWarn.classList.add('d-none');
+    errorBox.classList.add('d-none');
+    successBox.classList.add('d-none');
+    document.getElementById('pdf_action_download').checked = true;
+    bsModal.show();
+  });
+
+  document.querySelectorAll('input[name="pdf_action"]').forEach(radio => {
+    radio.addEventListener('change', function () {
+      if (this.value === 'email') {
+        emailRow.classList.remove('d-none');
+      } else {
+        emailRow.classList.add('d-none');
+      }
+    });
+  });
+
+  generateBtn.addEventListener('click', async function () {
+    emptyWarn.classList.add('d-none');
+    errorBox.classList.add('d-none');
+    successBox.classList.add('d-none');
+
+    const startDate = startInput.value;
+    const endDate   = endInput.value;
+    const action    = document.querySelector('input[name="pdf_action"]:checked').value;
+    const emailTo   = emailInput.value.trim();
+
+    if (!startDate || !endDate) {
+      errorBox.textContent = 'Please select a date range.';
+      errorBox.classList.remove('d-none');
+      return;
+    }
+    if (action === 'email' && !emailTo) {
+      errorBox.textContent = 'Please enter an email address.';
+      errorBox.classList.remove('d-none');
+      return;
+    }
+
+    spinner.classList.remove('d-none');
+    btnIcon.classList.add('d-none');
+    generateBtn.disabled = true;
+
+    try {
+      const res = await fetch(`/api/donor-pdf/${donorId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_date: startDate, end_date: endDate, action, email_to: emailTo }),
+      });
+
+      const contentType = res.headers.get('Content-Type') || '';
+      if (action === 'download' && contentType.includes('application/pdf')) {
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = '<%= firstName %> <%= surname %> - Statement of Donations.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        bsModal.hide();
+        return;
+      }
+
+      const data = await res.json();
+      if (data.empty) {
+        emptyWarn.classList.remove('d-none');
+        return;
+      }
+      if (data.success) {
+        successBox.textContent = data.message || 'Statement sent successfully.';
+        successBox.classList.remove('d-none');
+        return;
+      }
+      errorBox.textContent = data.error || 'Something went wrong.';
+      errorBox.classList.remove('d-none');
+    } catch {
+      errorBox.textContent = 'Network error — please try again.';
+      errorBox.classList.remove('d-none');
+    } finally {
+      spinner.classList.add('d-none');
+      btnIcon.classList.remove('d-none');
+      generateBtn.disabled = false;
     }
   });
 });

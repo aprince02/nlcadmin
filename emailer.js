@@ -54,10 +54,10 @@ async function createAndEmail(fileType, subject, message) {
   fs.unlinkSync(fileName);
 }
 
-async function sendStatementByEmail(pdfPath) {
+async function sendStatementByEmail(pdfPath, toEmail) {
   const mailOptions = {
     from: sender,
-    to: receiver,
+    to: toEmail || receiver,
     subject: 'Statement of Donations',
     text: 'Find attached the statement of donations.' + emailFooter,
     attachments: [
@@ -75,6 +75,20 @@ async function sendStatementByEmail(pdfPath) {
   } catch (error) {
     log("'Error sending email: " + error)
   }
+}
+
+async function sendDonorStatementBuffer(toEmail, pdfBuffer, donorName) {
+  const mailOptions = {
+    from: sender,
+    to: toEmail,
+    subject: `Statement of Donations — ${donorName}`,
+    text: `Please find attached the statement of donations for ${donorName}.` + emailFooter,
+    attachments: [
+      { filename: `${donorName} - Statement of Donations.pdf`, content: pdfBuffer, contentType: 'application/pdf' },
+    ],
+  };
+  const info = await transporter.sendMail(mailOptions);
+  log('Donor statement emailed to ' + toEmail + ': ' + info.response);
 }
 
 async function sendTransactionsEmail(pdfPath, receiverEmail) {
@@ -242,6 +256,7 @@ async function sendOtpEmail(email, otp) {
 module.exports = {
   createAndEmail,
   sendStatementByEmail,
+  sendDonorStatementBuffer,
   createAndEmailDBBackup,
   emailMemberForUpdate,
   sendTransactionsEmail,

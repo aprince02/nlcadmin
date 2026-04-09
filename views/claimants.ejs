@@ -88,9 +88,15 @@
 
               <!-- Actions -->
               <td class="d-print-none text-end">
-                <a class="btn btn-sm btn-info" href="/donations/<%= member.id %>">View Giving</a>
-                <a class="btn btn-sm btn-warning" href="/edit/<%= member.id %>">Edit</a>
-                <a class="btn btn-sm btn-danger" href="/delete/<%= member.id %>">Delete</a>
+                <button class="btn btn-sm btn-info btn-view-giving" data-id="<%= member.id %>">
+                  <i class="bi bi-wallet2 me-1"></i>View Giving
+                </button>
+                <button class="btn btn-sm btn-warning btn-edit-member" data-id="<%= member.id %>">
+                  <i class="bi bi-pencil me-1"></i>Edit
+                </button>
+                <button class="btn btn-sm btn-danger btn-delete-member" data-id="<%= member.id %>" data-name="<%= member.first_name %> <%= member.surname %>">
+                  <i class="bi bi-trash me-1"></i>Delete
+                </button>
               </td>
             </tr>
           <% } %>
@@ -119,5 +125,651 @@
     </ul>
   </nav>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     VIEW GIVING MODAL
+═══════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="viewGivingModal" tabindex="-1" aria-labelledby="viewGivingModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <div>
+          <h5 class="modal-title mb-0" id="viewGivingModalLabel">
+            <i class="bi bi-wallet2 me-2"></i>Giving Summary
+          </h5>
+          <small class="text-muted" id="vg_subtitle"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="vg_loading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+        </div>
+        <div id="vg_content" class="d-none">
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6">
+              <div class="border rounded p-3 text-center">
+                <div class="text-muted" style="font-size:.8rem;">TOTAL GIVING</div>
+                <div class="fw-bold fs-4 text-success" id="vg_total"></div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="border rounded p-3 text-center">
+                <div class="text-muted" style="font-size:.8rem;">DONATIONS</div>
+                <div class="fw-bold fs-4" id="vg_count"></div>
+              </div>
+            </div>
+          </div>
+          <h6 class="mb-2">Recent Donations</h6>
+          <table class="table table-sm table-striped mb-0">
+            <thead><tr><th>Date</th><th>Fund</th><th class="text-end">Amount</th></tr></thead>
+            <tbody id="vg_recent"></tbody>
+          </table>
+          <p class="text-muted mt-2 mb-0" style="font-size:.8rem;" id="vg_more_hint"></p>
+        </div>
+        <div id="vg_error" class="alert alert-danger d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-secondary" id="vg_pdf_btn" disabled>
+          <i class="bi bi-file-earmark-pdf me-1"></i>Generate PDF
+        </button>
+        <a class="btn btn-info" id="vg_full_link" href="#">
+          <i class="bi bi-arrow-right-circle me-1"></i>View Full History
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     MEMBER PDF MODAL  (opened from View Giving)
+═══════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="memberPdfModal" tabindex="-1" aria-labelledby="memberPdfModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <div>
+          <h5 class="modal-title mb-0" id="memberPdfModalLabel">
+            <i class="bi bi-file-earmark-pdf me-2"></i>Generate Statement PDF
+          </h5>
+          <small class="text-muted" id="mpdf_subtitle"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <label class="form-label" for="mpdf_start">From</label>
+            <input type="date" class="form-control" id="mpdf_start">
+          </div>
+          <div class="col-6">
+            <label class="form-label" for="mpdf_end">To</label>
+            <input type="date" class="form-control" id="mpdf_end">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Action</label>
+          <div class="d-flex gap-3">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="mpdf_action" id="mpdf_action_download" value="download" checked>
+              <label class="form-check-label" for="mpdf_action_download"><i class="bi bi-download me-1"></i>Download</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="mpdf_action" id="mpdf_action_email" value="email">
+              <label class="form-check-label" for="mpdf_action_email"><i class="bi bi-envelope me-1"></i>Email</label>
+            </div>
+          </div>
+        </div>
+        <div class="mb-3 d-none" id="mpdf_email_row">
+          <label class="form-label" for="mpdf_email_to">Send to email</label>
+          <input type="email" class="form-control" id="mpdf_email_to" placeholder="recipient@example.com">
+          <div class="form-text" id="mpdf_email_hint"></div>
+        </div>
+        <div id="mpdf_empty_warn" class="alert alert-warning d-none" role="alert">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>No donations found in the selected date range.
+        </div>
+        <div id="mpdf_error" class="alert alert-danger d-none" role="alert"></div>
+        <div id="mpdf_success" class="alert alert-success d-none" role="alert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="mpdf_generate_btn">
+          <span id="mpdf_spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+          <i class="bi bi-file-earmark-pdf me-1" id="mpdf_btn_icon"></i>Generate
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     EDIT MEMBER MODAL
+═══════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="editMemberModal" tabindex="-1" aria-labelledby="editMemberModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <div>
+          <h5 class="modal-title mb-0" id="editMemberModalLabel">
+            <i class="bi bi-pencil me-2"></i>Edit Member
+          </h5>
+          <small class="text-muted" id="em_subtitle"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="em_loading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+        </div>
+        <form id="editMemberForm" class="d-none" novalidate>
+          <input type="hidden" id="em_id">
+
+          <!-- Personal Details -->
+          <div class="pb-table-card mb-4">
+            <div class="pb-admin-section-header">Personal Details</div>
+            <div class="p-3">
+              <div class="row g-3 mb-3">
+                <div class="col-3">
+                  <label class="form-label">Title</label>
+                  <select class="form-select" name="title" id="em_title">
+                    <option value="Mr">Mr</option>
+                    <option value="Mrs">Mrs</option>
+                    <option value="Miss">Miss</option>
+                    <option value="Ms">Ms</option>
+                    <option value="Dr">Dr</option>
+                  </select>
+                </div>
+                <div class="col-5">
+                  <label class="form-label">First Name</label>
+                  <input required type="text" class="form-control" name="first_name" id="em_first_name">
+                </div>
+                <div class="col-4">
+                  <label class="form-label">Surname</label>
+                  <input required type="text" class="form-control" name="surname" id="em_surname">
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-4">
+                  <label class="form-label">Sex</label>
+                  <select class="form-select" name="sex" id="em_sex">
+                    <option value="MALE">MALE</option>
+                    <option value="FEMALE">FEMALE</option>
+                  </select>
+                </div>
+                <div class="col-4">
+                  <label class="form-label">Date of Birth</label>
+                  <input type="date" class="form-control" name="date_of_birth" id="em_dob">
+                </div>
+                <div class="col-4">
+                  <label class="form-label">Spouse Name</label>
+                  <input type="text" class="form-control" name="spouse_name" id="em_spouse">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Contact -->
+          <div class="pb-table-card mb-4">
+            <div class="pb-admin-section-header">Contact</div>
+            <div class="p-3">
+              <div class="row g-3">
+                <div class="col-6">
+                  <label class="form-label">Email</label>
+                  <input type="email" class="form-control" name="email" id="em_email">
+                </div>
+                <div class="col-5">
+                  <label class="form-label">Phone Number</label>
+                  <input type="text" class="form-control" name="phone_number" id="em_phone">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Address -->
+          <div class="pb-table-card mb-4">
+            <div class="pb-admin-section-header">Address</div>
+            <div class="p-3">
+              <div class="row g-3 mb-3">
+                <div class="col-2">
+                  <label class="form-label">House No.</label>
+                  <input type="text" class="form-control" name="house_number" id="em_house_number">
+                </div>
+                <div class="col-5">
+                  <label class="form-label">Address Line 1</label>
+                  <input type="text" class="form-control" name="address_line_1" id="em_address1">
+                </div>
+                <div class="col-5">
+                  <label class="form-label">Address Line 2</label>
+                  <input type="text" class="form-control" name="address_line_2" id="em_address2">
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-5">
+                  <label class="form-label">City</label>
+                  <input type="text" class="form-control" name="city" id="em_city">
+                </div>
+                <div class="col-3">
+                  <label class="form-label">Postcode</label>
+                  <input type="text" class="form-control" name="postcode" id="em_postcode">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Admin -->
+          <div class="pb-table-card mb-2">
+            <div class="pb-admin-section-header">Admin</div>
+            <div class="p-3">
+              <div class="row g-3">
+                <div class="col-6">
+                  <label class="form-label">Banking Name <small class="text-muted fw-normal">(Admin use only)</small></label>
+                  <input type="text" class="form-control" name="banking_name" id="em_banking_name">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="em_error" class="alert alert-danger d-none mt-3"></div>
+        </form>
+        <div id="em_error_load" class="alert alert-danger d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-warning" id="em_save_btn" disabled>
+          <span id="em_spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+          <i class="bi bi-floppy me-1" id="em_save_icon"></i>Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     DELETE MEMBER MODAL
+═══════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="deleteMemberModal" tabindex="-1" aria-labelledby="deleteMemberModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <h5 class="modal-title" id="deleteMemberModalLabel">
+          <i class="bi bi-trash me-2"></i>Delete Member
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete <strong id="dm_name"></strong>? This will also remove all their donation records and cannot be undone.</p>
+        <div id="dm_error" class="alert alert-danger d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="dm_confirm_btn">
+          <span id="dm_spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+          <i class="bi bi-trash me-1" id="dm_icon"></i>Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+  <div id="memberToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body" id="memberToastMsg"><i class="bi bi-check-circle-fill me-2"></i></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  // ── helpers ────────────────────────────────────────────────────────
+  function showToast(msg) {
+    document.getElementById('memberToastMsg').innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' + msg;
+    new bootstrap.Toast(document.getElementById('memberToast'), { delay: 3500 }).show();
+  }
+
+  function fmtDate(val) {
+    if (!val) return '';
+    const d = new Date(val);
+    return isNaN(d) ? val : d.toLocaleDateString('en-GB');
+  }
+
+  // ════════════════════════════════════════
+  // VIEW GIVING MODAL
+  // ════════════════════════════════════════
+  const vgModal    = new bootstrap.Modal(document.getElementById('viewGivingModal'));
+  const vgLoading  = document.getElementById('vg_loading');
+  const vgContent  = document.getElementById('vg_content');
+  const vgError    = document.getElementById('vg_error');
+
+  document.querySelectorAll('.btn-view-giving').forEach(btn => {
+    btn.addEventListener('click', async function () {
+      const id = this.dataset.id;
+      vgLoading.classList.remove('d-none');
+      vgContent.classList.add('d-none');
+      vgError.classList.add('d-none');
+      document.getElementById('vg_subtitle').textContent = '';
+      document.getElementById('vg_full_link').href = '/donations/' + id;
+      document.getElementById('vg_pdf_btn').disabled = true;
+      vgModal.show();
+
+      try {
+        const res  = await fetch('/api/member/' + id);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load.');
+
+        const m = data.member;
+        document.getElementById('vg_subtitle').textContent = m.first_name + ' ' + m.surname;
+        document.getElementById('vg_total').textContent   = '£' + parseFloat(data.total || 0).toFixed(2);
+        document.getElementById('vg_count').textContent   = data.count;
+
+        const tbody = document.getElementById('vg_recent');
+        tbody.innerHTML = '';
+        if (data.recent.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" class="text-muted text-center">No donations recorded.</td></tr>';
+        } else {
+          data.recent.forEach(r => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${fmtDate(r.date)}</td><td>${r.fund || ''}</td><td class="text-end fw-semibold">£${parseFloat(r.amount).toFixed(2)}</td>`;
+            tbody.appendChild(tr);
+          });
+        }
+        const hint = document.getElementById('vg_more_hint');
+        hint.textContent = data.count > 5 ? `Showing 5 of ${data.count} donations.` : '';
+
+        vgLoading.classList.add('d-none');
+        vgContent.classList.remove('d-none');
+
+        // Tell the PDF modal which member is loaded
+        document.dispatchEvent(new CustomEvent('vg:loaded', {
+          detail: { id, name: m.first_name + ' ' + m.surname, email: m.email || '' }
+        }));
+      } catch (err) {
+        vgLoading.classList.add('d-none');
+        vgError.textContent = err.message;
+        vgError.classList.remove('d-none');
+      }
+    });
+  });
+
+  // ════════════════════════════════════════
+  // EDIT MEMBER MODAL
+  // ════════════════════════════════════════
+  const emModal   = new bootstrap.Modal(document.getElementById('editMemberModal'));
+  const emLoading = document.getElementById('em_loading');
+  const emForm    = document.getElementById('editMemberForm');
+  const emErrorLoad = document.getElementById('em_error_load');
+  const emError   = document.getElementById('em_error');
+  const emSaveBtn = document.getElementById('em_save_btn');
+  const emSpinner = document.getElementById('em_spinner');
+  const emSaveIcon= document.getElementById('em_save_icon');
+
+  document.querySelectorAll('.btn-edit-member').forEach(btn => {
+    btn.addEventListener('click', async function () {
+      const id = this.dataset.id;
+      emLoading.classList.remove('d-none');
+      emForm.classList.add('d-none');
+      emErrorLoad.classList.add('d-none');
+      emError.classList.add('d-none');
+      emSaveBtn.disabled = true;
+      document.getElementById('em_subtitle').textContent = '';
+      emModal.show();
+
+      try {
+        const res  = await fetch('/api/member/' + id);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load.');
+
+        const m = data.member;
+        document.getElementById('em_id').value            = m.id;
+        document.getElementById('em_subtitle').textContent= m.first_name + ' ' + m.surname;
+        document.getElementById('em_title').value         = m.title         || '';
+        document.getElementById('em_first_name').value    = m.first_name    || '';
+        document.getElementById('em_surname').value       = m.surname       || '';
+        document.getElementById('em_sex').value           = m.sex           || 'MALE';
+        document.getElementById('em_dob').value           = m.date_of_birth ? new Date(m.date_of_birth).toISOString().slice(0,10) : '';
+        document.getElementById('em_spouse').value        = m.spouse_name   || '';
+        document.getElementById('em_email').value         = m.email         || '';
+        document.getElementById('em_phone').value         = m.phone_number  || '';
+        document.getElementById('em_house_number').value  = m.house_number  || '';
+        document.getElementById('em_address1').value      = m.address_line_1|| '';
+        document.getElementById('em_address2').value      = m.address_line_2|| '';
+        document.getElementById('em_city').value          = m.city          || '';
+        document.getElementById('em_postcode').value      = m.postcode      || '';
+        document.getElementById('em_banking_name').value  = m.banking_name  || '';
+
+        emLoading.classList.add('d-none');
+        emForm.classList.remove('d-none');
+        emSaveBtn.disabled = false;
+      } catch (err) {
+        emLoading.classList.add('d-none');
+        emErrorLoad.textContent = err.message;
+        emErrorLoad.classList.remove('d-none');
+      }
+    });
+  });
+
+  emSaveBtn.addEventListener('click', async function () {
+    emError.classList.add('d-none');
+    emForm.classList.add('was-validated');
+    if (!emForm.checkValidity()) return;
+
+    const id = document.getElementById('em_id').value;
+    const payload = {
+      title:          document.getElementById('em_title').value,
+      first_name:     document.getElementById('em_first_name').value.trim(),
+      surname:        document.getElementById('em_surname').value.trim(),
+      sex:            document.getElementById('em_sex').value,
+      date_of_birth:  document.getElementById('em_dob').value || null,
+      spouse_name:    document.getElementById('em_spouse').value.trim(),
+      email:          document.getElementById('em_email').value.trim(),
+      phone_number:   document.getElementById('em_phone').value.trim(),
+      house_number:   document.getElementById('em_house_number').value.trim(),
+      address_line_1: document.getElementById('em_address1').value.trim(),
+      address_line_2: document.getElementById('em_address2').value.trim(),
+      city:           document.getElementById('em_city').value.trim(),
+      postcode:       document.getElementById('em_postcode').value.trim(),
+      banking_name:   document.getElementById('em_banking_name').value.trim(),
+    };
+
+    emSpinner.classList.remove('d-none');
+    emSaveIcon.classList.add('d-none');
+    emSaveBtn.disabled = true;
+
+    try {
+      const res  = await fetch('/api/member/' + id, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to save.');
+      emModal.hide();
+      showToast('Member updated successfully.');
+      // Update the name shown in the row without a full reload
+      const nameEl = document.querySelector(`.btn-edit-member[data-id="${id}"]`)
+        ?.closest('tr')?.querySelector('.pb-member-name');
+      if (nameEl) nameEl.textContent = payload.first_name + ' ' + payload.surname;
+    } catch (err) {
+      emError.textContent = err.message;
+      emError.classList.remove('d-none');
+    } finally {
+      emSpinner.classList.add('d-none');
+      emSaveIcon.classList.remove('d-none');
+      emSaveBtn.disabled = false;
+    }
+  });
+
+  // Reset validation state when modal closes
+  document.getElementById('editMemberModal').addEventListener('hidden.bs.modal', function () {
+    emForm.classList.remove('was-validated');
+  });
+
+  // ════════════════════════════════════════
+  // MEMBER PDF MODAL  (triggered from View Giving)
+  // ════════════════════════════════════════
+  const mpdfModal      = new bootstrap.Modal(document.getElementById('memberPdfModal'));
+  const mpdfStart      = document.getElementById('mpdf_start');
+  const mpdfEnd        = document.getElementById('mpdf_end');
+  const mpdfEmailRow   = document.getElementById('mpdf_email_row');
+  const mpdfEmailInput = document.getElementById('mpdf_email_to');
+  const mpdfEmailHint  = document.getElementById('mpdf_email_hint');
+  const mpdfEmptyWarn  = document.getElementById('mpdf_empty_warn');
+  const mpdfError      = document.getElementById('mpdf_error');
+  const mpdfSuccess    = document.getElementById('mpdf_success');
+  const mpdfGenBtn     = document.getElementById('mpdf_generate_btn');
+  const mpdfSpinner    = document.getElementById('mpdf_spinner');
+  const mpdfBtnIcon    = document.getElementById('mpdf_btn_icon');
+  let   mpdfDonorId    = null;
+  let   mpdfDonorName  = '';
+  let   mpdfDonorEmail = '';
+
+  document.getElementById('vg_pdf_btn').addEventListener('click', function () {
+    // Close giving modal, open PDF modal
+    vgModal.hide();
+    const now = new Date();
+    mpdfStart.value = now.getFullYear() + '-01-01';
+    mpdfEnd.value   = now.getFullYear() + '-12-31';
+    mpdfEmailInput.value = mpdfDonorEmail;
+    mpdfEmailHint.textContent = mpdfDonorEmail ? 'Donor email pre-filled.' : '';
+    mpdfEmailRow.classList.add('d-none');
+    mpdfEmptyWarn.classList.add('d-none');
+    mpdfError.classList.add('d-none');
+    mpdfSuccess.classList.add('d-none');
+    document.getElementById('mpdf_action_download').checked = true;
+    document.getElementById('mpdf_subtitle').textContent = mpdfDonorName;
+    mpdfModal.show();
+  });
+
+  // Populate mpdf vars when View Giving loads a member
+  // (hook into the existing vg fetch success path via a custom event)
+  document.addEventListener('vg:loaded', function (e) {
+    mpdfDonorId    = e.detail.id;
+    mpdfDonorName  = e.detail.name;
+    mpdfDonorEmail = e.detail.email || '';
+    document.getElementById('vg_pdf_btn').disabled = false;
+  });
+
+  document.querySelectorAll('input[name="mpdf_action"]').forEach(radio => {
+    radio.addEventListener('change', function () {
+      mpdfEmailRow.classList.toggle('d-none', this.value !== 'email');
+    });
+  });
+
+  mpdfGenBtn.addEventListener('click', async function () {
+    mpdfEmptyWarn.classList.add('d-none');
+    mpdfError.classList.add('d-none');
+    mpdfSuccess.classList.add('d-none');
+
+    const startDate = mpdfStart.value;
+    const endDate   = mpdfEnd.value;
+    const action    = document.querySelector('input[name="mpdf_action"]:checked').value;
+    const emailTo   = mpdfEmailInput.value.trim();
+
+    if (!startDate || !endDate) {
+      mpdfError.textContent = 'Please select a date range.';
+      mpdfError.classList.remove('d-none');
+      return;
+    }
+    if (action === 'email' && !emailTo) {
+      mpdfError.textContent = 'Please enter an email address.';
+      mpdfError.classList.remove('d-none');
+      return;
+    }
+
+    mpdfSpinner.classList.remove('d-none');
+    mpdfBtnIcon.classList.add('d-none');
+    mpdfGenBtn.disabled = true;
+
+    try {
+      const res = await fetch(`/api/donor-pdf/${mpdfDonorId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_date: startDate, end_date: endDate, action, email_to: emailTo }),
+      });
+
+      const contentType = res.headers.get('Content-Type') || '';
+      if (action === 'download' && contentType.includes('application/pdf')) {
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = mpdfDonorName + ' - Statement of Donations.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        mpdfModal.hide();
+        return;
+      }
+
+      const data = await res.json();
+      if (data.empty) { mpdfEmptyWarn.classList.remove('d-none'); return; }
+      if (data.success) {
+        mpdfSuccess.textContent = data.message || 'Statement sent successfully.';
+        mpdfSuccess.classList.remove('d-none');
+        return;
+      }
+      mpdfError.textContent = data.error || 'Something went wrong.';
+      mpdfError.classList.remove('d-none');
+    } catch {
+      mpdfError.textContent = 'Network error — please try again.';
+      mpdfError.classList.remove('d-none');
+    } finally {
+      mpdfSpinner.classList.add('d-none');
+      mpdfBtnIcon.classList.remove('d-none');
+      mpdfGenBtn.disabled = false;
+    }
+  });
+
+  // ════════════════════════════════════════
+  // DELETE MEMBER MODAL
+  // ════════════════════════════════════════
+  const dmModal   = new bootstrap.Modal(document.getElementById('deleteMemberModal'));
+  const dmError   = document.getElementById('dm_error');
+  const dmConfirm = document.getElementById('dm_confirm_btn');
+  const dmSpinner = document.getElementById('dm_spinner');
+  const dmIcon    = document.getElementById('dm_icon');
+  let   dmTargetId = null;
+
+  document.querySelectorAll('.btn-delete-member').forEach(btn => {
+    btn.addEventListener('click', function () {
+      dmTargetId = this.dataset.id;
+      document.getElementById('dm_name').textContent = this.dataset.name;
+      dmError.classList.add('d-none');
+      dmModal.show();
+    });
+  });
+
+  dmConfirm.addEventListener('click', async function () {
+    dmError.classList.add('d-none');
+    dmSpinner.classList.remove('d-none');
+    dmIcon.classList.add('d-none');
+    dmConfirm.disabled = true;
+
+    try {
+      const res  = await fetch('/api/member/' + dmTargetId, { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to delete.');
+      dmModal.hide();
+      // Remove the row from the table
+      const row = document.querySelector(`.btn-delete-member[data-id="${dmTargetId}"]`)?.closest('tr');
+      if (row) row.remove();
+      showToast('Member deleted.');
+    } catch (err) {
+      dmError.textContent = err.message;
+      dmError.classList.remove('d-none');
+    } finally {
+      dmSpinner.classList.add('d-none');
+      dmIcon.classList.remove('d-none');
+      dmConfirm.disabled = false;
+    }
+  });
+
+});
+</script>
 
 <%- include("_loggedInFooter") -%>

@@ -23,7 +23,7 @@ const bankRouter        = require('./routes/bank')
 const invitesRouter     = require('./routes/invites')
 const superAdminRouter  = require('./routes/superadmin')
 const tlSync            = require('./truelayer/sync')
-const { sendStatementByEmail, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendDonationReceivedEmail, sendTotalsExportEmail } = require('./emailer');
+const { sendStatementByEmail, sendDonorStatementBuffer, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendDonationReceivedEmail, sendTotalsExportEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
@@ -66,6 +66,27 @@ const storage = multer.diskStorage({
   }});
 
 const upload = multer({ storage: storage });
+
+// Logo upload — stored in public/uploads/logos so it is web-accessible
+const logoStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const dir = path.join(__dirname, 'public', 'uploads', 'logos');
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, 'charity-logo-' + Date.now() + path.extname(file.originalname));
+  },
+});
+const logoUpload = multer({
+  storage: logoStorage,
+  fileFilter: (req, file, cb) => {
+    if (/^image\/(png|jpeg|jpg|gif|webp|svg\+xml)$/.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only image files are allowed'));
+  },
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+});
+
 app.listen(8000, () => {
   console.log("Server running on port: %PORT%".replace("%PORT%",8000))
 });
@@ -425,6 +446,53 @@ app.post("/edit-donation/:id", requireLogin, injectCharityId, checkApprovedUser,
         }
     });
 
+// ── Member API (used by claimants page modals) ──────────────────────────────
+app.get("/api/member/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
+  try {
+    const member = await dbHelper.getMemberWithId(req.params.id, req.charityId);
+    if (!member) return res.status(404).json({ error: 'Member not found.' });
+    // Attach donation summary
+    const totals = await pool.query(
+      `SELECT COALESCE(SUM(amount::FLOAT),0) AS total, COUNT(*) AS count FROM donations WHERE member_id=$1 AND charity_id=$2`,
+      [req.params.id, req.charityId]
+    );
+    const recent = await pool.query(
+      `SELECT date, fund, amount FROM donations WHERE member_id=$1 AND charity_id=$2 ORDER BY date DESC LIMIT 5`,
+      [req.params.id, req.charityId]
+    );
+    res.json({ member, total: totals.rows[0].total, count: totals.rows[0].count, recent: recent.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/member/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
+  const id = req.params.id;
+  const b = req.body;
+  const vals = [b.first_name, b.surname, b.banking_name, b.date_of_birth, b.sex, b.email, b.phone_number, b.address_line_1, b.address_line_2, b.city, b.postcode, b.baptised, b.baptised_date, b.holy_spirit, b.native_church, b.children_details, b.emergency_contact_1, b.emergency_contact_1_name, b.emergency_contact_2, b.emergency_contact_2_name, b.occupation_studies, b.title, b.house_number, b.spouse_name, id, req.charityId];
+  try {
+    await pool.query(
+      `UPDATE members SET first_name=$1,surname=$2,banking_name=$3,date_of_birth=$4,sex=$5,email=$6,phone_number=$7,address_line_1=$8,address_line_2=$9,city=$10,postcode=$11,baptised=$12,baptised_date=$13,holy_spirit=$14,native_church=$15,children_details=$16,emergency_contact_1=$17,emergency_contact_1_name=$18,emergency_contact_2=$19,emergency_contact_2_name=$20,occupation_studies=$21,title=$22,house_number=$23,spouse_name=$24 WHERE id=$25 AND charity_id=$26`,
+      vals
+    );
+    log(req.session.name + ': Updated member ' + id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/member/:id", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
+  const id = req.params.id;
+  try {
+    await pool.query("DELETE FROM members WHERE id=$1 AND charity_id=$2", [id, req.charityId]);
+    log(req.session.name + ': Deleted member ' + id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/donations/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
     const id = req.params.id;
     const loggedInName = req.session.name;
@@ -440,7 +508,9 @@ app.get("/donations/:id", requireLogin, injectCharityId, checkApprovedUser, asyn
         rows.forEach((row) => { totalAmount += parseFloat(row.amount) || 0; });
         const dtResult = await pool.query('SELECT type FROM donation_types WHERE charity_id = $1 ORDER BY type ASC', [req.charityId]);
         const donationTypes = dtResult.rows.map(r => r.type);
-        res.render("donations", { model: rows, id, loggedInName, firstName, surname, totalAmount, donationTypes });
+        const memberResult = await pool.query('SELECT email FROM members WHERE id = $1 AND charity_id = $2', [id, req.charityId]);
+        const donorEmail = memberResult.rows[0]?.email || '';
+        res.render("donations", { model: rows, id, loggedInName, firstName, surname, totalAmount, donationTypes, donorEmail });
     } catch (err) {
         log(loggedInName + ': Error getting donations: ' + err.message);
         console.error(err.message);
@@ -812,6 +882,107 @@ app.get('/logout', (req, res) => {
         log(loggedInName + ': logged out')
         req.session.destroy();
         res.redirect('/');
+      });
+
+      // ── Charity Settings ────────────────────────────────────────────
+      app.get("/charity/settings", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
+        const loggedInName = req.session.name;
+        try {
+          const charity = await dbHelper.getCharityById(req.charityId);
+          res.render("charity-settings", { loggedInName, charity });
+        } catch (err) {
+          console.error('Error loading charity settings:', err.message);
+          req.flash('error', 'Could not load charity settings.');
+          res.redirect('/admin');
+        }
+      });
+
+      app.post("/charity/settings", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
+        const loggedInName = req.session.name;
+        try {
+          const { name, email, phone, website, charity_no, treasurer_name, address } = req.body;
+          await dbHelper.updateCharity(req.charityId, { name, email, phone, website, charity_no, treasurer_name, address });
+          log(loggedInName + ': Updated charity settings');
+          req.flash('success', 'Charity settings updated.');
+          res.redirect('/charity/settings');
+        } catch (err) {
+          console.error('Error updating charity settings:', err.message);
+          req.flash('error', 'Could not update charity settings.');
+          res.redirect('/charity/settings');
+        }
+      });
+
+      app.post("/charity/settings/logo", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, logoUpload.single('logo'), async (req, res) => {
+        const loggedInName = req.session.name;
+        try {
+          if (!req.file) {
+            req.flash('error', 'No file uploaded.');
+            return res.redirect('/charity/settings');
+          }
+          // Store path relative to the public folder so it's web-accessible
+          const webPath = '/uploads/logos/' + req.file.filename;
+          await dbHelper.updateCharityLogo(req.charityId, webPath);
+          log(loggedInName + ': Updated charity logo to ' + webPath);
+          req.flash('success', 'Charity logo updated.');
+          res.redirect('/charity/settings');
+        } catch (err) {
+          console.error('Error uploading charity logo:', err.message);
+          req.flash('error', 'Could not upload logo.');
+          res.redirect('/charity/settings');
+        }
+      });
+
+      // ── Donor PDF (modal-driven: download or email with date range) ─
+      app.post("/api/donor-pdf/:id", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
+        const loggedInName = req.session.name;
+        try {
+          const id = req.params.id;
+          const { start_date, end_date, action, email_to } = req.body;
+
+          if (!start_date || !end_date) {
+            return res.status(400).json({ error: 'Start and end date are required.' });
+          }
+
+          const donor = await dbHelper.getMemberWithId(id, req.charityId);
+          if (!donor) return res.status(404).json({ error: 'Donor not found.' });
+
+          const [tithe, donations] = await Promise.all([
+            pool.query(
+              `SELECT * FROM donations WHERE member_id=$1 AND charity_id=$2 AND date BETWEEN $3 AND $4 AND fund='Tithe' ORDER BY date ASC`,
+              [id, req.charityId, start_date, end_date]
+            ).then(r => r.rows),
+            pool.query(
+              `SELECT * FROM donations WHERE member_id=$1 AND charity_id=$2 AND date BETWEEN $3 AND $4 AND fund!='Tithe' ORDER BY date ASC`,
+              [id, req.charityId, start_date, end_date]
+            ).then(r => r.rows),
+          ]);
+
+          if (tithe.length === 0 && donations.length === 0) {
+            return res.status(200).json({ empty: true, message: 'No donations found in the selected date range.' });
+          }
+
+          const charity = await dbHelper.getCharityById(req.charityId);
+          const pdfBuffer = await pdfGenerator.generatePDF(donor, tithe, donations, charity, start_date, end_date);
+          const fullName = `${donor.first_name} ${donor.surname}`;
+
+          if (action === 'email') {
+            if (!email_to) return res.status(400).json({ error: 'Email address is required.' });
+            await sendDonorStatementBuffer(email_to, pdfBuffer, fullName);
+            log(loggedInName + ': Donor PDF emailed to ' + email_to + ' for ' + fullName);
+            return res.json({ success: true, message: `Statement emailed to ${email_to}.` });
+          }
+
+          // Default: download
+          const filename = `${fullName} - Statement of Donations.pdf`;
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          log(loggedInName + ': Donor PDF downloaded for ' + fullName);
+          return res.send(pdfBuffer);
+        } catch (err) {
+          console.error('Error generating donor PDF:', err.message);
+          log(loggedInName + ': Error generating donor PDF: ' + err.message);
+          if (!res.headersSent) res.status(500).json({ error: 'Error generating PDF.' });
+        }
       });
 
       app.get("/generate-donor-pdf/:id", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
