@@ -12,6 +12,7 @@ const mainDb = require('../dbHelper');
 const api    = require('./api');
 const tlAuth = require('./auth');
 const { encrypt, decrypt } = require('./crypto');
+const { log }  = require('../utils');
 
 /**
  * Ensure we have a valid (non-expired) access token.
@@ -34,12 +35,9 @@ async function getValidAccessToken(connection) {
       const status   = err.response?.status;
       const tlError  = err.response?.data?.error;
       const tlDesc   = err.response?.data?.error_description;
-      console.error(`[TrueLayer] Token refresh failed — HTTP ${status} | error: ${tlError} | ${tlDesc}`);
+      log(`System: TrueLayer token refresh failed — HTTP ${status} | ${tlError} | ${tlDesc}`, connection.charity_id);
 
       if (status === 400 || status === 401) {
-        // 'invalid_grant' means the refresh token is genuinely expired/revoked (consent ended).
-        // Any other 400/401 (e.g. bad credentials, malformed request) should not
-        // silently deactivate the connection — surface the real error instead.
         if (tlError === 'invalid_grant' || !tlError) {
           await tlDb.deactivateConnection(connection.account_id);
           throw new Error('CONSENT_EXPIRED');
@@ -154,7 +152,7 @@ async function syncAll(charityId) {
   const connection = await tlDb.getActiveConnection(charityId);
 
   if (!connection) {
-    console.log('[TrueLayer] No active bank connection — skipping sync.');
+    log('System: TrueLayer sync skipped — no active bank connection', charityId);
     return { skipped: true };
   }
 
@@ -163,7 +161,7 @@ async function syncAll(charityId) {
     accessToken = await getValidAccessToken(connection);
   } catch (err) {
     if (err.message === 'CONSENT_EXPIRED') {
-      console.warn('[TrueLayer] Consent has expired. User must re-connect.');
+      log('System: TrueLayer bank consent expired — reconnection required', charityId);
       await tlDb.insertSyncLog({
         accountId: connection.account_id,
         syncType: 'full',
@@ -223,11 +221,12 @@ async function syncAll(charityId) {
       });
     }
   } catch (err) {
-    console.warn('[TrueLayer] Backfill warning:', err.message);
+    log('System: TrueLayer backfill warning — ' + err.message, charityId);
   }
 
   await tlDb.updateLastSynced(connection.account_id);
-  console.log(`[TrueLayer] Sync complete for ${connection.account_id}:`, result);
+  const inserted = result.transactions?.inserted ?? 0;
+  log('System: TrueLayer sync complete for ' + connection.account_id + ' — ' + inserted + ' transaction(s) inserted', charityId);
   return result;
 }
 

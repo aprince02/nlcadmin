@@ -16,6 +16,9 @@ async function initDb() {
         name       TEXT NOT NULL,
         slug       TEXT UNIQUE NOT NULL,
         email      TEXT,
+        phone      TEXT,
+        website    TEXT,
+        charity_no TEXT,
         is_active  INTEGER NOT NULL DEFAULT 1,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
@@ -78,6 +81,7 @@ async function initDb() {
         method          TEXT,
         gift_aid_status TEXT,
         notes           TEXT,
+        transaction_id  INTEGER REFERENCES transactions(id),
         charity_id      INTEGER NOT NULL REFERENCES charities(id)
       )
     `);

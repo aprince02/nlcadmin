@@ -2,7 +2,7 @@ const express  = require('express');
 const router   = express.Router();
 const crypto   = require('crypto');
 const pool     = require('../database');
-const { requireLogin, injectCharityId, checkSuperAdmin, checkAdmin, checkApprovedUser } = require('../utils');
+const { requireLogin, injectCharityId, checkSuperAdmin, checkAdmin, checkApprovedUser, log } = require('../utils');
 const { sendInviteEmail } = require('../emailer');
 
 // ── Super Admin: view panel ──────────────────────────────────────────
@@ -13,7 +13,7 @@ router.get('/super-admin', requireLogin, checkSuperAdmin, checkApprovedUser, asy
     const charities = await pool.query(`SELECT * FROM charities ORDER BY id ASC`);
     res.render('super-admin', { loggedInName, charities: charities.rows });
   } catch (err) {
-    console.error('[SuperAdmin] Error loading panel:', err.message);
+    log(loggedInName + ': Error loading super admin panel - ' + err.message);
     req.flash('error', 'Could not load super admin panel.');
     res.redirect('/admin');
   }
@@ -48,10 +48,11 @@ router.post('/admin/charities', requireLogin, checkSuperAdmin, checkApprovedUser
 
     await sendInviteEmail(admin_email.trim(), token, 'admin', charity.name);
 
+    log(loggedInName + ': Created charity "' + charity.name + '" and sent admin invite to ' + admin_email);
     req.flash('success', `Charity "${charity.name}" created. Invite sent to ${admin_email}.`);
     res.redirect('/admin');
   } catch (err) {
-    console.error('[SuperAdmin] Create charity error:', err.message);
+    log(loggedInName + ': Error creating charity - ' + err.message);
     if (err.code === '23505') {
       req.flash('error', 'A charity with this slug already exists.');
     } else {
@@ -100,10 +101,11 @@ router.post('/charity/invite', requireLogin, injectCharityId, checkAdmin, checkA
 
     await sendInviteEmail(email.trim(), token, role, charityName);
 
+    log(req.session.name + ': Sent invite to ' + email + ' as ' + role, req.charityId);
     req.flash('success', `Invite sent to ${email}.`);
     res.redirect('/admin');
   } catch (err) {
-    console.error('[CharityAdmin] Invite error:', err.message);
+    log(req.session.name + ': Error sending invite to ' + (req.body.email || '') + ' - ' + err.message, req.charityId);
     req.flash('error', 'Error sending invite. Please try again.');
     res.redirect('/charity/invite');
   }
@@ -136,9 +138,10 @@ router.post('/charity/invite/resend', requireLogin, injectCharityId, checkAdmin,
     );
 
     await sendInviteEmail(email.trim(), token, existing.rows[0].role, charityName);
+    log(req.session.name + ': Resent invite to ' + email, req.charityId);
     return res.json({ ok: true });
   } catch (err) {
-    console.error('[CharityAdmin] Resend invite error:', err.message);
+    log(req.session.name + ': Error resending invite to ' + email + ' - ' + err.message, req.charityId);
     return res.status(500).json({ error: 'Error resending invite. Please try again.' });
   }
 });
@@ -172,9 +175,10 @@ router.post('/admin/invite/resend', requireLogin, checkSuperAdmin, checkApproved
     );
 
     await sendInviteEmail(email.trim(), token, role, charity_name);
+    log(req.session.name + ': Super admin resent invite to ' + email + ' for ' + charity_name);
     return res.json({ ok: true });
   } catch (err) {
-    console.error('[SuperAdmin] Resend invite error:', err.message);
+    log(req.session.name + ': Error resending invite (super admin) to ' + email + ' - ' + err.message);
     return res.status(500).json({ error: 'Error resending invite. Please try again.' });
   }
 });

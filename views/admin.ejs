@@ -31,9 +31,9 @@
         <button type="button" class="pb-admin-btn" id="openDonationsModal">
           <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Donations
         </button>
-        <a href="/export-giftaid-claims" class="pb-admin-btn">
+        <button type="button" class="pb-admin-btn" id="openGiftAidModal">
           <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Claim Gift Aid
-        </a>
+        </button>
         <button type="button" class="pb-admin-btn" id="openTotalsModal">
           <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Totals
         </button>
@@ -400,6 +400,52 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+<!-- ── Gift Aid Modal ──────────────────────────────────────────── -->
+<div class="modal fade" id="giftAidModal" tabindex="-1" aria-labelledby="giftAidModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <h5 class="modal-title" id="giftAidModalLabel"><i class="bi bi-file-earmark-check me-2"></i>Claim Gift Aid</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="giftAidLoading" class="text-center py-3">
+          <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading summary...
+        </div>
+        <div id="giftAidSummary" class="d-none">
+          <table class="table table-sm table-borderless mb-0">
+            <thead class="table-light">
+              <tr><th>Category</th><th class="text-center">Count</th><th class="text-end">Amount</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="text-muted">Unclaimed donations</td>
+                <td class="text-center" id="gaDonationCount">—</td>
+                <td class="fw-semibold text-end" id="gaDonationTotal">—</td>
+              </tr>
+              <tr class="table-success">
+                <td class="fw-semibold">Receivable from HMRC</td>
+                <td></td>
+                <td class="fw-bold text-end" id="gaReceivable">—</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="text-muted mt-3 mb-0" style="font-size:0.8rem;">Gift Aid is calculated at 25% on donations only. Clicking <strong>Export &amp; Mark Claimed</strong> will download the CSV and mark all unclaimed donations as claimed.</p>
+        </div>
+        <div id="giftAidNone" class="d-none text-muted text-center py-3">No unclaimed donations found.</div>
+        <div id="giftAidError" class="alert alert-danger d-none mt-2" role="alert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success d-none" id="gaExportBtn">
+          <span id="gaSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+          <i class="bi bi-download me-1" id="gaIcon"></i>Export &amp; Mark Claimed
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Invite User Modal ────────────────────────────────────────── -->
 <div class="modal fade" id="inviteModal" tabindex="-1" aria-labelledby="inviteModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -497,6 +543,79 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+  // ── Gift Aid modal ─────────────────────────────────────────────
+  const giftAidModal = new bootstrap.Modal(document.getElementById('giftAidModal'));
+
+  document.getElementById('openGiftAidModal').addEventListener('click', async () => {
+    document.getElementById('giftAidLoading').classList.remove('d-none');
+    document.getElementById('giftAidSummary').classList.add('d-none');
+    document.getElementById('giftAidNone').classList.add('d-none');
+    document.getElementById('giftAidError').classList.add('d-none');
+    document.getElementById('gaExportBtn').classList.add('d-none');
+    giftAidModal.show();
+
+    try {
+      const res  = await fetch('/api/giftaid-summary');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Server error');
+
+      document.getElementById('giftAidLoading').classList.add('d-none');
+
+      const fmt = v => '£' + parseFloat(v).toLocaleString('en-GB', { minimumFractionDigits: 2 });
+      if (data.donationCount === 0) {
+        document.getElementById('giftAidNone').classList.remove('d-none');
+      } else {
+        document.getElementById('gaDonationCount').textContent = data.donationCount;
+        document.getElementById('gaDonationTotal').textContent = fmt(data.donationTotal);
+        document.getElementById('gaReceivable').textContent    = fmt(data.receivable);
+        document.getElementById('giftAidSummary').classList.remove('d-none');
+        document.getElementById('gaExportBtn').classList.remove('d-none');
+      }
+    } catch (err) {
+      document.getElementById('giftAidLoading').classList.add('d-none');
+      document.getElementById('giftAidError').textContent = err.message || 'Could not load summary.';
+      document.getElementById('giftAidError').classList.remove('d-none');
+    }
+  });
+
+  document.getElementById('gaExportBtn').addEventListener('click', async () => {
+    const spinner = document.getElementById('gaSpinner');
+    const icon    = document.getElementById('gaIcon');
+    const errBox  = document.getElementById('giftAidError');
+    const btn     = document.getElementById('gaExportBtn');
+
+    spinner.classList.remove('d-none');
+    icon.classList.add('d-none');
+    btn.disabled = true;
+    errBox.classList.add('d-none');
+
+    try {
+      const res = await fetch('/export-giftaid-claims', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Export failed.');
+      }
+      // Download the CSV file returned
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = 'giftaid_claim.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      giftAidModal.hide();
+    } catch (err) {
+      errBox.textContent = err.message || 'Export failed.';
+      errBox.classList.remove('d-none');
+    } finally {
+      spinner.classList.add('d-none');
+      icon.classList.remove('d-none');
+      btn.disabled = false;
+    }
+  });
+
   document.getElementById('openInviteModal')?.addEventListener('click', () => {
     new bootstrap.Modal(document.getElementById('inviteModal')).show();
   });

@@ -21,17 +21,41 @@ function formatted_date() {
     return today;
 }
 
+function inferLevel(message) {
+    const m = (message || '').toLowerCase();
+    if (m.includes('error') || m.includes('failed') || m.includes('exception') || m.includes('crash')) return 'error';
+    if (m.includes('warning') || m.includes('warn') || m.includes('invalid') || m.includes('duplicate') || m.includes('skipped') || m.includes('expired')) return 'warning';
+    return 'info';
+}
+
 function log(update, charityId) {
-    const computerName = os.hostname();
+    // Extract the username from messages formatted as "Name: message"
+    const colonIdx = update ? update.indexOf(': ') : -1;
+    const userName = colonIdx > 0 ? update.slice(0, colonIdx) : os.hostname();
+    const level = inferLevel(update);
     // charityId is optional — logs without a tenant context (e.g. startup errors) are allowed
     const sql = charityId
-      ? 'INSERT INTO console_logs (timestamp, "user", log_message, charity_id) VALUES (NOW(), $1, $2, $3)'
-      : 'INSERT INTO console_logs (timestamp, "user", log_message) VALUES (NOW(), $1, $2)';
-    const params = charityId ? [computerName, update, charityId] : [computerName, update];
+      ? 'INSERT INTO console_logs (timestamp, "user", log_message, level, charity_id) VALUES (NOW(), $1, $2, $3, $4)'
+      : 'INSERT INTO console_logs (timestamp, "user", log_message, level) VALUES (NOW(), $1, $2, $3)';
+    const params = charityId ? [userName, update, level, charityId] : [userName, update, level];
     pool.query(sql, params).catch(err => console.error(err.message));
 }
 
-function readCSVAndProcess(csvFilePath, req, res, next) {
+// Intercept console.error and console.warn so Node-level errors also appear in the logs
+const _origError = console.error.bind(console);
+const _origWarn  = console.warn.bind(console);
+console.error = function (...args) {
+    _origError(...args);
+    const msg = args.map(a => (a instanceof Error ? a.stack : String(a))).join(' ');
+    log('System: ' + msg);
+};
+console.warn = function (...args) {
+    _origWarn(...args);
+    const msg = args.map(a => String(a)).join(' ');
+    log('System: ' + msg);
+};
+
+async function readCSVAndProcess(csvFilePath, req, res) {
     if (!csvFilePath.toLowerCase().endsWith('.csv')) {
         log("File is not a CSV. Process aborted.");
         req.flash('error', 'File is not a CSV');
@@ -44,20 +68,28 @@ function readCSVAndProcess(csvFilePath, req, res, next) {
         req.flash('error', 'CSV file not found');
         return res.redirect('/admin');
     }
-    const results = [];
-    fs.createReadStream(csvFilePath)
-        .pipe(csv())
-        .on('data', (data) => {
-            data.Date = convertDateFormat(data.Date);
-            results.push(data);
-        })
-        .on('end', () => {
-    results.forEach(row => {
-        // Default to null
-        let inferredType = null;
 
-        // Normalize description for case-insensitive matching
+    // Parse the CSV into memory first
+    const results = await new Promise((resolve, reject) => {
+        const rows = [];
+        fs.createReadStream(csvFilePath)
+            .pipe(csv())
+            .on('data', (data) => {
+                data.Date = convertDateFormat(data.Date);
+                rows.push(data);
+            })
+            .on('end', () => resolve(rows))
+            .on('error', reject);
+    });
+
+    fs.unlinkSync(csvFilePath);
+
+    let inserted = 0;
+    let skipped  = 0;
+
+    for (const row of results) {
         const description = row.Description?.toLowerCase() || "";
+        let inferredType = null;
 
         if (description.includes("offering")) {
             inferredType = "Offering";
@@ -73,31 +105,52 @@ function readCSVAndProcess(csvFilePath, req, res, next) {
             inferredType = "Bank Charges";
         }
 
-        const sql = `
-            INSERT INTO transactions (
-                date, transaction_type, type, description, paid_out, paid_in, balance, notes, charity_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `;
+        // Normalise amounts so '178.6' and '178.60' are treated as equal
+        const normAmount = v => {
+            if (!v) return null;
+            const n = parseFloat(v);
+            return isNaN(n) ? v : n.toFixed(2);
+        };
 
-        const params = [
-            row.Date,
-            row.Type,
-            inferredType,
-            row.Description,
-            row['Paid Out'],
-            row['Paid In'],
-            row.Balance,
-            null,
-            req.charityId
-        ];
+        const paidIn  = normAmount(row['Paid In']);
+        const paidOut = normAmount(row['Paid Out']);
 
-        pool.query(sql, params)
-            .then(() => log("Row inserted successfully: " + row.Description, req.charityId))
-            .catch(err => log("Error inserting row into the database: " + row.Description + " " + err.message, req.charityId));
-    });
+        try {
+            const result = await pool.query(`
+                INSERT INTO transactions (
+                    date, transaction_type, type, description, paid_out, paid_in, balance, notes, charity_id
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (date, description, COALESCE(paid_in, ''), COALESCE(paid_out, ''), charity_id) DO NOTHING
+            `, [
+                row.Date,
+                row.Type,
+                inferredType,
+                row.Description,
+                paidOut,
+                paidIn,
+                row.Balance || null,
+                null,
+                req.charityId,
+            ]);
 
-    fs.unlinkSync(csvFilePath);
-});
+            if (result.rowCount > 0) {
+                inserted++;
+                log("Row inserted: " + row.Description, req.charityId);
+            } else {
+                skipped++;
+                log("Duplicate skipped: " + row.Description, req.charityId);
+            }
+        } catch (err) {
+            log("Error inserting row: " + row.Description + " — " + err.message, req.charityId);
+        }
+    }
+
+    if (skipped > 0) {
+        req.flash('warning', `Import complete: ${inserted} transaction(s) added, ${skipped} duplicate(s) skipped.`);
+    } else {
+        req.flash('success', `Import complete: ${inserted} transaction(s) added.`);
+    }
+    return res.redirect('/admin');
 }
 
   function convertDateFormat(dateString) {

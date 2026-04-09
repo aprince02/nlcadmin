@@ -12,7 +12,7 @@
       </nav>
     </div>
     <% if (connection) { %>
-    <div class="pb-page-actions d-print-none">
+    <div class="pb-page-actions d-print-none d-flex gap-2 flex-wrap">
       <form action="/bank/sync" method="post" class="d-inline">
         <button type="submit" class="btn btn-primary btn-sm">
           <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Sync Now
@@ -30,7 +30,7 @@
 
   <% if (consentWarning) { %>
     <div class="alert alert-warning d-flex align-items-center gap-2 mb-4" role="alert">
-      <i class="bi bi-exclamation-triangle-fill"></i>
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
       <span>
         <strong>Consent expiring soon.</strong>
         Your Open Banking consent expires on
@@ -40,63 +40,45 @@
     </div>
   <% } %>
 
-  <!-- Connection Status -->
+  <!-- Connection Status + Balance -->
   <div class="row g-4 mb-4">
     <div class="col-lg-6">
-      <div class="pb-table-card">
+      <div class="pb-table-card h-100">
         <div class="pb-admin-section-header">Connection Status</div>
-        <div class="p-4">
+        <div class="p-3">
           <% if (connection) { %>
             <div class="d-flex align-items-center gap-2 mb-3">
               <span class="pb-bank-status-dot pb-bank-status-dot--connected"></span>
               <span class="fw-semibold text-success">Connected</span>
             </div>
-            <table class="table table-sm mb-0">
-              <tbody>
-                <tr>
-                  <td class="text-muted" style="width:40%">Account</td>
-                  <td class="fw-semibold"><%= connection.account_name %></td>
-                </tr>
-                <tr>
-                  <td class="text-muted">Type</td>
-                  <td><%= connection.account_type || '—' %></td>
-                </tr>
-                <tr>
-                  <td class="text-muted">Sort Code</td>
-                  <td><%= connection.sort_code || '—' %></td>
-                </tr>
-                <tr>
-                  <td class="text-muted">Account No.</td>
-                  <td><%= connection.account_number ? '****' + connection.account_number.slice(-4) : '—' %></td>
-                </tr>
-                <tr>
-                  <td class="text-muted">Provider</td>
-                  <td><%= connection.provider_id?.toUpperCase() || 'HSBC' %></td>
-                </tr>
-                <tr>
-                  <td class="text-muted">Last Synced</td>
-                  <td>
-                    <% if (connection.last_synced_at) { %>
-                      <%= new Date(connection.last_synced_at).toLocaleString('en-GB') %>
-                    <% } else { %>
-                      Never
-                    <% } %>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="text-muted">Consent Expires</td>
-                  <td class="<%= consentWarning ? 'text-warning fw-semibold' : '' %>">
-                    <%= new Date(connection.consent_expires_at).toLocaleDateString('en-GB') %>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <dl class="row row-cols-2 g-2 mb-0" style="font-size:0.875rem;">
+              <dt class="col text-muted fw-normal">Account</dt>
+              <dd class="col fw-semibold mb-0"><%= connection.account_name %></dd>
+              <dt class="col text-muted fw-normal">Type</dt>
+              <dd class="col mb-0"><%= connection.account_type || '—' %></dd>
+              <dt class="col text-muted fw-normal">Sort Code</dt>
+              <dd class="col mb-0"><%= connection.sort_code || '—' %></dd>
+              <dt class="col text-muted fw-normal">Account No.</dt>
+              <dd class="col mb-0"><%= connection.account_number ? '****' + connection.account_number.slice(-4) : '—' %></dd>
+              <dt class="col text-muted fw-normal">Provider</dt>
+              <dd class="col mb-0"><%= connection.provider_id?.toUpperCase() || 'HSBC' %></dd>
+              <dt class="col text-muted fw-normal">Last Synced</dt>
+              <dd class="col mb-0">
+                <% if (connection.last_synced_at) { %>
+                  <%= new Date(connection.last_synced_at).toLocaleString('en-GB') %>
+                <% } else { %>Never<% } %>
+              </dd>
+              <dt class="col text-muted fw-normal">Consent Expires</dt>
+              <dd class="col mb-0 <%= consentWarning ? 'text-warning fw-semibold' : '' %>">
+                <%= new Date(connection.consent_expires_at).toLocaleDateString('en-GB') %>
+              </dd>
+            </dl>
           <% } else { %>
             <div class="d-flex align-items-center gap-2 mb-3">
               <span class="pb-bank-status-dot pb-bank-status-dot--disconnected"></span>
               <span class="fw-semibold text-muted">Not Connected</span>
             </div>
-            <p class="text-muted mb-4" style="font-size: var(--font-sm);">
+            <p class="text-muted mb-4" style="font-size:0.875rem;">
               Connect your HSBC account via Open Banking to automatically sync
               balances and transactions every 6 hours.
               Your CSV import remains available as a fallback at any time.
@@ -109,27 +91,26 @@
       </div>
     </div>
 
-    <!-- Live Balance -->
     <div class="col-lg-6">
       <div class="pb-table-card h-100">
         <div class="pb-admin-section-header">Live Balance</div>
-        <div class="p-4">
+        <div class="p-3">
           <% if (balance) { %>
             <p class="pb-kpi-label mb-1">Current Balance</p>
             <p class="pb-kpi-value mb-1">
               £<%= parseFloat(balance.current).toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}) %>
             </p>
             <% if (balance.available !== null && balance.available !== undefined) { %>
-              <p class="text-muted mb-3" style="font-size: var(--font-sm);">
+              <p class="text-muted mb-3" style="font-size:0.875rem;">
                 Available: £<%= parseFloat(balance.available).toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}) %>
               </p>
             <% } %>
-            <p class="text-muted" style="font-size: var(--font-xs);">
+            <p class="text-muted mb-0" style="font-size:0.75rem;">
               <i class="bi bi-clock"></i>
               Last updated: <%= new Date(balance.recorded_at).toLocaleString('en-GB') %>
             </p>
           <% } else { %>
-            <p class="text-muted" style="font-size: var(--font-sm);">
+            <p class="text-muted" style="font-size:0.875rem;">
               No balance data yet.
               <% if (connection) { %>
                 <a href="#" onclick="document.querySelector('[action=\'/bank/sync\']').submit()">Run a sync</a> to fetch it.
@@ -144,9 +125,11 @@
   <!-- Recent Bank Transactions -->
   <% if (recentTxns.length > 0) { %>
   <div class="pb-table-card mb-4">
-    <div class="pb-admin-section-header">Recent Bank Transactions (from Open Banking)</div>
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
+    <div class="pb-admin-section-header">Recent Bank Transactions</div>
+
+    <!-- Desktop table (hidden on mobile) -->
+    <div class="d-none d-md-block table-responsive">
+      <table class="table table-hover mb-0" style="font-size:0.875rem;">
         <thead>
           <tr>
             <th>Date</th>
@@ -160,7 +143,7 @@
         <tbody>
           <% for (const tx of recentTxns) { %>
             <tr>
-              <td><%= tx.date ? new Date(tx.date).toLocaleDateString('en-GB') : '' %></td>
+              <td class="text-nowrap"><%= tx.date ? new Date(tx.date).toLocaleDateString('en-GB') : '' %></td>
               <td class="text-truncate pb-truncate-col" title="<%= tx.description %>"><%= tx.description || '—' %></td>
               <td><%= tx.merchant_name || '—' %></td>
               <td>
@@ -168,7 +151,7 @@
                   <%= tx.transaction_type || '—' %>
                 </span>
               </td>
-              <td class="<%= tx.amount > 0 ? 'pb-amt-in' : 'pb-amt-out' %> fw-semibold">
+              <td class="<%= tx.amount > 0 ? 'pb-amt-in' : 'pb-amt-out' %> fw-semibold text-nowrap">
                 <%= tx.amount > 0 ? '+' : '' %>£<%= Math.abs(tx.amount).toFixed(2) %>
               </td>
               <td>
@@ -181,6 +164,34 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Mobile cards (hidden on desktop) -->
+    <div class="d-md-none p-2">
+      <% for (const tx of recentTxns) { %>
+        <div class="card mb-2 border-0 shadow-sm">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <span class="fw-semibold <%= tx.amount > 0 ? 'text-success' : 'text-danger' %>" style="font-size:1rem;">
+                <%= tx.amount > 0 ? '+' : '' %>£<%= Math.abs(tx.amount).toFixed(2) %>
+              </span>
+              <div class="d-flex gap-1">
+                <span class="badge <%= tx.transaction_type === 'CREDIT' ? 'bg-success' : 'bg-danger' %> bg-opacity-75" style="font-size:0.7rem;">
+                  <%= tx.transaction_type || '—' %>
+                </span>
+                <span class="badge bg-<%= tx.status === 'posted' ? 'secondary' : 'warning' %> bg-opacity-75" style="font-size:0.7rem;">
+                  <%= tx.status %>
+                </span>
+              </div>
+            </div>
+            <div class="text-truncate" style="font-size:0.85rem;"><%= tx.description || '—' %></div>
+            <div class="d-flex justify-content-between mt-1" style="font-size:0.75rem; color:#888;">
+              <span><%= tx.date ? new Date(tx.date).toLocaleDateString('en-GB') : '' %></span>
+              <% if (tx.merchant_name) { %><span><%= tx.merchant_name %></span><% } %>
+            </div>
+          </div>
+        </div>
+      <% } %>
+    </div>
   </div>
   <% } %>
 
@@ -188,10 +199,12 @@
   <div class="pb-table-card mb-4">
     <div class="pb-admin-section-header">Sync Log</div>
     <% if (syncLogs.length === 0) { %>
-      <p class="text-muted p-4 mb-0" style="font-size: var(--font-sm);">No sync history yet.</p>
+      <p class="text-muted p-4 mb-0" style="font-size:0.875rem;">No sync history yet.</p>
     <% } else { %>
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
+
+    <!-- Desktop table -->
+    <div class="d-none d-md-block table-responsive">
+      <table class="table table-hover mb-0" style="font-size:0.875rem;">
         <thead>
           <tr>
             <th>Time</th>
@@ -205,7 +218,7 @@
         <tbody>
           <% for (const entry of syncLogs) { %>
             <tr>
-              <td style="white-space:nowrap"><%= new Date(entry.synced_at).toLocaleString('en-GB') %></td>
+              <td class="text-nowrap"><%= new Date(entry.synced_at).toLocaleString('en-GB') %></td>
               <td><%= entry.sync_type %></td>
               <td>
                 <span class="badge bg-<%= entry.status === 'success' ? 'success' : entry.status === 'consent_expired' ? 'warning' : 'danger' %> bg-opacity-75">
@@ -214,19 +227,44 @@
               </td>
               <td><%= entry.records_fetched %></td>
               <td><%= entry.records_inserted %></td>
-              <td class="text-danger" style="font-size: var(--font-xs)"><%= entry.error_message || '' %></td>
+              <td class="text-danger" style="font-size:0.75rem;"><%= entry.error_message || '' %></td>
             </tr>
           <% } %>
         </tbody>
       </table>
     </div>
+
+    <!-- Mobile cards -->
+    <div class="d-md-none p-2">
+      <% for (const entry of syncLogs) { %>
+        <div class="card mb-2 border-0 shadow-sm">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="text-muted" style="font-size:0.75rem;"><%= new Date(entry.synced_at).toLocaleString('en-GB') %></span>
+              <span class="badge bg-<%= entry.status === 'success' ? 'success' : entry.status === 'consent_expired' ? 'warning' : 'danger' %> bg-opacity-75" style="font-size:0.7rem;">
+                <%= entry.status %>
+              </span>
+            </div>
+            <div class="d-flex gap-3" style="font-size:0.8rem;">
+              <span><strong>Type:</strong> <%= entry.sync_type %></span>
+              <span><strong>Fetched:</strong> <%= entry.records_fetched %></span>
+              <span><strong>Inserted:</strong> <%= entry.records_inserted %></span>
+            </div>
+            <% if (entry.error_message) { %>
+              <div class="text-danger mt-1" style="font-size:0.75rem;"><%= entry.error_message %></div>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
+    </div>
+
     <% } %>
   </div>
 
   <!-- Fallback note -->
   <div class="alert alert-info d-flex gap-2 align-items-start" role="note">
-    <i class="bi bi-info-circle-fill mt-1"></i>
-    <div style="font-size: var(--font-sm);">
+    <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+    <div style="font-size:0.875rem;">
       <strong>CSV import remains available.</strong>
       If the bank connection is unavailable, you can still upload a CSV export from HSBC
       via the <a href="/admin">Admin Console</a>.

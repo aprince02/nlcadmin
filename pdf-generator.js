@@ -15,7 +15,7 @@ function fmtDate(value) {
   return `${dd}-${mm}-${yyyy}`;
 }
 
-async function generatePDF(donor, tithe, donations) {
+async function generatePDF(donor, tithe, donations, charity = {}) {
   const doc = new jsPDF({ compress: true });
 
   const logoPath = "css/logo.png";
@@ -40,12 +40,12 @@ async function generatePDF(donor, tithe, donations) {
   const giftaidClaimedTotal = `£${giftaidClaimed * 0.25}`
 
   doc.addImage(logoData, "PNG", 1, 1, 35, 35);
-  doc.text('NewLife Church Sunderland', 135, 10);
+  doc.text(charity.name || '', 135, 10);
   doc.setFontSize(12);
-  doc.text('Tel: 07737188124', 135, 15);
-  doc.text('Email: info@nlcsunderland.uk', 135, 20);
-  doc.text('Web: www.nlcsunderland.uk', 135, 25);
-  doc.text('Charity No. 117881', 135, 30);
+  doc.text(charity.phone    ? 'Tel: '    + charity.phone    : '', 135, 15);
+  doc.text(charity.email    ? 'Email: '  + charity.email    : '', 135, 20);
+  doc.text(charity.website  ? 'Web: '    + charity.website  : '', 135, 25);
+  doc.text(charity.charity_no ? 'Charity No. ' + charity.charity_no : '', 135, 30);
   doc.line(0, 37, 250, 38, 'S')
   doc.text(fullName,10, 43 )
   doc.setFontSize(8)
@@ -173,7 +173,7 @@ async function generateTransactionPDF(transactions) {
 
 
 
-async function generateDonationsPDF(donations, { fund, startDate, endDate } = {}) {
+async function generateDonationsPDF(donations, { fund, startDate, endDate } = {}, charity = {}) {
   const doc = new jsPDF();
 
   const logoPath = "css/logo.png";
@@ -182,12 +182,12 @@ async function generateDonationsPDF(donations, { fund, startDate, endDate } = {}
   // ── Header ──────────────────────────────────────────────────────
   doc.addImage(logoData, "PNG", 1, 1, 35, 35);
   doc.setFontSize(12);
-  doc.text('NewLife Church Sunderland', 135, 10);
+  doc.text(charity.name || '', 135, 10);
   doc.setFontSize(10);
-  doc.text('Tel: 07737188124',            135, 16);
-  doc.text('Email: info@nlcsunderland.uk', 135, 21);
-  doc.text('Web: www.nlcsunderland.uk',    135, 26);
-  doc.text('Charity No. 117881',           135, 31);
+  doc.text(charity.phone    ? 'Tel: '    + charity.phone    : '', 135, 16);
+  doc.text(charity.email    ? 'Email: '  + charity.email    : '', 135, 21);
+  doc.text(charity.website  ? 'Web: '    + charity.website  : '', 135, 26);
+  doc.text(charity.charity_no ? 'Charity No. ' + charity.charity_no : '', 135, 31);
   doc.line(0, 37, 250, 38, 'S');
 
   doc.setFontSize(14);
@@ -267,7 +267,7 @@ async function generateDonationsPDF(donations, { fund, startDate, endDate } = {}
   return Buffer.from(doc.output('arraybuffer'));
 }
 
-async function generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, { startDate, endDate } = {}) {
+async function generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, { startDate, endDate } = {}, charity = {}) {
   const doc = new jsPDF();
 
   const logoPath = "css/logo.png";
@@ -275,12 +275,12 @@ async function generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, {
 
   doc.addImage(logoData, "PNG", 1, 1, 35, 35);
   doc.setFontSize(12);
-  doc.text('NewLife Church Sunderland', 135, 10);
+  doc.text(charity.name || '', 135, 10);
   doc.setFontSize(10);
-  doc.text('Tel: 07737188124',            135, 16);
-  doc.text('Email: info@nlcsunderland.uk', 135, 21);
-  doc.text('Web: www.nlcsunderland.uk',    135, 26);
-  doc.text('Charity No. 117881',           135, 31);
+  doc.text(charity.phone    ? 'Tel: '    + charity.phone    : '', 135, 16);
+  doc.text(charity.email    ? 'Email: '  + charity.email    : '', 135, 21);
+  doc.text(charity.website  ? 'Web: '    + charity.website  : '', 135, 26);
+  doc.text(charity.charity_no ? 'Charity No. ' + charity.charity_no : '', 135, 31);
   doc.line(0, 37, 250, 38, 'S');
 
   doc.setFontSize(14);

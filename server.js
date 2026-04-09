@@ -408,7 +408,8 @@ app.post("/edit-donation/:id", requireLogin, injectCharityId, checkApprovedUser,
             log(loggedInName + ": Added donation for member with id: " + id + ", and name: " + req.body.first_name + " " + req.body.surname);
             try {
                 const member = await dbHelper.getMemberWithId(id, req.charityId);
-                await sendDonationReceivedEmail(member, req.body);
+                const charity = await dbHelper.getCharityById(req.charityId);
+                await sendDonationReceivedEmail(member, req.body, charity?.name);
                 log(loggedInName + ": Donation added email sent for: " + member.first_name, req.charityId);
             } catch (emailError) {
                 console.error('Error sending donation added email:', emailError.message);
@@ -465,7 +466,8 @@ app.get("/terms-and-conditions", (_, res) => res.render("terms-and-conditions"))
       const description = req.body.description;
       const loggedInName = req.session.name;
       const rawDate = req.body.date;
-      const date = rawDate ? new Date(rawDate).toISOString().split('T')[0] : null;
+      // Extract YYYY-MM-DD without any timezone conversion
+      const date = rawDate ? rawDate.trim().slice(0, 10) : null;
       const paid_in = req.body.paid_in;
 
       req.session.date = date;
@@ -481,20 +483,6 @@ app.get("/terms-and-conditions", (_, res) => res.render("terms-and-conditions"))
           log(`${loggedInName}: Transaction with ID: ${id} saved with type: ${type}`, req.charityId);
           req.flash('success', 'Transaction type saved successfully.');
 
-          if (type === "Offering" || type === "Sunday School Offering") {
-              try {
-                  await pool.query(`
-                      INSERT INTO offering_claim (transaction_id, type, date, description, amount, claimed, charity_id)
-                      VALUES ($1, $2, $3, $4, $5, $6, $7)
-                      ON CONFLICT (transaction_id) DO UPDATE SET date = EXCLUDED.date, type = EXCLUDED.type, amount = EXCLUDED.amount
-                  `, [id, type, date, description, paid_in, 'Unclaimed', req.charityId]);
-                  console.log(`Transaction ID ${id} added to offering_claim table.`);
-                  log(`${loggedInName}: Transaction ID ${id} added to offering_claim table.`);
-              } catch (offerErr) {
-                  console.error(`Error inserting into offering_claim: ${offerErr.message}`);
-                  log(`${loggedInName}: Error inserting into offering_claim: ${offerErr.message}`);
-              }
-          }
       } catch (err) {
           req.flash('error', 'Error saving transaction, please try again!');
           console.error(err.message);
@@ -635,7 +623,8 @@ app.post('/export-donations', requireLogin, injectCharityId, checkUserRole, chec
     query += ' ORDER BY date DESC';
 
     const result = await pool.query(query, params);
-    const pdfBuffer = await pdfGenerator.generateDonationsPDF(result.rows, { fund, startDate: start_date, endDate: end_date });
+    const charity = await dbHelper.getCharityById(req.charityId);
+    const pdfBuffer = await pdfGenerator.generateDonationsPDF(result.rows, { fund, startDate: start_date, endDate: end_date }, charity);
 
     const date     = new Date().toISOString().slice(0, 10);
     const fundSlug = fund && fund !== 'all' ? `_${fund.replace(/[^a-z0-9]/gi, '_')}` : '';
@@ -755,7 +744,8 @@ app.post("/export-totals", requireLogin, injectCharityId, checkUserRole, checkAp
     const csvBuffer = Buffer.from(csvLines.join('\n') + '\n', 'utf8');
 
     // Build PDF in memory
-    const pdfBuffer = await pdfGenerator.generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, { startDate: start_date, endDate: end_date });
+    const charity = await dbHelper.getCharityById(req.charityId);
+    const pdfBuffer = await pdfGenerator.generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, { startDate: start_date, endDate: end_date }, charity);
 
     const csvFilename = `totals_export_${start_date}_to_${end_date}.csv`;
     const pdfFilename = `totals_export_${start_date}_to_${end_date}.pdf`;
@@ -772,25 +762,49 @@ app.post("/export-totals", requireLogin, injectCharityId, checkUserRole, checkAp
   }
 });
 
-app.get('/export-giftaid-claims', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async function(req, res) {
-  const loggedInName = req.session.name;
+app.get('/api/giftaid-summary', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
   try {
-    await csvGenerator.exportGiftAidClaimCsv(req, res);
-    await createAndEmail('giftaid_claim', 'Gift Aid Claim Export', 'gift aid claim export csv file');
-    console.log('Gift Aid Claim sent via email!');
-    log(loggedInName + ': Gift Aid Claim sent via email', req.charityId)
-    await pool.query(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed' AND charity_id = $1`, [req.charityId]);
-    console.log("Gift aid status updated successfully.");
-    log(loggedInName + ': Gift aid status updated successfully');
-    req.flash('success', 'Gift aid claims exported and updated successfully.');
-    res.redirect("/admin");
-  } catch (error) {
-    console.error("Error exporting gift aid claims:", error);
-    req.flash('error', 'Error exporting gift aid claims.');
-    log(loggedInName + ': Error exporting gift aid claims: ' + error)
-    res.redirect("/admin");
+    const result = await pool.query(
+      `SELECT COUNT(*) AS count, COALESCE(SUM(amount::NUMERIC), 0) AS total
+       FROM donations
+       WHERE gift_aid_status = 'Unclaimed' AND charity_id = $1`,
+      [req.charityId]
+    );
+
+    const donationCount = parseInt(result.rows[0].count);
+    const donationTotal = parseFloat(result.rows[0].total);
+    const receivable    = parseFloat((donationTotal * 0.25).toFixed(2));
+
+    res.json({
+      donationCount,
+      donationTotal: donationTotal.toFixed(2),
+      receivable:    receivable.toFixed(2),
+    });
+  } catch (err) {
+    console.error('Gift aid summary error:', err.message);
+    res.status(500).json({ error: 'Could not load gift aid summary.' });
   }
 });
+
+app.post('/export-giftaid-claims', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async function(req, res) {
+  const loggedInName = req.session.name;
+  try {
+    const csvBuffer = await csvGenerator.exportGiftAidClaimCsv(req);
+    await pool.query(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed' AND charity_id = $1`, [req.charityId]);
+    log(loggedInName + ': Gift Aid claimed and CSV exported', req.charityId);
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="giftaid_claim_${date}.csv"`);
+    res.send(csvBuffer);
+  } catch (error) {
+    console.error("Error exporting gift aid claims:", error);
+    log(loggedInName + ': Error exporting gift aid claims: ' + error);
+    if (!res.headersSent) res.status(500).json({ error: 'Error exporting gift aid claims.' });
+  }
+});
+
+// Keep GET redirect for any bookmarked links
+app.get('/export-giftaid-claims', (req, res) => res.redirect('/admin'));
 
 app.get('/logout', (req, res) => {
     const loggedInName = req.session.name;
@@ -814,7 +828,8 @@ app.get('/logout', (req, res) => {
           ])
             .then(async ([tithe, donations]) => {
               try {
-                const pdfPath = await pdfGenerator.generatePDF(donor, tithe, donations);
+                const charity = await dbHelper.getCharityById(req.charityId);
+                const pdfPath = await pdfGenerator.generatePDF(donor, tithe, donations, charity);
                 await sendStatementByEmail(pdfPath);
                 req.flash('sucess', 'Statement of donations sent');
                 console.log("Statement of donations sent for: " + donor.first_name);
@@ -869,19 +884,16 @@ app.get('/logout', (req, res) => {
     res.render("import-transactions", {loggedInName: loggedInName });
   });
 
-  app.post("/import-transactions", requireLogin, injectCharityId, checkUserRole, upload.single('csvfile'), (req, res) => {
+  app.post("/import-transactions", requireLogin, injectCharityId, checkUserRole, upload.single('csvfile'), async (req, res) => {
     const loggedInName = req.session.name;
     if (!req.file) {
       req.flash('error', 'No file uploaded, try again!');
-      log(loggedInName + ': No usable file uploaded')
-      console.log("No file")
+      log(loggedInName + ': No usable file uploaded');
       return res.redirect('/admin');
-    } else {
-      readCSVAndProcess(req.file.path, req, res);
-      req.flash('success', 'Bank transactions file uploaded and processed successfully');
-      log(loggedInName + ': Uploaded bank csv file and processed successfully')
-      return res.redirect('/admin');
-    }});
+    }
+    log(loggedInName + ': Uploaded bank CSV for import', req.charityId);
+    await readCSVAndProcess(req.file.path, req, res);
+  });
 
 app.get("/membership", (req, res) => {
   res.render("membership", { member: {}, bank_account: {} });
@@ -979,7 +991,8 @@ try {
       if (!row) return res.status(404).redirect("/claimants/1");
       if (row && row.email) {
         try {
-            emailMemberForUpdate(row);
+            const charity = await dbHelper.getCharityById(req.charityId);
+            emailMemberForUpdate(row, charity?.name);
             console.log('Update details link sent via email for: ' + row.first_name + " " + row.surname);
             log(loggedInName + ': Update details link sent via email for: ' + row.first_name + " " + row.surname)
             req.flash('success', 'Email sent successfully.');
@@ -1043,25 +1056,26 @@ app.post("/update-users", requireLogin, injectCharityId, checkUserRole, checkApp
   app.get("/software-logs/:page", requireLogin, injectCharityId, checkSuperAdmin, checkApprovedUser, async (req, res) => {
     const rowsPerPage = 50;
     let currentPage = parseInt(req.params.page) || 1;
-    if (currentPage < 1) {
-        currentPage = 1;
-    }
+    if (currentPage < 1) currentPage = 1;
     const startIndex = (currentPage - 1) * rowsPerPage;
     const loggedInName = req.session.name;
+    const filters = {
+      level:  req.query.level  || 'all',
+      user:   req.query.user   || '',
+      date:   req.query.date   || '',
+      search: req.query.search || '',
+    };
     try {
-        const logging = await dbHelper.getLogsPaginated(startIndex, rowsPerPage, req.charityId);
-        //const totalRows = await dbHelper.getLogsCount();
-        const totalPages = Math.ceil(500 / rowsPerPage);
-        res.render("software-logs", { 
-            loggedInName, 
-            logging,
-            currentPage,
-            totalPages
-        });
+        const [logging, totalRows] = await Promise.all([
+          dbHelper.getLogsPaginated(startIndex, rowsPerPage, req.charityId, filters),
+          dbHelper.getLogsCount(req.charityId, filters),
+        ]);
+        const totalPages = Math.ceil(totalRows / rowsPerPage) || 1;
+        res.render("software-logs", { loggedInName, logging, currentPage, totalPages, filters, totalRows });
     } catch (error) {
         console.error('Error rendering software-logs page:', error);
-        log(loggedInName + ': Error rendering software-logs page - ' + error.message)
-        return res.redirect("/admin")
+        log(loggedInName + ': Error rendering software-logs page - ' + error.message);
+        return res.redirect("/admin");
     }
 });
 
@@ -1095,17 +1109,29 @@ app.get('/api/members/search', requireLogin, injectCharityId, checkApprovedUser,
 // ── API: add donation from modal (JSON) ────────────────────────────
 app.post('/api/donations/modal', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
-  const { member_id, first_name, surname, amount, date, fund, notes, gift_aid_status } = req.body;
+  const { member_id, first_name, surname, amount, date, fund, notes, gift_aid_status, transaction_id, confirmed } = req.body;
   try {
+    // Check if a donation already exists for this transaction
+    if (transaction_id) {
+      const existing = await pool.query(
+        'SELECT id FROM donations WHERE transaction_id = $1 AND charity_id = $2',
+        [transaction_id, req.charityId]
+      );
+      if (existing.rows.length > 0 && !confirmed) {
+        return res.json({ duplicate: true });
+      }
+    }
+
     await pool.query(
-      'INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes, charity_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-      [member_id || null, first_name, surname, amount, date, fund, 'Bank', gift_aid_status || 'Unclaimed', notes || null, req.charityId]
+      'INSERT INTO donations (member_id, first_name, surname, amount, date, fund, method, gift_aid_status, notes, transaction_id, charity_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+      [member_id || null, first_name, surname, amount, date, fund, 'Bank', gift_aid_status || 'Unclaimed', notes || null, transaction_id || null, req.charityId]
     );
     log(loggedInName + ': Added donation via modal for ' + first_name + ' ' + surname, req.charityId);
     try {
       if (member_id) {
         const member = await dbHelper.getMemberWithId(member_id, req.charityId);
-        await sendDonationReceivedEmail(member, req.body);
+        const charity = await dbHelper.getCharityById(req.charityId);
+        await sendDonationReceivedEmail(member, req.body, charity?.name);
       }
     } catch (emailErr) {
       console.error('Donation email error:', emailErr.message);
@@ -1234,11 +1260,12 @@ app.get('/dashboard', requireLogin, injectCharityId, checkApprovedUser, async (r
   }
 });
 
-app.post("/suggest-update", requireLogin, injectCharityId, checkApprovedUser, (req, res) => {
+app.post("/suggest-update", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   const suggestion = req.body.update_suggestion;
   try {
-    sendUpdateSuggestionEmail(suggestion, loggedInName);
+    const charity = await dbHelper.getCharityById(req.charityId);
+    sendUpdateSuggestionEmail(suggestion, loggedInName, charity?.email);
     log(loggedInName + ': Update suggestion email sent by user')
     req.flash('success', 'Email sent successfully.');
     res.redirect("/admin");

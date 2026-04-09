@@ -38,12 +38,12 @@
             <tr id="tx-row-<%= each.id %>">
               <form action="/save-transaction/<%= each.id %>" method="post">
                 <td>
-                  <input type="hidden" name="date" value="<%= each.date %>" />
+                  <input type="hidden" name="date" value="<%= each.date ? new Date(each.date).toISOString().split('T')[0] : '' %>" />
                   <input readonly type="text" class="form-control pb-input-year"
                     value="<%= each.date ? new Date(each.date).toLocaleDateString('en-GB') : '' %>" />
                 </td>
                 <td>
-                  <input type="text" class="form-control pb-field-lg" name="description" value="<%= each.description %>" />
+                  <input type="text" class="form-control pb-field-lg" name="description" value="<%= each.description %>" readonly>
                 </td>
                 <td>
                   <input readonly type="text" class="form-control pb-input-sm" name="paid_out" value="<%= each.paid_out %>"/>
@@ -346,6 +346,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── State ────────────────────────────────────────────────────────
   let selectedMemberId = null;
   let searchTimer = null;
+  let duplicateConfirmPending = false;
 
   const modal        = document.getElementById('addDonationModal');
   const bsModal      = new bootstrap.Modal(modal);
@@ -370,9 +371,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // Reset state
       selectedMemberId = null;
+      duplicateConfirmPending = false;
       form.reset();
       form.classList.remove('was-validated');
       errorBox.classList.add('d-none');
+      submitBtn.textContent = '';
+      submitBtn.innerHTML = '<span id="submitBtnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span><i class="bi bi-check-lg me-1" id="submitBtnIcon"></i>Save Donation';
+      submitBtn.classList.remove('btn-warning');
+      submitBtn.classList.add('btn-success');
       searchInput.value = '';
       resultsBox.style.display = 'none';
       badgeBox.style.display = 'none';
@@ -388,7 +394,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // Prefill form fields
       document.getElementById('modal_date').value   = date || '';
-      document.getElementById('modal_amount').value = paidIn || '';
+      document.getElementById('modal_amount').value = paidIn ? parseFloat(paidIn).toFixed(2) : '';
       document.getElementById('modal_notes').value  = '';
 
       // Fuzzy-match fund from description against live donation types
@@ -494,10 +500,14 @@ document.addEventListener('DOMContentLoaded', function () {
       fund:            document.getElementById('modal_fund').value,
       notes:           document.getElementById('modal_notes').value.trim(),
       gift_aid_status: document.getElementById('modal_gift_aid').value,
+      transaction_id:  form.dataset.txId || null,
+      confirmed:       duplicateConfirmPending,
     };
 
-    spinner.classList.remove('d-none');
-    submitIcon.classList.add('d-none');
+    const spinnerEl = document.getElementById('submitBtnSpinner');
+    const iconEl    = document.getElementById('submitBtnIcon');
+    spinnerEl.classList.remove('d-none');
+    iconEl.classList.add('d-none');
     submitBtn.disabled = true;
     errorBox.classList.add('d-none');
 
@@ -509,20 +519,31 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       const data = await res.json();
 
-      if (data.success) {
+      if (data.duplicate) {
+        // Show warning — next click will confirm and save anyway
+        duplicateConfirmPending = true;
+        errorBox.className = 'alert alert-warning';
+        errorBox.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-2"></i>A donation already exists for this transaction. Click <strong>Save Donation</strong> again to save it anyway.';
+        errorBox.classList.remove('d-none');
+        submitBtn.classList.remove('btn-success');
+        submitBtn.classList.add('btn-warning');
+      } else if (data.success) {
+        duplicateConfirmPending = false;
         bsModal.hide();
         const toast = new bootstrap.Toast(document.getElementById('donationToast'), { delay: 3500 });
         toast.show();
       } else {
+        errorBox.className = 'alert alert-danger';
         errorBox.textContent = data.error || 'Failed to save donation.';
         errorBox.classList.remove('d-none');
       }
     } catch {
+      errorBox.className = 'alert alert-danger';
       errorBox.textContent = 'Network error — please try again.';
       errorBox.classList.remove('d-none');
     } finally {
-      spinner.classList.add('d-none');
-      submitIcon.classList.remove('d-none');
+      spinnerEl.classList.add('d-none');
+      iconEl.classList.remove('d-none');
       submitBtn.disabled = false;
     }
   });

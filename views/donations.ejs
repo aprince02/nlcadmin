@@ -25,41 +25,72 @@
       <h1 class="pb-page-title">Donations for <%= firstName %> <%= surname %></h1>
       <p class="pb-page-subtitle">Total giving: £<%= totalAmount %></p>
     </div>
-    <div class="pb-page-actions d-print-none">
-      <button class="btn btn-primary btn-sm" id="openAddDonationBtn">Add Donation</button>
-      <a class="btn btn-secondary btn-sm" href="/generate-donor-pdf/<%= id %>">Generate PDF</a>
-      <a class="btn btn-secondary btn-sm" href="/send-update-request/<%= id %>">Request Update</a>
-      <a class="btn btn-outline-secondary btn-sm" href="/claimants/1">Return</a>
+    <div class="pb-page-actions d-print-none d-flex gap-2 flex-wrap">
+      <button class="btn btn-primary btn-sm" id="openAddDonationBtn"><i class="bi bi-plus-circle me-1"></i>Add Donation</button>
+      <a class="btn btn-secondary btn-sm" href="/generate-donor-pdf/<%= id %>"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+      <a class="btn btn-secondary btn-sm" href="/send-update-request/<%= id %>"><i class="bi bi-envelope me-1"></i>Request Update</a>
+      <a class="btn btn-outline-secondary btn-sm" href="/claimants/1"><i class="bi bi-arrow-left me-1"></i>Return</a>
     </div>
   </div>
 
   <div class="pb-table-card">
-    <div class="table-responsive-sm">
-      <table class="table table-hover table-striped">
+
+    <!-- Desktop table -->
+    <div class="d-none d-md-block table-responsive">
+      <table class="table table-hover table-striped mb-0">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Amount</th>
             <th>Date</th>
+            <th>Amount</th>
             <th>Fund</th>
             <th>Method</th>
-            <th>Gift Aid Status</th>
+            <th>Gift Aid</th>
           </tr>
         </thead>
         <tbody>
           <% for (const payments of model) { %>
             <tr>
-              <td><%= payments.id %></td>
-              <td>£<%= payments.amount %></td>
-              <td><%= payments.date ? new Date(payments.date).toLocaleDateString('en-GB') : '' %></td>
+              <td class="text-nowrap"><%= payments.date ? new Date(payments.date).toLocaleDateString('en-GB') : '' %></td>
+              <td class="fw-semibold">£<%= payments.amount %></td>
               <td><%= payments.fund %></td>
               <td><%= payments.method %></td>
-              <td><%= payments.gift_aid_status %></td>
+              <td>
+                <span class="badge <%= payments.gift_aid_status === 'Unclaimed' ? 'bg-warning text-dark' : payments.gift_aid_status === 'Claimed' ? 'bg-success' : 'bg-secondary' %>">
+                  <%= payments.gift_aid_status %>
+                </span>
+              </td>
             </tr>
           <% } %>
         </tbody>
       </table>
     </div>
+
+    <!-- Mobile cards -->
+    <div class="d-md-none p-2">
+      <% if (model.length === 0) { %>
+        <p class="text-muted text-center py-4 mb-0">No donations recorded yet.</p>
+      <% } %>
+      <% for (const payments of model) { %>
+        <div class="card mb-2 border-0 shadow-sm">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div>
+                <div class="fw-semibold"><%= payments.fund %></div>
+                <div class="text-muted" style="font-size:0.8rem;">
+                  <%= payments.date ? new Date(payments.date).toLocaleDateString('en-GB') : '' %>
+                  <% if (payments.method) { %>&middot; <%= payments.method %><% } %>
+                </div>
+              </div>
+              <span class="fw-bold text-success" style="font-size:1rem; white-space:nowrap;">£<%= payments.amount %></span>
+            </div>
+            <span class="badge <%= payments.gift_aid_status === 'Unclaimed' ? 'bg-warning text-dark' : payments.gift_aid_status === 'Claimed' ? 'bg-success' : 'bg-secondary' %>" style="font-size:0.7rem;">
+              <%= payments.gift_aid_status %>
+            </span>
+          </div>
+        </div>
+      <% } %>
+    </div>
+
   </div>
 </div>
 

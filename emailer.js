@@ -128,13 +128,13 @@ async function createAndEmailDBBackup() {
   fs.unlinkSync(backupFilename);
 }
 
-async function emailMemberForUpdate (row) {
+async function emailMemberForUpdate (row, charityName) {
   link = "https://probooksaccounting.co.uk/edit-member/"+row.id;
   const mailOptions = {
     from: sender,
     to: row.email,
     subject: 'ProBooks Accounting - Update Member Details',
-    text: 'Dear ' + row.first_name + ' ' + row.surname + ',\n\nPlease click on the link below to check your details stored by NewLife Church Sunderland, and update any details that are not correct.\n ' + link + emailFooter,
+    text: 'Dear ' + row.first_name + ' ' + row.surname + ',\n\nPlease click on the link below to check your details stored by ' + (charityName || 'your church') + ', and update any details that are not correct.\n ' + link + emailFooter,
   };
 
   try {
@@ -145,10 +145,10 @@ async function emailMemberForUpdate (row) {
   }
 }
 
-async function sendUpdateSuggestionEmail(suggestion, user) {
+async function sendUpdateSuggestionEmail(suggestion, user, notifyEmail) {
   const mailOptions = {
     from: sender,
-    to: "albinm65@gmail.com",
+    to: notifyEmail || receiver,
     subject: 'Update Suggestion from User',
     text: user + ' Has suggested this update to the software: ' + suggestion + ". Please respond!" + emailFooter,
   };
@@ -160,10 +160,10 @@ async function sendUpdateSuggestionEmail(suggestion, user) {
   }
 }
 
-async function sendNewUserAddedEmail(user) {
+async function sendNewUserAddedEmail(user, notifyEmail) {
   const mailOptions = {
     from: sender,
-    to: "albinm65@gmail.com",
+    to: notifyEmail || receiver,
     subject: 'New User Added',
     text: user + ' Has been added. ' + emailFooter,
   };
@@ -175,12 +175,12 @@ async function sendNewUserAddedEmail(user) {
   }
 }
 
-async function sendDonationReceivedEmail(member, donation) {
+async function sendDonationReceivedEmail(member, donation, charityName) {
   const mailOptions = {
     from: sender,
     to: member.email,
-    subject: 'Your Donation to NewLife Church Sunderland',
-    text: 'Dear ' + member.first_name + ' ' + member.surname + ',\n\nYour donation to NewLife Church Sunderland has been acknowledged by the treasurer. Here are the details: \n\nDonation Amount: £' + donation.amount + '\nFund: ' + donation.fund + '\nDated: ' + donation.date + '\n\nLet each man give according as he has determined in his heart, not grudgingly or under compulsion, for God loves a cheerful giver. - 2 Corinthians 9:7' + emailFooter,
+    subject: 'Your Donation to ' + (charityName || 'your church'),
+    text: 'Dear ' + member.first_name + ' ' + member.surname + ',\n\nYour donation to ' + (charityName || 'your church') + ' has been acknowledged by the treasurer. Here are the details: \n\nDonation Amount: £' + donation.amount + '\nFund: ' + donation.fund + '\nDated: ' + donation.date + '\n\nLet each man give according as he has determined in his heart, not grudgingly or under compulsion, for God loves a cheerful giver. - 2 Corinthians 9:7' + emailFooter,
   };
   try {
     const info = await transporter.sendMail(mailOptions);
@@ -207,15 +207,25 @@ async function sendTotalsExportEmail(to, csvBuffer, pdfBuffer, csvFilename, pdfF
 
 async function sendInviteEmail(email, token, role, charityName) {
   const inviteUrl = `${process.env.APP_URL || 'https://probooksaccounting.co.uk'}/invite/${token}`;
-  const expiryHours = 48;
   const mailOptions = {
     from: sender,
     to: email,
     subject: `You've been invited to ProBooks Accounting`,
-    text: `You have been invited to join ${charityName} on ProBooks Accounting as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in ${expiryHours} hours.\n\nIf you did not expect this invitation, please ignore this email.${emailFooter}`,
+    text: `You have been invited to join ${charityName} on ProBooks Accounting as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 48 hours.\n\nIf you did not expect this invitation, please ignore this email.${emailFooter}`,
   };
-  const info = await transporter.sendMail(mailOptions);
-  console.log('Invite email sent:', info.response);
+  // Use a dedicated one-shot transporter so the shared pool state doesn't block delivery
+  const oneShot = nodemailer.createTransport({
+    host: emailConfig.host,
+    port: emailConfig.port,
+    secure: emailConfig.secure,
+    auth: emailConfig.auth,
+  });
+  try {
+    const info = await oneShot.sendMail(mailOptions);
+    console.log('[Invite] Email sent to', email, ':', info.response);
+  } finally {
+    oneShot.close();
+  }
 }
 
 async function sendOtpEmail(email, otp) {

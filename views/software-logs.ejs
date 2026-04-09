@@ -1,40 +1,118 @@
 <%- include("_loggedInHeader") -%>
 
-<h1 class="display-5">Software Logs</h1>
-<div class="table-wrapper">
-  <div class="table-column">
-    <table class="table table-hover table-sm custom-table">
-      <thead>
+<div class="pb-page">
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Software Logs</h1>
+      <p class="pb-page-subtitle"><%= totalRows %> record<%= totalRows !== 1 ? 's' : '' %> found</p>
+    </div>
+    <a href="/admin" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  </div>
+
+  <!-- ── Filters ──────────────────────────────────────────────────── -->
+  <form method="GET" action="/software-logs/1" class="row g-2 mb-4 align-items-end">
+    <div class="col-sm-3">
+      <label class="form-label form-label-sm">Search message</label>
+      <input type="text" name="search" class="form-control form-control-sm" placeholder="Keyword…" value="<%= filters.search %>">
+    </div>
+    <div class="col-sm-2">
+      <label class="form-label form-label-sm">User</label>
+      <input type="text" name="user" class="form-control form-control-sm" placeholder="Name…" value="<%= filters.user %>">
+    </div>
+    <div class="col-sm-2">
+      <label class="form-label form-label-sm">Date</label>
+      <input type="date" name="date" class="form-control form-control-sm" value="<%= filters.date %>">
+    </div>
+    <div class="col-sm-2">
+      <label class="form-label form-label-sm">Level</label>
+      <select name="level" class="form-select form-select-sm">
+        <option value="all"     <%= filters.level === 'all'     ? 'selected' : '' %>>All levels</option>
+        <option value="info"    <%= filters.level === 'info'    ? 'selected' : '' %>>Info</option>
+        <option value="warning" <%= filters.level === 'warning' ? 'selected' : '' %>>Warning</option>
+        <option value="error"   <%= filters.level === 'error'   ? 'selected' : '' %>>Error</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Search</button>
+      <a href="/software-logs/1" class="btn btn-outline-secondary btn-sm ms-1">Clear</a>
+    </div>
+  </form>
+
+  <!-- ── Table ────────────────────────────────────────────────────── -->
+  <% if (logging.length === 0) { %>
+    <div class="text-muted text-center py-5">No logs match your filters.</div>
+  <% } else { %>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle" style="font-size:0.82rem;">
+      <thead class="table-dark">
         <tr>
-          <th>ID</th>
-          <th>Timestamp</th>
-          <th>Log</th>
+          <th style="width:160px">Timestamp</th>
+          <th style="width:130px">User</th>
+          <th style="width:80px">Level</th>
+          <th>Message</th>
         </tr>
       </thead>
       <tbody>
-        <% for (const log of logging) { %>
-          <tr>
-            <td><%= log.id %></td>
-            <td><%= log.timestamp %></td>
-            <td><%= log.log_message %></td>
-
-            
+        <% for (const entry of logging) { %>
+          <%
+            const lvl = entry.level || 'info';
+            const rowClass = lvl === 'error' ? 'table-danger' : lvl === 'warning' ? 'table-warning' : '';
+            const badgeClass = lvl === 'error' ? 'bg-danger' : lvl === 'warning' ? 'bg-warning text-dark' : 'bg-secondary';
+            const icon = lvl === 'error' ? 'bi-x-circle-fill' : lvl === 'warning' ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill';
+            const ts = entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'medium' }) : '—';
+          %>
+          <tr class="<%= rowClass %>">
+            <td class="text-nowrap"><%= ts %></td>
+            <td class="text-nowrap fw-semibold"><%= entry.user || '—' %></td>
+            <td>
+              <span class="badge <%= badgeClass %>">
+                <i class="bi <%= icon %> me-1"></i><%= lvl %>
+              </span>
+            </td>
+            <td style="word-break:break-word"><%= entry.log_message %></td>
           </tr>
         <% } %>
       </tbody>
     </table>
   </div>
-</div>
+  <% } %>
 
-<nav aria-label="Page navigation">
-  <ul class="pagination">
-    <% if (totalPages > 1) { %>
-      <% for (let i = 1; i <= totalPages; i++) { %>
-        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
-          <a class="page-link" href="/software-logs/<%= i %>"><%= i %></a>
+  <!-- ── Pagination ────────────────────────────────────────────────── -->
+  <% if (totalPages > 1) { %>
+  <nav aria-label="Log pagination">
+    <ul class="pagination pagination-sm flex-wrap">
+      <% if (currentPage > 1) { %>
+        <li class="page-item">
+          <a class="page-link" href="/software-logs/<%= currentPage - 1 %>?level=<%= filters.level %>&user=<%= encodeURIComponent(filters.user) %>&date=<%= filters.date %>&search=<%= encodeURIComponent(filters.search) %>">
+            <i class="bi bi-chevron-left"></i>
+          </a>
         </li>
       <% } %>
-    <% } %>
-  </ul>
-</nav>
+      <% const start = Math.max(1, currentPage - 3); const end = Math.min(totalPages, currentPage + 3); %>
+      <% if (start > 1) { %>
+        <li class="page-item"><a class="page-link" href="/software-logs/1?level=<%= filters.level %>&user=<%= encodeURIComponent(filters.user) %>&date=<%= filters.date %>&search=<%= encodeURIComponent(filters.search) %>">1</a></li>
+        <% if (start > 2) { %><li class="page-item disabled"><span class="page-link">…</span></li><% } %>
+      <% } %>
+      <% for (let i = start; i <= end; i++) { %>
+        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+          <a class="page-link" href="/software-logs/<%= i %>?level=<%= filters.level %>&user=<%= encodeURIComponent(filters.user) %>&date=<%= filters.date %>&search=<%= encodeURIComponent(filters.search) %>"><%= i %></a>
+        </li>
+      <% } %>
+      <% if (end < totalPages) { %>
+        <% if (end < totalPages - 1) { %><li class="page-item disabled"><span class="page-link">…</span></li><% } %>
+        <li class="page-item"><a class="page-link" href="/software-logs/<%= totalPages %>?level=<%= filters.level %>&user=<%= encodeURIComponent(filters.user) %>&date=<%= filters.date %>&search=<%= encodeURIComponent(filters.search) %>"><%= totalPages %></a></li>
+      <% } %>
+      <% if (currentPage < totalPages) { %>
+        <li class="page-item">
+          <a class="page-link" href="/software-logs/<%= currentPage + 1 %>?level=<%= filters.level %>&user=<%= encodeURIComponent(filters.user) %>&date=<%= filters.date %>&search=<%= encodeURIComponent(filters.search) %>">
+            <i class="bi bi-chevron-right"></i>
+          </a>
+        </li>
+      <% } %>
+    </ul>
+  </nav>
+  <% } %>
+
+</div>
+
 <%- include("_loggedInFooter") -%>

@@ -177,18 +177,62 @@ async function getAllLogs(charityId) {
   return result.rows;
 }
 
-async function getLogsPaginated(startIndex, rowsPerPage, charityId) {
+async function getLogsPaginated(startIndex, rowsPerPage, charityId, filters = {}) {
+  const conditions = ['charity_id = $1'];
+  const params = [charityId];
+  let i = 2;
+
+  if (filters.level && filters.level !== 'all') {
+    conditions.push(`level = $${i++}`);
+    params.push(filters.level);
+  }
+  if (filters.user) {
+    conditions.push(`"user" ILIKE $${i++}`);
+    params.push(`%${filters.user}%`);
+  }
+  if (filters.date) {
+    conditions.push(`timestamp::date = $${i++}`);
+    params.push(filters.date);
+  }
+  if (filters.search) {
+    conditions.push(`log_message ILIKE $${i++}`);
+    params.push(`%${filters.search}%`);
+  }
+
+  const where = conditions.join(' AND ');
   const result = await pool.query(
-    'SELECT * FROM console_logs WHERE charity_id = $1 ORDER BY id DESC LIMIT $2 OFFSET $3',
-    [charityId, rowsPerPage, startIndex]
+    `SELECT * FROM console_logs WHERE ${where} ORDER BY id DESC LIMIT $${i++} OFFSET $${i++}`,
+    [...params, rowsPerPage, startIndex]
   );
   return result.rows;
 }
 
-async function getLogsCount(charityId) {
+async function getLogsCount(charityId, filters = {}) {
+  const conditions = ['charity_id = $1'];
+  const params = [charityId];
+  let i = 2;
+
+  if (filters.level && filters.level !== 'all') {
+    conditions.push(`level = $${i++}`);
+    params.push(filters.level);
+  }
+  if (filters.user) {
+    conditions.push(`"user" ILIKE $${i++}`);
+    params.push(`%${filters.user}%`);
+  }
+  if (filters.date) {
+    conditions.push(`timestamp::date = $${i++}`);
+    params.push(filters.date);
+  }
+  if (filters.search) {
+    conditions.push(`log_message ILIKE $${i++}`);
+    params.push(`%${filters.search}%`);
+  }
+
+  const where = conditions.join(' AND ');
   const result = await pool.query(
-    'SELECT COUNT(*) AS totalrows FROM console_logs WHERE charity_id = $1',
-    [charityId]
+    `SELECT COUNT(*) AS totalrows FROM console_logs WHERE ${where}`,
+    params
   );
   return parseInt(result.rows[0].totalrows, 10);
 }
@@ -394,6 +438,11 @@ async function importBankTransaction({ date, description, transactionType, paidI
   return true;
 }
 
+async function getCharityById(charityId) {
+  const result = await pool.query('SELECT * FROM charities WHERE id = $1', [charityId]);
+  return result.rows[0] || null;
+}
+
 async function getTopDonors(year, limit, charityId) {
   const result = await pool.query(`
     SELECT first_name, surname, SUM(amount::FLOAT) AS total
@@ -443,4 +492,5 @@ module.exports = {
   getTopDonors,
   getDistinctYears,
   importBankTransaction,
+  getCharityById,
 };
