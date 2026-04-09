@@ -11,10 +11,12 @@ const emailConfig = {
     user: "mailer@probooksaccounting.co.uk",
     pass: "ZAmBWUPFDEwz",
   },
-  pool: true,           // keep a connection pool
-  rateLimit: true,      // enable built-in rate limiting
-  maxConnections: 1,    // only 1 active SMTP connection at a time
-  maxMessages: 5,       // max 5 messages per connection
+  pool: true,              // keep a connection pool
+  rateLimit: true,         // enable built-in rate limiting
+  maxConnections: 1,       // only 1 active SMTP connection at a time
+  maxMessages: 5,          // max 5 messages per connection
+  connectionTimeout: 10000, // 10 s to establish connection
+  socketTimeout: 15000,     // 15 s of inactivity before giving up
 };
 
 const sender = '"ProBooks Accounting" <mailer@probooksaccounting.co.uk>'

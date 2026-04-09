@@ -36,23 +36,22 @@
         <tbody>
           <% for (const each of row) { %>
             <tr id="tx-row-<%= each.id %>">
-              <form action="/save-transaction/<%= each.id %>" method="post">
                 <td>
-                  <input type="hidden" name="date" value="<%= each.date ? new Date(each.date).toISOString().split('T')[0] : '' %>" />
+                  <input type="hidden" class="tx-date" value="<%= each.date ? new Date(each.date).toISOString().split('T')[0] : '' %>" />
                   <input readonly type="text" class="form-control pb-input-year"
                     value="<%= each.date ? new Date(each.date).toLocaleDateString('en-GB') : '' %>" />
                 </td>
                 <td>
-                  <input type="text" class="form-control pb-field-lg" name="description" value="<%= each.description %>" readonly>
+                  <input type="text" class="form-control pb-field-lg tx-description" value="<%= each.description %>" readonly>
                 </td>
                 <td>
-                  <input readonly type="text" class="form-control pb-input-sm" name="paid_out" value="<%= each.paid_out %>"/>
+                  <input readonly type="text" class="form-control pb-input-sm" value="<%= each.paid_out %>"/>
                 </td>
                 <td>
-                  <input readonly type="text" class="form-control pb-input-sm" name="paid_in" value="<%= each.paid_in %>"/>
+                  <input readonly type="text" class="form-control pb-input-sm tx-paid-in" value="<%= each.paid_in %>"/>
                 </td>
                 <td>
-                  <select required class="form-select pb-field-natural" name="type">
+                  <select class="form-select pb-field-natural tx-type">
                     <option value="" <%= !each.type ? 'selected' : '' %>></option>
                     <% types.forEach(typeObj => { %>
                       <option value="<%= typeObj.type %>" <%= each.type === typeObj.type ? 'selected' : '' %>><%= typeObj.type %></option>
@@ -67,9 +66,10 @@
                     data-paid-in="<%= each.paid_in || '' %>">
                     <i class="bi bi-plus-circle me-1"></i>Add Donation
                   </button>
-                  <input type="submit" value="Save" class="btn btn-sm btn-success" />
+                  <button type="button" class="btn btn-sm btn-success save-tx-btn" data-tx-id="<%= each.id %>">
+                    <span class="save-tx-spinner spinner-border spinner-border-sm me-1 d-none" role="status"></span>Save
+                  </button>
                 </td>
-              </form>
             </tr>
           <% } %>
         </tbody>
@@ -484,6 +484,48 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!searchInput.contains(e.target) && !resultsBox.contains(e.target)) {
       resultsBox.style.display = 'none';
     }
+  });
+
+  // ── Save transaction type (AJAX — no page reload) ────────────────
+  document.querySelectorAll('.save-tx-btn').forEach(btn => {
+    btn.addEventListener('click', async function () {
+      const txId  = this.dataset.txId;
+      const row   = this.closest('tr');
+      const type  = row.querySelector('.tx-type').value;
+      const desc  = row.querySelector('.tx-description').value;
+      const date  = row.querySelector('.tx-date').value;
+      const paidIn = row.querySelector('.tx-paid-in').value;
+      const self  = this;
+
+      self.disabled = true;
+      self.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving…';
+
+      try {
+        const res = await fetch('/save-transaction/' + txId, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, description: desc, date, paid_in: paidIn }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          self.innerHTML = '<i class="bi bi-check-lg me-1"></i>Saved';
+          self.classList.replace('btn-success', 'btn-outline-success');
+          setTimeout(() => {
+            self.innerHTML = 'Save';
+            self.classList.replace('btn-outline-success', 'btn-success');
+            self.disabled = false;
+          }, 1500);
+        } else {
+          self.innerHTML = 'Save';
+          self.disabled = false;
+          alert('Failed to save. Please try again.');
+        }
+      } catch {
+        self.innerHTML = 'Save';
+        self.disabled = false;
+        alert('Network error — please try again.');
+      }
+    });
   });
 
   // ── Submit donation ───────────────────────────────────────────────

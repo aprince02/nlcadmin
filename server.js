@@ -551,12 +551,11 @@ app.get("/terms-and-conditions", (_, res) => res.render("terms-and-conditions"))
           await pool.query('UPDATE transactions SET type = $1, description = $2 WHERE id = $3 AND charity_id = $4', [type, description, id, req.charityId]);
           console.log(`Transaction with ID: ${id} saved with type: ${type}`);
           log(`${loggedInName}: Transaction with ID: ${id} saved with type: ${type}`, req.charityId);
-          req.flash('success', 'Transaction type saved successfully.');
-
+          res.json({ success: true });
       } catch (err) {
-          req.flash('error', 'Error saving transaction, please try again!');
           console.error(err.message);
           log(loggedInName + ': Error saving transaction: ' + err.message);
+          res.status(500).json({ success: false });
       }
   });
 
@@ -1298,16 +1297,15 @@ app.post('/api/donations/modal', requireLogin, injectCharityId, checkApprovedUse
       [member_id || null, first_name, surname, amount, date, fund, 'Bank', gift_aid_status || 'Unclaimed', notes || null, transaction_id || null, req.charityId]
     );
     log(loggedInName + ': Added donation via modal for ' + first_name + ' ' + surname, req.charityId);
-    try {
-      if (member_id) {
+    // Respond immediately — email is fire-and-forget
+    res.json({ success: true });
+    if (member_id) {
+      Promise.resolve().then(async () => {
         const member = await dbHelper.getMemberWithId(member_id, req.charityId);
         const charity = await dbHelper.getCharityById(req.charityId);
         await sendDonationReceivedEmail(member, req.body, charity?.name);
-      }
-    } catch (emailErr) {
-      console.error('Donation email error:', emailErr.message);
+      }).catch(emailErr => console.error('Donation email error:', emailErr.message));
     }
-    res.json({ success: true });
   } catch (err) {
     console.error('Modal donation error:', err.message);
     log(loggedInName + ': Modal donation error: ' + err.message);
