@@ -206,6 +206,34 @@ async function sendDonationReceivedEmail(member, donation, charityName) {
   }
 }
 
+async function sendTransactionsPDFBuffer(to, pdfBuffer, pdfFilename) {
+  const mailOptions = {
+    from: sender,
+    to,
+    subject: 'ProBooks Accounting - Transactions Export',
+    text: 'Please find attached the transactions export PDF.' + emailFooter,
+    attachments: [
+      { filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' },
+    ],
+  };
+  const info = await transporter.sendMail(mailOptions);
+  console.log('Transactions PDF email sent:', info.response);
+}
+
+async function sendDonationsPDFBuffer(to, pdfBuffer, pdfFilename) {
+  const mailOptions = {
+    from: sender,
+    to,
+    subject: 'ProBooks Accounting - Donations Export',
+    text: 'Please find attached the donations export PDF.' + emailFooter,
+    attachments: [
+      { filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' },
+    ],
+  };
+  const info = await transporter.sendMail(mailOptions);
+  console.log('Donations PDF email sent:', info.response);
+}
+
 async function sendTotalsExportEmail(to, csvBuffer, pdfBuffer, csvFilename, pdfFilename) {
   const mailOptions = {
     from: sender,
@@ -266,6 +294,8 @@ module.exports = {
   sendNewUserAddedEmail,
   sendDonationReceivedEmail,
   sendTotalsExportEmail,
+  sendTransactionsPDFBuffer,
+  sendDonationsPDFBuffer,
   sendOtpEmail,
   sendInviteEmail,
 };

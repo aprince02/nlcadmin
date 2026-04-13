@@ -140,9 +140,26 @@
           </div>
 
           <div class="mb-3">
+            <label class="form-label">Action</label>
+            <div class="d-flex gap-3 flex-wrap">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="tot_action" id="tot_action_download" value="download" checked>
+                <label class="form-check-label" for="tot_action_download"><i class="bi bi-file-earmark-pdf me-1"></i>Download PDF</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="tot_action" id="tot_action_download_csv" value="download_csv">
+                <label class="form-check-label" for="tot_action_download_csv"><i class="bi bi-filetype-csv me-1"></i>Download CSV</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="tot_action" id="tot_action_email" value="email">
+                <label class="form-check-label" for="tot_action_email"><i class="bi bi-envelope me-1"></i>Email (both)</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3 d-none" id="tot_email_row">
             <label class="form-label" for="tot_email">Send To Email</label>
-            <input type="email" class="form-control" id="tot_email" name="email" placeholder="recipient@example.com" required>
-            <div class="invalid-feedback">A valid email address is required.</div>
+            <input type="email" class="form-control" id="tot_email" name="email" placeholder="recipient@example.com">
           </div>
 
           <div id="totError" class="alert alert-danger d-none" role="alert"></div>
@@ -153,7 +170,7 @@
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-primary" id="totSubmitBtn">
           <span id="totSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
-          <i class="bi bi-send me-1" id="totIcon"></i>Send Report
+          <i class="bi bi-file-earmark-pdf me-1" id="totIcon"></i>Generate
         </button>
       </div>
     </div>
@@ -199,14 +216,34 @@
             </div>
           </div>
 
+          <div class="mb-3">
+            <label class="form-label">Action</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="tx_action" id="tx_action_download" value="download" checked>
+                <label class="form-check-label" for="tx_action_download"><i class="bi bi-download me-1"></i>Download</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="tx_action" id="tx_action_email" value="email">
+                <label class="form-check-label" for="tx_action_email"><i class="bi bi-envelope me-1"></i>Email</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3 d-none" id="tx_email_row">
+            <label class="form-label" for="tx_email">Send To Email</label>
+            <input type="email" class="form-control" id="tx_email" placeholder="recipient@example.com">
+          </div>
+
           <div id="txError" class="alert alert-danger d-none" role="alert"></div>
+          <div id="txSuccess" class="alert alert-success d-none" role="alert"></div>
         </form>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-primary" id="txSubmitBtn">
           <span id="txSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
-          <i class="bi bi-download me-1" id="txIcon"></i>Download PDF
+          <i class="bi bi-file-earmark-pdf me-1" id="txIcon"></i>Generate
         </button>
       </div>
     </div>
@@ -247,14 +284,34 @@
             </div>
           </div>
 
+          <div class="mb-3">
+            <label class="form-label">Action</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="dn_action" id="dn_action_download" value="download" checked>
+                <label class="form-check-label" for="dn_action_download"><i class="bi bi-download me-1"></i>Download</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="dn_action" id="dn_action_email" value="email">
+                <label class="form-check-label" for="dn_action_email"><i class="bi bi-envelope me-1"></i>Email</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3 d-none" id="dn_email_row">
+            <label class="form-label" for="dn_email">Send To Email</label>
+            <input type="email" class="form-control" id="dn_email" placeholder="recipient@example.com">
+          </div>
+
           <div id="dnError" class="alert alert-danger d-none" role="alert"></div>
+          <div id="dnSuccess" class="alert alert-success d-none" role="alert"></div>
         </form>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-primary" id="dnSubmitBtn">
           <span id="dnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
-          <i class="bi bi-download me-1" id="dnIcon"></i>Download PDF
+          <i class="bi bi-file-earmark-pdf me-1" id="dnIcon"></i>Generate
         </button>
       </div>
     </div>
@@ -264,30 +321,46 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
-  async function fetchPdfDownload(url, payload, filename, { spinner, icon, errorBox, submitBtn }) {
+  async function fetchPdf(url, payload, filename, { spinner, icon, errorBox, successBox, submitBtn }) {
     spinner.classList.remove('d-none');
     icon.classList.add('d-none');
     submitBtn.disabled = true;
     errorBox.classList.add('d-none');
+    if (successBox) successBox.classList.add('d-none');
     try {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Server error');
+      const contentType = res.headers.get('Content-Type') || '';
+      const isDownload  = res.ok && !contentType.includes('application/json');
+      if (isDownload) {
+        // Prefer server-suggested filename when available
+        const disp = res.headers.get('Content-Disposition') || '';
+        const match = /filename="?([^"]+)"?/.exec(disp);
+        const outName = match ? match[1] : filename;
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = outName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objectUrl);
+        return;
       }
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objectUrl);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Server error');
+      if (data.success) {
+        if (successBox) {
+          successBox.textContent = data.message || 'Sent successfully.';
+          successBox.classList.remove('d-none');
+        }
+        return;
+      }
+      throw new Error(data.error || 'Unexpected response.');
     } catch (err) {
       errorBox.textContent = err.message || 'Failed to generate PDF.';
       errorBox.classList.remove('d-none');
@@ -297,6 +370,19 @@ document.addEventListener('DOMContentLoaded', function () {
       submitBtn.disabled = false;
     }
   }
+
+  function wireActionToggle(radioName, emailRowId) {
+    const row = document.getElementById(emailRowId);
+    document.querySelectorAll(`input[name="${radioName}"]`).forEach(r => {
+      r.addEventListener('change', function () {
+        if (this.value === 'email') row.classList.remove('d-none');
+        else                        row.classList.add('d-none');
+      });
+    });
+  }
+  wireActionToggle('tot_action', 'tot_email_row');
+  wireActionToggle('tx_action',  'tx_email_row');
+  wireActionToggle('dn_action',  'dn_email_row');
 
   // ── Totals modal ───────────────────────────────────────────────
   const totalsModal   = new bootstrap.Modal(document.getElementById('totalsModal'));
@@ -312,41 +398,29 @@ document.addEventListener('DOMContentLoaded', function () {
     totalsForm.classList.remove('was-validated');
     totError.classList.add('d-none');
     totSuccess.classList.add('d-none');
+    document.getElementById('tot_action_download').checked = true;
+    document.getElementById('tot_email_row').classList.add('d-none');
     totalsModal.show();
   });
 
   totSubmit.addEventListener('click', async () => {
     totalsForm.classList.add('was-validated');
-    if (!totalsForm.checkValidity()) return;
-
-    const start = document.getElementById('tot_start').value;
-    const end   = document.getElementById('tot_end').value;
-    const email = document.getElementById('tot_email').value;
-
-    totSpinner.classList.remove('d-none');
-    totIcon.classList.add('d-none');
-    totSubmit.disabled = true;
-    totError.classList.add('d-none');
-    totSuccess.classList.add('d-none');
-
-    try {
-      const res = await fetch('/export-totals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start_date: start, end_date: end, email }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Server error');
-      totSuccess.textContent = `Report sent successfully to ${email}.`;
-      totSuccess.classList.remove('d-none');
-    } catch (err) {
-      totError.textContent = err.message || 'Failed to send report.';
+    const start  = document.getElementById('tot_start').value;
+    const end    = document.getElementById('tot_end').value;
+    const action = document.querySelector('input[name="tot_action"]:checked').value;
+    const email  = document.getElementById('tot_email').value.trim();
+    if (!start || !end) return;
+    if (action === 'email' && !email) {
+      totError.textContent = 'Please enter an email address.';
       totError.classList.remove('d-none');
-    } finally {
-      totSpinner.classList.add('d-none');
-      totIcon.classList.remove('d-none');
-      totSubmit.disabled = false;
+      return;
     }
+    await fetchPdf(
+      '/export-totals',
+      { start_date: start, end_date: end, action, email },
+      `totals_export_${start}_to_${end}.pdf`,
+      { spinner: totSpinner, icon: totIcon, errorBox: totError, successBox: totSuccess, submitBtn: totSubmit },
+    );
   });
 
   // ── Transactions modal ─────────────────────────────────────────
@@ -356,25 +430,36 @@ document.addEventListener('DOMContentLoaded', function () {
   const txSpinner = document.getElementById('txSpinner');
   const txIcon    = document.getElementById('txIcon');
   const txError   = document.getElementById('txError');
+  const txSuccess = document.getElementById('txSuccess');
 
   document.getElementById('openTransactionModal').addEventListener('click', () => {
     txForm.reset();
     txForm.classList.remove('was-validated');
     txError.classList.add('d-none');
+    txSuccess.classList.add('d-none');
+    document.getElementById('tx_action_download').checked = true;
+    document.getElementById('tx_email_row').classList.add('d-none');
     txModal.show();
   });
 
   txSubmit.addEventListener('click', async () => {
     txForm.classList.add('was-validated');
     if (!txForm.checkValidity()) return;
-    const start = document.getElementById('tx_start').value;
-    const end   = document.getElementById('tx_end').value;
-    const exp   = document.getElementById('tx_export').value;
-    await fetchPdfDownload(
+    const start  = document.getElementById('tx_start').value;
+    const end    = document.getElementById('tx_end').value;
+    const exp    = document.getElementById('tx_export').value;
+    const action = document.querySelector('input[name="tx_action"]:checked').value;
+    const email  = document.getElementById('tx_email').value.trim();
+    if (action === 'email' && !email) {
+      txError.textContent = 'Please enter an email address.';
+      txError.classList.remove('d-none');
+      return;
+    }
+    await fetchPdf(
       '/generate-transaction-pdf',
-      { start_date: start, end_date: end, export: exp },
+      { start_date: start, end_date: end, export: exp, action, email_to: email },
       `transactions_${start}_to_${end}.pdf`,
-      { spinner: txSpinner, icon: txIcon, errorBox: txError, submitBtn: txSubmit },
+      { spinner: txSpinner, icon: txIcon, errorBox: txError, successBox: txSuccess, submitBtn: txSubmit },
     );
   });
 
@@ -385,24 +470,35 @@ document.addEventListener('DOMContentLoaded', function () {
   const dnSpinner = document.getElementById('dnSpinner');
   const dnIcon    = document.getElementById('dnIcon');
   const dnError   = document.getElementById('dnError');
+  const dnSuccess = document.getElementById('dnSuccess');
 
   document.getElementById('openDonationsModal').addEventListener('click', () => {
     dnForm.reset();
     dnError.classList.add('d-none');
+    dnSuccess.classList.add('d-none');
+    document.getElementById('dn_action_download').checked = true;
+    document.getElementById('dn_email_row').classList.add('d-none');
     dnModal.show();
   });
 
   dnSubmit.addEventListener('click', async () => {
-    const fund  = document.getElementById('dn_fund').value;
-    const start = document.getElementById('dn_start').value;
-    const end   = document.getElementById('dn_end').value;
-    const date  = new Date().toISOString().slice(0, 10);
-    const slug  = fund && fund !== 'all' ? `_${fund.replace(/[^a-z0-9]/gi, '_')}` : '';
-    await fetchPdfDownload(
+    const fund   = document.getElementById('dn_fund').value;
+    const start  = document.getElementById('dn_start').value;
+    const end    = document.getElementById('dn_end').value;
+    const action = document.querySelector('input[name="dn_action"]:checked').value;
+    const email  = document.getElementById('dn_email').value.trim();
+    const date   = new Date().toISOString().slice(0, 10);
+    const slug   = fund && fund !== 'all' ? `_${fund.replace(/[^a-z0-9]/gi, '_')}` : '';
+    if (action === 'email' && !email) {
+      dnError.textContent = 'Please enter an email address.';
+      dnError.classList.remove('d-none');
+      return;
+    }
+    await fetchPdf(
       '/export-donations',
-      { fund, start_date: start || null, end_date: end || null },
+      { fund, start_date: start || null, end_date: end || null, action, email_to: email },
       `donations_export${slug}_${date}.pdf`,
-      { spinner: dnSpinner, icon: dnIcon, errorBox: dnError, submitBtn: dnSubmit },
+      { spinner: dnSpinner, icon: dnIcon, errorBox: dnError, successBox: dnSuccess, submitBtn: dnSubmit },
     );
   });
 
