@@ -23,7 +23,7 @@ const bankRouter        = require('./routes/bank')
 const invitesRouter     = require('./routes/invites')
 const superAdminRouter  = require('./routes/superadmin')
 const tlSync            = require('./truelayer/sync')
-const { sendStatementByEmail, sendDonorStatementBuffer, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendDonationReceivedEmail, sendTotalsExportEmail } = require('./emailer');
+const { sendStatementByEmail, sendDonorStatementBuffer, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendDonationReceivedEmail, sendTotalsExportEmail, sendTransactionsPDFBuffer, sendDonationsPDFBuffer } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
@@ -680,7 +680,11 @@ app.get('/export-transactions', requireLogin, injectCharityId, checkUserRole, ch
 app.post('/export-donations', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
-    const { fund, start_date, end_date } = req.body;
+    const { fund, start_date, end_date, action, email_to } = req.body;
+
+    if (action === 'email' && !email_to) {
+      return res.status(400).json({ error: 'Email address is required.' });
+    }
 
     // Build query with optional filters — always scoped to charity
     let query = 'SELECT * FROM donations WHERE charity_id = $1';
@@ -698,6 +702,12 @@ app.post('/export-donations', requireLogin, injectCharityId, checkUserRole, chec
     const date     = new Date().toISOString().slice(0, 10);
     const fundSlug = fund && fund !== 'all' ? `_${fund.replace(/[^a-z0-9]/gi, '_')}` : '';
     const filename = `donations_export${fundSlug}_${date}.pdf`;
+
+    if (action === 'email') {
+      await sendDonationsPDFBuffer(email_to, pdfBuffer, filename);
+      log(`${loggedInName}: Donations PDF emailed to ${email_to} (${result.rows.length} rows)`);
+      return res.json({ success: true, message: `Donations PDF emailed to ${email_to}.` });
+    }
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -783,10 +793,14 @@ schedule.scheduleJob('0 */6 * * *', async () => {
 
 app.post("/export-totals", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
-  const { start_date, end_date, email } = req.body;
+  const { start_date, end_date, email, action } = req.body;
+  const mode = action || (email ? 'email' : 'download');
 
-  if (!start_date || !end_date || !email) {
-    return res.status(400).json({ error: 'Date range and recipient email are required.' });
+  if (!start_date || !end_date) {
+    return res.status(400).json({ error: 'Date range is required.' });
+  }
+  if (mode === 'email' && !email) {
+    return res.status(400).json({ error: 'Email address is required.' });
   }
 
   try {
@@ -805,29 +819,47 @@ app.post("/export-totals", requireLogin, injectCharityId, checkUserRole, checkAp
       totalPaidOutByType[type] = parseFloat(txns.reduce((t, r) => t + (parseFloat(r.paid_out) || 0), 0).toFixed(2));
     });
 
-    // Build CSV in memory
-    const csvLines = ['Type,Paid In,Paid Out'];
-    types.forEach(type => {
-      csvLines.push(`${escapeCsvField(type)},${totalPaidInByType[type]},${totalPaidOutByType[type]}`);
-    });
-    const csvBuffer = Buffer.from(csvLines.join('\n') + '\n', 'utf8');
-
-    // Build PDF in memory
-    const charity = await dbHelper.getCharityById(req.charityId);
-    const pdfBuffer = await pdfGenerator.generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, { startDate: start_date, endDate: end_date }, charity);
-
     const csvFilename = `totals_export_${start_date}_to_${end_date}.csv`;
     const pdfFilename = `totals_export_${start_date}_to_${end_date}.pdf`;
 
-    await sendTotalsExportEmail(email, csvBuffer, pdfBuffer, csvFilename, pdfFilename);
+    const buildCsvBuffer = () => {
+      const csvLines = ['Type,Paid In,Paid Out'];
+      types.forEach(type => {
+        csvLines.push(`${escapeCsvField(type)},${totalPaidInByType[type]},${totalPaidOutByType[type]}`);
+      });
+      return Buffer.from(csvLines.join('\n') + '\n', 'utf8');
+    };
 
-    console.log(`Totals export sent to ${email}`);
-    log(`${loggedInName}: Totals export (CSV + PDF) sent to ${email}`);
-    res.json({ success: true });
+    if (mode === 'download_csv') {
+      const csvBuffer = buildCsvBuffer();
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${csvFilename}"`);
+      res.send(csvBuffer);
+      log(`${loggedInName}: Totals CSV downloaded`);
+      return;
+    }
+
+    // Build PDF in memory (needed for PDF download and email)
+    const charity = await dbHelper.getCharityById(req.charityId);
+    const pdfBuffer = await pdfGenerator.generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, { startDate: start_date, endDate: end_date }, charity);
+
+    if (mode === 'email') {
+      const csvBuffer = buildCsvBuffer();
+      await sendTotalsExportEmail(email, csvBuffer, pdfBuffer, csvFilename, pdfFilename);
+      console.log(`Totals export sent to ${email}`);
+      log(`${loggedInName}: Totals export (CSV + PDF) sent to ${email}`);
+      return res.json({ success: true, message: `Totals export sent to ${email}.` });
+    }
+
+    // Default: download the PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${pdfFilename}"`);
+    res.send(pdfBuffer);
+    log(`${loggedInName}: Totals PDF downloaded`);
   } catch (err) {
     console.error('Error generating totals export:', err.message);
     log(`${loggedInName}: Error generating totals export: ${err.message}`);
-    res.status(500).json({ error: 'Error generating totals export.' });
+    if (!res.headersSent) res.status(500).json({ error: 'Error generating totals export.' });
   }
 });
 
@@ -1027,7 +1059,12 @@ app.get('/logout', (req, res) => {
         app.post("/generate-transaction-pdf", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
           const loggedInName = req.session.name;
           try {
-            const { start_date, end_date, export: exportType } = req.body;
+            const { start_date, end_date, export: exportType, action, email_to } = req.body;
+
+            if (action === 'email' && !email_to) {
+              return res.status(400).json({ error: 'Email address is required.' });
+            }
+
             let transactions;
             if (exportType === 'everything') {
               transactions = await dbHelper.getAllTransactionsForPeriod(start_date, end_date, req.charityId);
@@ -1036,6 +1073,13 @@ app.get('/logout', (req, res) => {
             }
             const pdfBuffer = await pdfGenerator.generateTransactionPDF(transactions);
             const filename  = `transactions_${start_date}_to_${end_date}.pdf`;
+
+            if (action === 'email') {
+              await sendTransactionsPDFBuffer(email_to, pdfBuffer, filename);
+              log(loggedInName + ': Transactions PDF emailed to ' + email_to);
+              return res.json({ success: true, message: `Transactions PDF emailed to ${email_to}.` });
+            }
+
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
             res.send(pdfBuffer);

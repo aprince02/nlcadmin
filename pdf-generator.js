@@ -40,7 +40,7 @@ async function generatePDF(donor, tithe, donations, charity = {}, startDate, end
 
   const periodLabel = (startDate ? fmtDate(startDate) : '—') + ' - ' + (endDate ? fmtDate(endDate) : '—');
 
-  doc.addImage(logoData, "PNG", 1, 1, 35, 35);
+  doc.addImage(logoData, "PNG", 1, 1, 35, 35, undefined, 'FAST');
   doc.text(charity.name || '', 135, 10);
   doc.setFontSize(12);
   doc.text(charity.phone      ? 'Tel: '        + charity.phone      : '', 135, 15);
@@ -103,7 +103,7 @@ async function generatePDF(donor, tithe, donations, charity = {}, startDate, end
 }
 
 async function generateTransactionPDF(transactions) {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ compress: true });
 
   const logoPath = "css/probooks-statementOfTransactions.png";
   const logoData = fs.readFileSync(logoPath);
@@ -113,7 +113,7 @@ async function generateTransactionPDF(transactions) {
   const logoHeight = 150;
   const logoX = (pageWidth - logoWidth) / 2;
 
-  doc.addImage(logoData, "PNG", logoX, 10, logoWidth, logoHeight);
+  doc.addImage(logoData, "PNG", logoX, 10, logoWidth, logoHeight, undefined, 'FAST');
   doc.setFontSize(12);
 
   const groupedTransactions = {};
@@ -157,13 +157,13 @@ async function generateTransactionPDF(transactions) {
 
 
 async function generateDonationsPDF(donations, { fund, startDate, endDate } = {}, charity = {}) {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ compress: true });
 
   const logoPath = charity.logo_path ? 'public' + charity.logo_path : 'css/logo.png';
   const logoData = fs.readFileSync(logoPath);
 
   // ── Header ──────────────────────────────────────────────────────
-  doc.addImage(logoData, "PNG", 1, 1, 35, 35);
+  doc.addImage(logoData, "PNG", 1, 1, 35, 35, undefined, 'FAST');
   doc.setFontSize(12);
   doc.text(charity.name || '', 135, 10);
   doc.setFontSize(10);
@@ -251,12 +251,12 @@ async function generateDonationsPDF(donations, { fund, startDate, endDate } = {}
 }
 
 async function generateTotalsPDF(types, totalPaidInByType, totalPaidOutByType, { startDate, endDate } = {}, charity = {}) {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ compress: true });
 
   const logoPath = charity.logo_path ? 'public' + charity.logo_path : 'css/logo.png';
   const logoData = fs.readFileSync(logoPath);
 
-  doc.addImage(logoData, "PNG", 1, 1, 35, 35);
+  doc.addImage(logoData, "PNG", 1, 1, 35, 35, undefined, 'FAST');
   doc.setFontSize(12);
   doc.text(charity.name || '', 135, 10);
   doc.setFontSize(10);
