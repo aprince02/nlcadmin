@@ -255,6 +255,14 @@ async function exportDonationsCsv(req, res) {
     }
 }
 
+/** Normalise a UK postcode: uppercase, single space before the last 3 characters. */
+function formatPostcode(pc) {
+  if (!pc) return pc;
+  const stripped = pc.replace(/\s+/g, '').toUpperCase();
+  if (stripped.length < 5 || stripped.length > 7) return pc.trim().toUpperCase();
+  return stripped.slice(0, -3) + ' ' + stripped.slice(-3);
+}
+
 module.exports = {
     formatted_date,
     log,
@@ -266,6 +274,7 @@ module.exports = {
     exportDonationsCsv,
     checkSuperAdmin,
     checkAdmin,
-    checkApprovedUser
+    checkApprovedUser,
+    formatPostcode
 }
 

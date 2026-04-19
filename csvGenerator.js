@@ -1,5 +1,17 @@
 const pool = require("./database.js")
 const csvWriter = require('csv-writer').createObjectCsvWriter;
+const { formatPostcode } = require('./utils');
+
+/** Format a date as DD/MM/YY for HMRC Gift Aid CSV. */
+function hmrcDate(value) {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  const dd   = String(d.getUTCDate()).padStart(2, '0');
+  const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yy   = String(d.getUTCFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
 
 async function exportDonationsCsv(req, res) {
   try {
@@ -37,9 +49,9 @@ async function exportGiftAidClaimCsv(req) {
     donationsResult.rows.forEach(d => {
         lines.push([
             d.title || '', d.first_name || '', d.last_name || '',
-            d.house_name_or_number || '', d.postcode || '',
-            d.donation_amount || 0, '',
-            d.donation_date || '', d.donation_amount || 0
+            d.house_name_or_number || '', formatPostcode(d.postcode) || '',
+            '', '',
+            hmrcDate(d.donation_date), d.donation_amount || 0
         ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
     });
 

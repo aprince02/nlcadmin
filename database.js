@@ -49,7 +49,7 @@ async function initDb() {
         sex                      TEXT,
         email                    TEXT,
         phone_number             TEXT,
-        house_number             INTEGER,
+        house_number             TEXT,
         address_line_1           TEXT,
         address_line_2           TEXT,
         city                     TEXT,
@@ -247,6 +247,9 @@ async function initDb() {
     await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS treasurer_name TEXT`);
     await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS address TEXT`);
     await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS logo_path TEXT`);
+
+    // Convert house_number from INTEGER to TEXT to support values like "152A"
+    await client.query(`ALTER TABLE members ALTER COLUMN house_number TYPE TEXT USING house_number::TEXT`);
 
     console.log('Database schema initialised.');
   } catch (err) {

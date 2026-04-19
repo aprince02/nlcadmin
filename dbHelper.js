@@ -1,4 +1,5 @@
 const pool = require('./database.js');
+const { formatPostcode } = require('./utils');
 
 async function getAllTransactionTypes(charityId) {
   const result = await pool.query(
@@ -67,16 +68,17 @@ async function addNewMember(req, charityId) {
   const str  = v => (v === '' || v == null) ? null : v;
   const date = v => (v === '' || v == null) ? null : v;
   const int  = v => (v === '' || v == null) ? null : parseInt(v, 10) || null;
+  const pc   = v => (v === '' || v == null) ? null : formatPostcode(v);
 
   const member = [
     str(req.body.first_name), str(req.body.surname), str(req.body.sex), str(req.body.email),
     str(req.body.phone_number), str(req.body.address_line_1), str(req.body.address_line_2),
-    str(req.body.city), str(req.body.postcode), date(req.body.date_of_birth), str(req.body.baptised),
+    str(req.body.city), pc(req.body.postcode), date(req.body.date_of_birth), str(req.body.baptised),
     date(req.body.baptised_date), str(req.body.holy_spirit), str(req.body.native_church),
     str(req.body.children_details), int(req.body.emergency_contact_1),
     str(req.body.emergency_contact_1_name), int(req.body.emergency_contact_2),
     str(req.body.emergency_contact_2_name), str(req.body.occupation_studies),
-    str(req.body.title), int(req.body.house_number),
+    str(req.body.title), str(req.body.house_number),
     charityId,
   ];
   const result = await pool.query(
