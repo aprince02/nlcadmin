@@ -15,7 +15,7 @@ const dayjs = require('dayjs');
 const path = require('path');
 const multer = require('multer');
 const schedule = require('node-schedule');
-const { requireLogin, injectCharityId, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser } = require('./utils');
+const { requireLogin, injectCharityId, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser, formatPostcode } = require('./utils');
 const dbHelper = require('./dbHelper')
 const currentYear = new Date().getFullYear();
 const csvGenerator = require('./csvGenerator')
@@ -207,7 +207,7 @@ app.post("/edit/:id", requireLogin, injectCharityId, checkApprovedUser, async (r
   
   app.post("/edit-member/:id", async (req, res) => {
       const id = req.params.id;
-      const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
+      const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, formatPostcode(req.body.postcode), req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
       const sql = "UPDATE members SET first_name = $1, surname = $2, banking_name = $3, date_of_birth = $4, sex = $5, email = $6, phone_number = $7, address_line_1 = $8, address_line_2 = $9, city = $10, postcode = $11, baptised = $12, baptised_date = $13, holy_spirit = $14, native_church = $15, children_details = $16, emergency_contact_1 = $17, emergency_contact_1_name = $18, emergency_contact_2 = $19, emergency_contact_2_name = $20, occupation_studies = $21, title = $22, house_number = $23, spouse_name = $24 WHERE id = $25";
       try {
           await pool.query(sql, claimant);
@@ -469,13 +469,40 @@ app.get("/api/member/:id", requireLogin, injectCharityId, checkApprovedUser, asy
 app.post("/api/member/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const id = req.params.id;
   const b = req.body;
-  const vals = [b.first_name, b.surname, b.banking_name, b.date_of_birth, b.sex, b.email, b.phone_number, b.address_line_1, b.address_line_2, b.city, b.postcode, b.baptised, b.baptised_date, b.holy_spirit, b.native_church, b.children_details, b.emergency_contact_1, b.emergency_contact_1_name, b.emergency_contact_2, b.emergency_contact_2_name, b.occupation_studies, b.title, b.house_number, b.spouse_name, id, req.charityId];
+  const vals = [b.first_name, b.surname, b.banking_name, b.date_of_birth, b.sex, b.email, b.phone_number, b.address_line_1, b.address_line_2, b.city, formatPostcode(b.postcode), b.baptised, b.baptised_date, b.holy_spirit, b.native_church, b.children_details, b.emergency_contact_1, b.emergency_contact_1_name, b.emergency_contact_2, b.emergency_contact_2_name, b.occupation_studies, b.title, b.house_number, b.spouse_name, id, req.charityId];
   try {
     await pool.query(
       `UPDATE members SET first_name=$1,surname=$2,banking_name=$3,date_of_birth=$4,sex=$5,email=$6,phone_number=$7,address_line_1=$8,address_line_2=$9,city=$10,postcode=$11,baptised=$12,baptised_date=$13,holy_spirit=$14,native_church=$15,children_details=$16,emergency_contact_1=$17,emergency_contact_1_name=$18,emergency_contact_2=$19,emergency_contact_2_name=$20,occupation_studies=$21,title=$22,house_number=$23,spouse_name=$24 WHERE id=$25 AND charity_id=$26`,
       vals
     );
     log(req.session.name + ': Updated member ' + id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/api/member/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
+  const id = req.params.id;
+  const allowed = ['title', 'first_name', 'surname', 'house_number', 'postcode'];
+  const fields = [];
+  const vals   = [];
+  let idx = 1;
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) {
+      const val = key === 'postcode' ? formatPostcode(req.body[key]) : req.body[key];
+      fields.push(`${key}=$${idx++}`);
+      vals.push(val);
+    }
+  }
+  if (fields.length === 0) return res.status(400).json({ error: 'No fields to update.' });
+  vals.push(id, req.charityId);
+  try {
+    await pool.query(
+      `UPDATE members SET ${fields.join(',')} WHERE id=$${idx++} AND charity_id=$${idx}`,
+      vals
+    );
+    log(req.session.name + ': Updated member ' + id + ' (gift aid review)');
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -884,6 +911,31 @@ app.get('/api/giftaid-summary', requireLogin, injectCharityId, checkUserRole, ch
   } catch (err) {
     console.error('Gift aid summary error:', err.message);
     res.status(500).json({ error: 'Could not load gift aid summary.' });
+  }
+});
+
+app.get('/api/giftaid-preview', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        members.id AS member_id,
+        members.title,
+        members.first_name,
+        members.surname AS last_name,
+        members.house_number AS house_name_or_number,
+        members.postcode,
+        donations.amount,
+        donations.date
+      FROM donations
+      INNER JOIN members ON donations.member_id = members.id
+      WHERE donations.gift_aid_status = 'Unclaimed'
+        AND donations.charity_id = $1
+      ORDER BY members.surname, members.first_name, donations.date
+    `, [req.charityId]);
+    res.json({ rows: result.rows });
+  } catch (err) {
+    console.error('Gift aid preview error:', err.message);
+    res.status(500).json({ error: 'Could not load preview.' });
   }
 });
 
