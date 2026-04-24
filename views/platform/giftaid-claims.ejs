@@ -1,0 +1,106 @@
+<%- include("../_loggedInHeader") -%>
+
+<div class="pb-page">
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Gift Aid Claims</h1>
+      <p class="pb-page-subtitle">Paid submissions awaiting filing with HMRC</p>
+    </div>
+    <div class="pb-page-actions">
+      <a href="/platform" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>All charities</a>
+    </div>
+  </div>
+
+  <ul class="nav nav-pills mb-3">
+    <% const filters = [['pending','Pending'], ['submitted','Submitted'], ['paid','All paid'], ['all','All claims']]; %>
+    <% filters.forEach(([key, label]) => { %>
+      <li class="nav-item">
+        <a class="nav-link <%= status === key ? 'active' : '' %>" href="/platform/giftaid-claims?status=<%= key %>"><%= label %></a>
+      </li>
+    <% }) %>
+  </ul>
+
+  <div class="pb-table-card">
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>Requested</th>
+            <th>Charity</th>
+            <th class="text-center">Records</th>
+            <th class="text-end">Receivable</th>
+            <th class="text-end">Fee</th>
+            <th>Status</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% claims.forEach(c => { %>
+            <% const receivable = (parseFloat(c.total_amount) * 0.25).toFixed(2); %>
+            <tr data-claim-id="<%= c.id %>">
+              <td><%= new Date(c.claimed_at).toLocaleDateString('en-GB') %></td>
+              <td>
+                <div class="fw-semibold"><%= c.charity_name %></div>
+                <div class="text-muted small">by <%= c.claimed_by || '—' %></div>
+              </td>
+              <td class="text-center"><%= c.record_count %></td>
+              <td class="text-end">£<%= receivable %></td>
+              <td class="text-end">
+                <% if (c.submission_fee_amount) { %>£<%= Number(c.submission_fee_amount).toFixed(2) %><% } else { %>—<% } %>
+              </td>
+              <td>
+                <% if (c.submission_status === 'submitted') { %>
+                  <span class="badge bg-success">Submitted</span>
+                  <% if (c.submitted_at) { %>
+                    <div class="small text-muted">on <%= new Date(c.submitted_at).toLocaleDateString('en-GB') %></div>
+                  <% } %>
+                <% } else if (c.submission_status === 'submission_requested') { %>
+                  <span class="badge bg-warning text-dark">Awaiting filing</span>
+                <% } else { %>
+                  <span class="badge bg-secondary">Self-downloaded</span>
+                <% } %>
+              </td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary" href="/api/giftaid-claims/<%= c.id %>/csv">
+                  <i class="bi bi-download me-1"></i>CSV
+                </a>
+                <% if (c.submission_status === 'submission_requested') { %>
+                  <button type="button" class="btn btn-sm btn-success mark-submitted-btn" data-claim-id="<%= c.id %>">
+                    <i class="bi bi-check-lg me-1"></i>Mark submitted
+                  </button>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+          <% if (claims.length === 0) { %>
+            <tr><td colspan="7" class="text-muted text-center py-4">No claims in this view.</td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.mark-submitted-btn').forEach(btn => {
+  btn.addEventListener('click', async function () {
+    const id = this.dataset.claimId;
+    if (!confirm('Mark claim #' + id + ' as submitted to HMRC?')) return;
+    this.disabled = true;
+    const original = this.innerHTML;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving…';
+    try {
+      const res = await fetch('/api/giftaid-claims/' + id + '/mark-submitted', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not mark as submitted.');
+      window.location.reload();
+    } catch (err) {
+      alert(err.message || 'Failed.');
+      this.disabled = false;
+      this.innerHTML = original;
+    }
+  });
+});
+</script>
+
+<%- include("../_footer") -%>

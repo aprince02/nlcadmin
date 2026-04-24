@@ -284,6 +284,11 @@ async function initDb() {
       )
     `);
     await client.query(`ALTER TABLE donations ADD COLUMN IF NOT EXISTS gift_aid_claim_id INTEGER REFERENCES gift_aid_claims(id)`);
+    // Paid submission-service columns on gift_aid_claims
+    await client.query(`ALTER TABLE gift_aid_claims ADD COLUMN IF NOT EXISTS submission_status TEXT DEFAULT 'self_downloaded'`);
+    await client.query(`ALTER TABLE gift_aid_claims ADD COLUMN IF NOT EXISTS submission_fee_amount NUMERIC(10,2)`);
+    await client.query(`ALTER TABLE gift_aid_claims ADD COLUMN IF NOT EXISTS submission_stripe_charge_id TEXT`);
+    await client.query(`ALTER TABLE gift_aid_claims ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ`);
 
     console.log('Database schema initialised.');
   } catch (err) {

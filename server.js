@@ -24,7 +24,7 @@ const bankRouter        = require('./routes/bank')
 const invitesRouter     = require('./routes/invites')
 const superAdminRouter  = require('./routes/superadmin')
 const tlSync            = require('./truelayer/sync')
-const { sendStatementByEmail, sendDonorStatementBuffer, createAndEmail, emailMemberForUpdate, sendDonationReceivedEmail, sendTotalsExportEmail, sendTransactionsPDFBuffer, sendDonationsPDFBuffer, sendPaymentFailedEmail } = require('./emailer');
+const { sendStatementByEmail, sendDonorStatementBuffer, createAndEmail, emailMemberForUpdate, sendDonationReceivedEmail, sendTotalsExportEmail, sendTransactionsPDFBuffer, sendDonationsPDFBuffer, sendPaymentFailedEmail, sendGiftAidSubmissionRequestEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
@@ -1075,7 +1075,8 @@ app.post('/export-giftaid-claims', requireLogin, injectCharityId, checkUserRole,
 app.get('/api/giftaid-claims', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, claimed_at, claimed_by, record_count, total_amount
+      `SELECT id, claimed_at, claimed_by, record_count, total_amount,
+              submission_status, submission_fee_amount, submitted_at
        FROM gift_aid_claims WHERE charity_id = $1 ORDER BY claimed_at DESC`,
       [req.charityId]
     );
@@ -1101,6 +1102,135 @@ app.get('/api/giftaid-claims/:id/csv', requireLogin, injectCharityId, checkUserR
   } catch (err) {
     console.error('Gift aid claim download error:', err.message);
     res.status(500).json({ error: 'Could not download claim.' });
+  }
+});
+
+// Quote the submission-service fee for the current unclaimed batch (1%, £25 floor, £200 cap)
+app.get('/api/giftaid-submission/quote', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COALESCE(SUM(amount::NUMERIC), 0)::float AS total
+       FROM donations d
+       INNER JOIN members m ON d.member_id = m.id
+       WHERE d.gift_aid_status = 'Unclaimed'
+         AND d.charity_id = $1
+         AND m.first_name IS NOT NULL AND m.surname IS NOT NULL
+         AND m.house_number IS NOT NULL AND m.postcode IS NOT NULL`,
+      [req.charityId]
+    );
+    const total = parseFloat(result.rows[0].total) || 0;
+    const receivable = parseFloat((total * 0.25).toFixed(2));
+    const fee = billing.calcGiftAidSubmissionFee(receivable);
+    res.json({ total, receivable, fee });
+  } catch (err) {
+    console.error('Gift aid fee quote error:', err.message);
+    res.status(500).json({ error: 'Could not calculate fee.' });
+  }
+});
+
+// Paid submission: charge the on-file card, persist the claim, email the CSV to the operator
+app.post('/api/giftaid-submission/submit', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
+  const loggedInName = req.session.name;
+  try {
+    const { csvBuffer, donationIds, recordCount, totalAmount } = await csvGenerator.exportGiftAidClaimCsv(req);
+    if (recordCount === 0) {
+      return res.status(400).json({ error: 'No complete records to submit. Please fix the highlighted rows.' });
+    }
+    const receivable = parseFloat((totalAmount * 0.25).toFixed(2));
+    const fee = billing.calcGiftAidSubmissionFee(receivable);
+
+    // Charge the card on file before committing anything
+    let intent;
+    try {
+      intent = await billing.chargeOneOff({
+        charityId: req.charityId,
+        amountGBP: fee,
+        description: `Gift Aid submission service (${recordCount} records)`,
+        metadata: { charity_id: String(req.charityId), purpose: 'gift_aid_submission' },
+      });
+    } catch (err) {
+      console.error('Gift aid submission payment failed:', err.message);
+      return res.status(402).json({ error: err.message || 'Payment failed. Please check your billing details.' });
+    }
+
+    // Persist the claim with submission metadata
+    const claimResult = await pool.query(
+      `INSERT INTO gift_aid_claims (
+         charity_id, claimed_by, record_count, total_amount, csv_content,
+         submission_status, submission_fee_amount, submission_stripe_charge_id
+       ) VALUES ($1, $2, $3, $4, $5, 'submission_requested', $6, $7)
+       RETURNING id, claimed_at`,
+      [req.charityId, loggedInName, recordCount, totalAmount, csvBuffer.toString('utf8'), fee, intent.id]
+    );
+    const claimId = claimResult.rows[0].id;
+
+    await pool.query(
+      `UPDATE donations SET gift_aid_status = 'Claimed', gift_aid_claim_id = $1
+       WHERE id = ANY($2::int[]) AND charity_id = $3`,
+      [claimId, donationIds, req.charityId]
+    );
+
+    // Fire-and-forget operator email (don't block the response)
+    const charity = await dbHelper.getCharityById(req.charityId);
+    const date = new Date().toISOString().slice(0, 10);
+    const csvFilename = `giftaid_claim_${date}.csv`;
+    Promise.resolve().then(() =>
+      sendGiftAidSubmissionRequestEmail({
+        charityName: charity?.name || `charity #${req.charityId}`,
+        claimId, recordCount, receivable, fee,
+        csvBuffer, csvFilename,
+        adminUrl: `${process.env.APP_URL || ''}/platform`,
+      })
+    ).catch(err => console.error('Operator notification email failed:', err.message));
+
+    log(`${loggedInName}: Paid Gift Aid submission requested — claim #${claimId}, fee £${fee}, receivable £${receivable}`, req.charityId);
+    res.json({ success: true, claimId, fee, receivable, recordCount, message: `Submission scheduled. £${fee.toFixed(2)} charged. We'll submit within 2 business days.` });
+  } catch (err) {
+    console.error('Gift aid submission error:', err.message);
+    res.status(500).json({ error: err.message || 'Submission failed.' });
+  }
+});
+
+// Platform admin — cross-charity list of Gift Aid claims with filter & action
+app.get('/platform/giftaid-claims', requireLogin, checkPlatformAdmin, async (req, res) => {
+  try {
+    const status = (req.query.status || 'pending').toLowerCase();
+    let whereSql = '';
+    const params = [];
+    if (status === 'pending') {
+      whereSql = `WHERE gac.submission_status = 'submission_requested'`;
+    } else if (status === 'submitted') {
+      whereSql = `WHERE gac.submission_status = 'submitted'`;
+    } else if (status === 'paid') {
+      whereSql = `WHERE gac.submission_status IN ('submission_requested', 'submitted')`;
+    } // 'all' falls through to no filter
+    const result = await pool.query(`
+      SELECT gac.id, gac.claimed_at, gac.claimed_by, gac.record_count, gac.total_amount,
+             gac.submission_status, gac.submission_fee_amount, gac.submitted_at,
+             c.name AS charity_name, c.id AS charity_id
+      FROM gift_aid_claims gac
+      INNER JOIN charities c ON c.id = gac.charity_id
+      ${whereSql}
+      ORDER BY gac.claimed_at DESC
+    `, params);
+    res.render('platform/giftaid-claims', { loggedInName: req.session.name, claims: result.rows, status });
+  } catch (err) {
+    console.error('Platform gift-aid-claims error:', err.message);
+    res.status(500).send('Error loading claims.');
+  }
+});
+
+// Platform admin marks a claim as actually submitted to HMRC
+app.post('/api/giftaid-claims/:id/mark-submitted', requireLogin, checkPlatformAdmin, async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE gift_aid_claims SET submission_status = 'submitted', submitted_at = NOW() WHERE id = $1`,
+      [req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Mark-submitted error:', err.message);
+    res.status(500).json({ error: 'Could not mark claim as submitted.' });
   }
 });
 

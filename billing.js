@@ -149,6 +149,48 @@ async function handleEvent(event) {
   }
 }
 
+/** Calculate the Gift Aid submission-service fee from the receivable amount.
+ *  1% of receivable, floor £25, cap £200. Returns value in pounds (2dp). */
+function calcGiftAidSubmissionFee(receivable) {
+  const base = Math.round(receivable * 0.01 * 100) / 100;
+  return Math.min(200, Math.max(25, base));
+}
+
+/**
+ * Charge a one-off amount to the charity's on-file payment method.
+ * Throws if no customer or no saved payment method.
+ */
+async function chargeOneOff({ charityId, amountGBP, description, metadata }) {
+  const stripe = getStripe();
+  const result = await pool.query(
+    'SELECT stripe_customer_id FROM charities WHERE id = $1',
+    [charityId]
+  );
+  const customerId = result.rows[0]?.stripe_customer_id;
+  if (!customerId) throw new Error('No payment method on file. Please start a subscription first.');
+
+  // Find a default payment method on the customer
+  const customer = await stripe.customers.retrieve(customerId);
+  let paymentMethod = customer.invoice_settings?.default_payment_method;
+  if (!paymentMethod) {
+    const list = await stripe.paymentMethods.list({ customer: customerId, type: 'card', limit: 1 });
+    paymentMethod = list.data[0]?.id;
+  }
+  if (!paymentMethod) throw new Error('No saved card. Please add a payment method in the billing portal first.');
+
+  const intent = await stripe.paymentIntents.create({
+    amount:   Math.round(amountGBP * 100),
+    currency: 'gbp',
+    customer: customerId,
+    payment_method: paymentMethod,
+    off_session: true,
+    confirm: true,
+    description,
+    metadata,
+  });
+  return intent;
+}
+
 module.exports = {
   PLANS,
   isActive,
@@ -158,4 +200,6 @@ module.exports = {
   constructEvent,
   handleEvent,
   saveSubscriptionToDb,
+  calcGiftAidSubmissionFee,
+  chargeOneOff,
 };

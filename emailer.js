@@ -374,6 +374,37 @@ async function sendInviteEmail(email, token, role, charityName) {
   }
 }
 
+async function sendGiftAidSubmissionRequestEmail({ charityName, claimId, recordCount, receivable, fee, csvBuffer, csvFilename, adminUrl }) {
+  const detailsRow = (label, value) => `
+    <tr>
+      <td style="padding:6px 12px;background:#f4f6f9;color:#555;font-size:13px;">${esc(label)}</td>
+      <td style="padding:6px 12px;font-size:14px;color:#222;">${esc(value)}</td>
+    </tr>`;
+  const detailsTable = `
+    <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 16px;width:100%;max-width:460px;">
+      ${detailsRow('Charity', charityName)}
+      ${detailsRow('Claim ID', '#' + claimId)}
+      ${detailsRow('Records', recordCount)}
+      ${detailsRow('Receivable', '£' + Number(receivable).toFixed(2))}
+      ${detailsRow('Fee charged', '£' + Number(fee).toFixed(2))}
+    </table>`;
+  const mailOptions = buildMail({
+    to: receiver,
+    subject: `Gift Aid submission requested — ${charityName}`,
+    heading: 'New Gift Aid submission to file',
+    intro: `${charityName} has paid for the Gift Aid submission service. The CSV is attached.`,
+    bodyHtml: detailsTable,
+    bodyText: `Charity: ${charityName}\nClaim ID: #${claimId}\nRecords: ${recordCount}\nReceivable: £${Number(receivable).toFixed(2)}\nFee: £${Number(fee).toFixed(2)}`,
+    cta: adminUrl ? { label: 'Open claim in admin', url: adminUrl } : null,
+    footerNote: 'Submit the attached CSV to HMRC, then mark the claim as submitted in the admin UI.',
+    attachments: [
+      { filename: csvFilename, content: csvBuffer, contentType: 'text/csv' },
+    ],
+  });
+  const info = await transporter.sendMail(mailOptions);
+  console.log('Gift Aid submission request email sent:', info.response);
+}
+
 async function sendPaymentFailedEmail(to, charityName, billingUrl) {
   const mailOptions = buildMail({
     to,
@@ -419,4 +450,5 @@ module.exports = {
   sendOtpEmail,
   sendInviteEmail,
   sendPaymentFailedEmail,
+  sendGiftAidSubmissionRequestEmail,
 };

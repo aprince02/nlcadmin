@@ -599,22 +599,50 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
           <p class="text-muted mt-2 mb-0" style="font-size:0.8rem;">
             Rows highlighted in <span class="badge bg-warning text-dark">yellow</span> have missing data and
-            <strong>will not be included</strong> in the export. You can fill in the missing fields and click Save to fix them.
-            Clicking <strong>Export &amp; Mark Claimed</strong> will download the CSV and mark only the complete records as claimed.
+            <strong>will not be included</strong>. Fix them and click Save to include them in the submission.
           </p>
+
+          <!-- Submission option cards, shown after review -->
+          <div id="gaChooseSubmission" class="d-none mt-3">
+            <h6 class="mb-2">How would you like to submit this claim?</h6>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="border rounded p-3 h-100 d-flex flex-column">
+                  <div class="fw-semibold mb-1"><i class="bi bi-download me-1"></i>Download CSV</div>
+                  <div class="text-muted small mb-3">Self-service. Download the file and upload it to HMRC yourself. Free.</div>
+                  <button type="button" class="btn btn-outline-success mt-auto" id="gaExportBtn">
+                    <span id="gaSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                    <i class="bi bi-download me-1" id="gaIcon"></i>Download &amp; Mark Claimed
+                  </button>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="border rounded p-3 h-100 d-flex flex-column border-primary" style="background:linear-gradient(180deg,rgba(31,59,91,0.03),transparent);">
+                  <div class="fw-semibold mb-1"><i class="bi bi-send-check me-1"></i>We'll submit for you <span class="badge bg-primary ms-1">Paid</span></div>
+                  <div class="text-muted small mb-3">We file the claim with HMRC within 2 business days. One-off fee charged to your card on file.</div>
+                  <div class="mb-3">
+                    <span class="text-muted small">Fee:</span>
+                    <span class="fs-5 fw-bold ms-1" id="gaFeeDisplay">—</span>
+                    <div class="text-muted small">1% of receivable, minimum £25, maximum £200.</div>
+                  </div>
+                  <button type="button" class="btn btn-primary mt-auto" id="gaSubmitForMeBtn" disabled>
+                    <span id="gaSubmitSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                    <i class="bi bi-send-check me-1" id="gaSubmitIcon"></i>Submit for me
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div id="giftAidNone" class="d-none text-muted text-center py-3">No unclaimed donations found.</div>
         <div id="giftAidError" class="alert alert-danger d-none mt-2" role="alert"></div>
+        <div id="giftAidSuccess" class="alert alert-success d-none mt-2" role="alert"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-primary d-none" id="gaReviewBtn">
           <i class="bi bi-eye me-1"></i>Review Records
-        </button>
-        <button type="button" class="btn btn-success d-none" id="gaExportBtn">
-          <span id="gaSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
-          <i class="bi bi-download me-1" id="gaIcon"></i>Export &amp; Mark Claimed
         </button>
       </div>
     </div>
@@ -644,6 +672,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <th class="text-center">Records</th>
                 <th class="text-end">Donations Total</th>
                 <th class="text-end">Receivable</th>
+                <th>Submission</th>
                 <th></th>
               </tr>
             </thead>
@@ -763,10 +792,11 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('giftAidSummary').classList.add('d-none');
     document.getElementById('giftAidNone').classList.add('d-none');
     document.getElementById('giftAidError').classList.add('d-none');
-    document.getElementById('gaExportBtn').classList.add('d-none');
     document.getElementById('gaReviewBtn').classList.add('d-none');
     document.getElementById('gaPreviewSection').classList.add('d-none');
     document.getElementById('gaPreviewBody').innerHTML = '';
+    document.getElementById('gaChooseSubmission').classList.add('d-none');
+    document.getElementById('giftAidSuccess').classList.add('d-none');
     giftAidModal.show();
 
     try {
@@ -898,18 +928,8 @@ document.addEventListener('DOMContentLoaded', function () {
             tbody.querySelectorAll('tr[data-member-id="' + memberId + '"]').forEach(r => {
               r.classList.remove('table-warning');
             });
-            // Re-enable export button and refresh its count
-            const warned = tbody.querySelectorAll('tr.table-warning').length;
-            const total  = tbody.querySelectorAll('tr').length;
-            const complete = total - warned;
-            const exportBtn = document.getElementById('gaExportBtn');
-            if (complete > 0) {
-              exportBtn.disabled = false;
-              exportBtn.title = '';
-              exportBtn.innerHTML = '<span id="gaSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>'
-                + '<i class="bi bi-download me-1" id="gaIcon"></i>Export &amp; Mark Claimed ('
-                + complete + ' record' + (complete === 1 ? '' : 's') + ')';
-            }
+            // Refresh submission options after a row is fixed
+            refreshSubmissionOptions();
           } catch (err) {
             this.textContent = 'Retry';
             this.disabled = false;
@@ -920,18 +940,8 @@ document.addEventListener('DOMContentLoaded', function () {
       });
 
       reviewBtn.classList.add('d-none');
-      const exportBtn = document.getElementById('gaExportBtn');
-      exportBtn.classList.remove('d-none');
-      if (completeCount === 0) {
-        exportBtn.disabled = true;
-        exportBtn.title = 'Fix at least one row to enable export';
-      } else {
-        exportBtn.disabled = false;
-        exportBtn.title = '';
-        exportBtn.innerHTML = '<span id="gaSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>'
-          + '<i class="bi bi-download me-1" id="gaIcon"></i>Export &amp; Mark Claimed ('
-          + completeCount + ' record' + (completeCount === 1 ? '' : 's') + ')';
-      }
+      document.getElementById('gaChooseSubmission').classList.remove('d-none');
+      refreshSubmissionOptions();
     } catch (err) {
       loading.classList.add('d-none');
       errBox.textContent = err.message || 'Could not load preview.';
@@ -939,6 +949,42 @@ document.addEventListener('DOMContentLoaded', function () {
       reviewBtn.disabled = false;
     }
   });
+
+  // Refreshes the two submission options: enables/disables buttons and fetches the live fee quote
+  async function refreshSubmissionOptions() {
+    const tbody    = document.getElementById('gaPreviewBody');
+    const warned   = tbody.querySelectorAll('tr.table-warning').length;
+    const total    = tbody.querySelectorAll('tr').length;
+    const complete = total - warned;
+
+    const exportBtn = document.getElementById('gaExportBtn');
+    const submitBtn = document.getElementById('gaSubmitForMeBtn');
+    const feeEl     = document.getElementById('gaFeeDisplay');
+
+    if (complete === 0) {
+      exportBtn.disabled = true;
+      exportBtn.title = 'Fix at least one row to continue';
+      submitBtn.disabled = true;
+      feeEl.textContent = '—';
+      return;
+    }
+
+    exportBtn.disabled = false;
+    exportBtn.title = '';
+
+    // Pull fresh fee quote
+    try {
+      const res = await fetch('/api/giftaid-submission/quote');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not calculate fee.');
+      feeEl.textContent = '£' + Number(data.fee).toFixed(2);
+      submitBtn.disabled = false;
+    } catch (err) {
+      feeEl.textContent = '—';
+      submitBtn.disabled = true;
+      console.error('Fee quote failed:', err);
+    }
+  }
 
   document.getElementById('gaExportBtn').addEventListener('click', async () => {
     const spinner = document.getElementById('gaSpinner');
@@ -974,6 +1020,39 @@ document.addEventListener('DOMContentLoaded', function () {
       spinner.classList.add('d-none');
       icon.classList.remove('d-none');
       btn.disabled = false;
+    }
+  });
+
+  document.getElementById('gaSubmitForMeBtn').addEventListener('click', async () => {
+    const spinner = document.getElementById('gaSubmitSpinner');
+    const icon    = document.getElementById('gaSubmitIcon');
+    const btn     = document.getElementById('gaSubmitForMeBtn');
+    const errBox  = document.getElementById('giftAidError');
+    const okBox   = document.getElementById('giftAidSuccess');
+    const feeTxt  = document.getElementById('gaFeeDisplay').textContent;
+
+    if (!confirm(`This will charge ${feeTxt} to your card on file and we will submit the claim to HMRC within 2 business days. Continue?`)) return;
+
+    spinner.classList.remove('d-none');
+    icon.classList.add('d-none');
+    btn.disabled = true;
+    errBox.classList.add('d-none');
+    okBox.classList.add('d-none');
+
+    try {
+      const res = await fetch('/api/giftaid-submission/submit', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Submission failed.');
+      okBox.textContent = data.message || 'Submission scheduled.';
+      okBox.classList.remove('d-none');
+      document.getElementById('gaChooseSubmission').classList.add('d-none');
+    } catch (err) {
+      errBox.textContent = err.message || 'Submission failed.';
+      errBox.classList.remove('d-none');
+      btn.disabled = false;
+    } finally {
+      spinner.classList.add('d-none');
+      icon.classList.remove('d-none');
     }
   });
 
@@ -1016,6 +1095,17 @@ document.addEventListener('DOMContentLoaded', function () {
         return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
       };
 
+      const statusCell = (c) => {
+        if (c.submission_status === 'submitted') {
+          return '<span class="badge bg-success">Submitted by ProBooks</span>'
+            + (c.submitted_at ? '<div class="small text-muted">' + new Date(c.submitted_at).toLocaleDateString('en-GB') + '</div>' : '');
+        }
+        if (c.submission_status === 'submission_requested') {
+          return '<span class="badge bg-info">Awaiting ProBooks</span>'
+            + (c.submission_fee_amount ? '<div class="small text-muted">Fee: £' + Number(c.submission_fee_amount).toFixed(2) + '</div>' : '');
+        }
+        return '<span class="badge bg-secondary">Self-downloaded</span>';
+      };
       data.claims.forEach(c => {
         const receivable = (parseFloat(c.total_amount) * 0.25).toFixed(2);
         const tr = document.createElement('tr');
@@ -1025,6 +1115,7 @@ document.addEventListener('DOMContentLoaded', function () {
           '<td class="text-center">' + c.record_count + '</td>' +
           '<td class="text-end">' + fmtMoney(c.total_amount) + '</td>' +
           '<td class="text-end">' + fmtMoney(receivable) + '</td>' +
+          '<td>' + statusCell(c) + '</td>' +
           '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="/api/giftaid-claims/' + c.id + '/csv"><i class="bi bi-download me-1"></i>CSV</a></td>';
         tbody.appendChild(tr);
       });
