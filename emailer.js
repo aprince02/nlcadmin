@@ -3,13 +3,17 @@ const { log } = require('console');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
 
+if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  throw new Error('Missing SMTP credentials. Set SMTP_USER and SMTP_PASS in .env');
+}
+
 const emailConfig = {
-  host: "smtp.zoho.eu",
-  port: 465,            // use number, not string
-  secure: true,         // Zoho requires SSL on port 465
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
-    user: "mailer@probooksaccounting.co.uk",
-    pass: "ZAmBWUPFDEwz",
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
   pool: true,              // keep a connection pool
   rateLimit: true,         // enable built-in rate limiting
@@ -19,8 +23,8 @@ const emailConfig = {
   socketTimeout: 15000,     // 15 s of inactivity before giving up
 };
 
-const sender = '"ProBooks Accounting" <mailer@probooksaccounting.co.uk>'
-const receiver = 'albinm65@gmail.com';
+const sender = `"${process.env.SMTP_FROM_NAME || 'ProBooks Accounting'}" <${process.env.SMTP_USER}>`;
+const receiver = process.env.NOTIFY_EMAIL;
 const emailFooter = "\n\n\n\nThank you for using our services!\n\nIf you have any doubts using our services, please reply to this email\n\n\n\n Probooks Accounting © - Alpha Media Productions Ltd."
 
 // Single shared transporter — pool:true only benefits if the same instance is reused

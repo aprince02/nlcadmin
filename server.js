@@ -32,8 +32,11 @@ app.use(express.static("public", { maxAge: "7d" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+if (!process.env.SESSION_SECRET) {
+    throw new Error('Missing SESSION_SECRET. Set it in .env');
+}
 app.use(session({
-    secret: 'secret-key',
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true
 }));
