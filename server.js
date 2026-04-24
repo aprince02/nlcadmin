@@ -942,9 +942,27 @@ app.get('/api/giftaid-preview', requireLogin, injectCharityId, checkUserRole, ch
 app.post('/export-giftaid-claims', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async function(req, res) {
   const loggedInName = req.session.name;
   try {
-    const csvBuffer = await csvGenerator.exportGiftAidClaimCsv(req);
-    await pool.query(`UPDATE donations SET gift_aid_status = 'Claimed' WHERE gift_aid_status = 'Unclaimed' AND charity_id = $1`, [req.charityId]);
-    log(loggedInName + ': Gift Aid claimed and CSV exported', req.charityId);
+    const { csvBuffer, donationIds, recordCount, totalAmount } = await csvGenerator.exportGiftAidClaimCsv(req);
+
+    if (recordCount === 0) {
+      return res.status(400).json({ error: 'No complete records to export. Please fix the highlighted rows.' });
+    }
+
+    // Persist the claim batch and link the claimed donations to it
+    const claimResult = await pool.query(
+      `INSERT INTO gift_aid_claims (charity_id, claimed_by, record_count, total_amount, csv_content)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, claimed_at`,
+      [req.charityId, loggedInName, recordCount, totalAmount, csvBuffer.toString('utf8')]
+    );
+    const claimId = claimResult.rows[0].id;
+
+    await pool.query(
+      `UPDATE donations SET gift_aid_status = 'Claimed', gift_aid_claim_id = $1
+       WHERE id = ANY($2::int[]) AND charity_id = $3`,
+      [claimId, donationIds, req.charityId]
+    );
+
+    log(`${loggedInName}: Gift Aid claim #${claimId} exported (${recordCount} records, £${totalAmount})`, req.charityId);
     const date = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="giftaid_claim_${date}.csv"`);
@@ -953,6 +971,38 @@ app.post('/export-giftaid-claims', requireLogin, injectCharityId, checkUserRole,
     console.error("Error exporting gift aid claims:", error);
     log(loggedInName + ': Error exporting gift aid claims: ' + error);
     if (!res.headersSent) res.status(500).json({ error: 'Error exporting gift aid claims.' });
+  }
+});
+
+app.get('/api/giftaid-claims', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, claimed_at, claimed_by, record_count, total_amount
+       FROM gift_aid_claims WHERE charity_id = $1 ORDER BY claimed_at DESC`,
+      [req.charityId]
+    );
+    res.json({ claims: result.rows });
+  } catch (err) {
+    console.error('Gift aid claims list error:', err.message);
+    res.status(500).json({ error: 'Could not load claim history.' });
+  }
+});
+
+app.get('/api/giftaid-claims/:id/csv', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT csv_content, claimed_at FROM gift_aid_claims WHERE id = $1 AND charity_id = $2`,
+      [req.params.id, req.charityId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Claim not found.' });
+    const { csv_content, claimed_at } = result.rows[0];
+    const date = new Date(claimed_at).toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="giftaid_claim_${date}.csv"`);
+    res.send(csv_content);
+  } catch (err) {
+    console.error('Gift aid claim download error:', err.message);
+    res.status(500).json({ error: 'Could not download claim.' });
   }
 });
 

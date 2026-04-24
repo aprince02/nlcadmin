@@ -27,9 +27,11 @@ async function exportDonationsCsv(req, res) {
       console.error('Error exporting donations CSV:', error);
   }};
 
+/** Returns { csvBuffer, donationIds, recordCount, totalAmount } for complete records only. */
 async function exportGiftAidClaimCsv(req) {
     const donationsResult = await pool.query(`
         SELECT
+            donations.id AS donation_id,
             members.title,
             members.first_name,
             members.surname AS last_name,
@@ -45,8 +47,16 @@ async function exportGiftAidClaimCsv(req) {
 
     const headers = ['Title','First name','Last name','House name or number','Postcode','Aggregated donations','Sponsored event','Donation date','Amount'];
     const lines   = [headers.join(',')];
+    const donationIds = [];
+    let totalAmount = 0;
 
     donationsResult.rows.forEach(d => {
+        // Skip incomplete records — HMRC needs all required fields populated
+        if (!d.first_name || !d.last_name || !d.house_name_or_number || !d.postcode) return;
+
+        donationIds.push(d.donation_id);
+        totalAmount += parseFloat(d.donation_amount) || 0;
+
         lines.push([
             d.title || '', d.first_name || '', d.last_name || '',
             d.house_name_or_number || '', formatPostcode(d.postcode) || '',
@@ -55,7 +65,12 @@ async function exportGiftAidClaimCsv(req) {
         ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
     });
 
-    return Buffer.from(lines.join('\n') + '\n', 'utf8');
+    return {
+        csvBuffer: Buffer.from(lines.join('\n') + '\n', 'utf8'),
+        donationIds,
+        recordCount: donationIds.length,
+        totalAmount: parseFloat(totalAmount.toFixed(2)),
+    };
 }
 
 async function writeTotalPaidInOutCsv(types, totalPaidInByType, totalPaidOutByType) {

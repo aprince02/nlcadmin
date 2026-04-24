@@ -34,6 +34,9 @@
         <button type="button" class="pb-admin-btn" id="openGiftAidModal">
           <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Claim Gift Aid
         </button>
+        <button type="button" class="pb-admin-btn" id="openGiftAidHistoryModal">
+          <i class="bi bi-clock-history pb-admin-btn-icon" aria-hidden="true"></i>Gift Aid Claim History
+        </button>
         <button type="button" class="pb-admin-btn" id="openTotalsModal">
           <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Totals
         </button>
@@ -561,8 +564,9 @@ document.addEventListener('DOMContentLoaded', function () {
             </table>
           </div>
           <p class="text-muted mt-2 mb-0" style="font-size:0.8rem;">
-            Please check that postcodes have a space, house numbers are correct, and all names are present.
-            Clicking <strong>Export &amp; Mark Claimed</strong> will download the CSV and mark all unclaimed donations as claimed.
+            Rows highlighted in <span class="badge bg-warning text-dark">yellow</span> have missing data and
+            <strong>will not be included</strong> in the export. You can fill in the missing fields and click Save to fix them.
+            Clicking <strong>Export &amp; Mark Claimed</strong> will download the CSV and mark only the complete records as claimed.
           </p>
         </div>
 
@@ -578,6 +582,43 @@ document.addEventListener('DOMContentLoaded', function () {
           <span id="gaSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
           <i class="bi bi-download me-1" id="gaIcon"></i>Export &amp; Mark Claimed
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Gift Aid Claim History Modal ────────────────────────────── -->
+<div class="modal fade" id="giftAidHistoryModal" tabindex="-1" aria-labelledby="giftAidHistoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <h5 class="modal-title" id="giftAidHistoryModalLabel"><i class="bi bi-clock-history me-2"></i>Gift Aid Claim History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="gahLoading" class="text-center py-3">
+          <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading claim history...
+        </div>
+        <div id="gahEmpty" class="d-none text-muted text-center py-3">No gift aid claims have been made yet.</div>
+        <div id="gahError" class="alert alert-danger d-none" role="alert"></div>
+        <div class="table-responsive d-none" id="gahTableWrap" style="max-height: 450px; overflow-y: auto;">
+          <table class="table table-sm table-striped mb-0">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>Date</th>
+                <th>Claimed By</th>
+                <th class="text-center">Records</th>
+                <th class="text-end">Donations Total</th>
+                <th class="text-end">Receivable</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="gahBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
@@ -758,9 +799,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // Group by member_id so we only show one editable row per member
       const seen = new Set();
+      let completeCount = 0;
       data.rows.forEach(r => {
         const pc = fmtPostcode(r.postcode);
         const hasIssue = !pc || !r.house_name_or_number || !r.first_name || !r.last_name;
+        if (!hasIssue) completeCount++;
         const mid = r.member_id;
         const editable = hasIssue && !seen.has(mid);
         if (hasIssue) seen.add(mid);
@@ -821,6 +864,18 @@ document.addEventListener('DOMContentLoaded', function () {
             tbody.querySelectorAll('tr[data-member-id="' + memberId + '"]').forEach(r => {
               r.classList.remove('table-warning');
             });
+            // Re-enable export button and refresh its count
+            const warned = tbody.querySelectorAll('tr.table-warning').length;
+            const total  = tbody.querySelectorAll('tr').length;
+            const complete = total - warned;
+            const exportBtn = document.getElementById('gaExportBtn');
+            if (complete > 0) {
+              exportBtn.disabled = false;
+              exportBtn.title = '';
+              exportBtn.innerHTML = '<span id="gaSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>'
+                + '<i class="bi bi-download me-1" id="gaIcon"></i>Export &amp; Mark Claimed ('
+                + complete + ' record' + (complete === 1 ? '' : 's') + ')';
+            }
           } catch (err) {
             this.textContent = 'Retry';
             this.disabled = false;
@@ -831,7 +886,18 @@ document.addEventListener('DOMContentLoaded', function () {
       });
 
       reviewBtn.classList.add('d-none');
-      document.getElementById('gaExportBtn').classList.remove('d-none');
+      const exportBtn = document.getElementById('gaExportBtn');
+      exportBtn.classList.remove('d-none');
+      if (completeCount === 0) {
+        exportBtn.disabled = true;
+        exportBtn.title = 'Fix at least one row to enable export';
+      } else {
+        exportBtn.disabled = false;
+        exportBtn.title = '';
+        exportBtn.innerHTML = '<span id="gaSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>'
+          + '<i class="bi bi-download me-1" id="gaIcon"></i>Export &amp; Mark Claimed ('
+          + completeCount + ' record' + (completeCount === 1 ? '' : 's') + ')';
+      }
     } catch (err) {
       loading.classList.add('d-none');
       errBox.textContent = err.message || 'Could not load preview.';
@@ -874,6 +940,65 @@ document.addEventListener('DOMContentLoaded', function () {
       spinner.classList.add('d-none');
       icon.classList.remove('d-none');
       btn.disabled = false;
+    }
+  });
+
+  // ── Gift Aid Claim History modal ──────────────────────────────
+  const giftAidHistoryModal = new bootstrap.Modal(document.getElementById('giftAidHistoryModal'));
+
+  document.getElementById('openGiftAidHistoryModal')?.addEventListener('click', async () => {
+    const loading = document.getElementById('gahLoading');
+    const empty   = document.getElementById('gahEmpty');
+    const errBox  = document.getElementById('gahError');
+    const wrap    = document.getElementById('gahTableWrap');
+    const tbody   = document.getElementById('gahBody');
+
+    loading.classList.remove('d-none');
+    empty.classList.add('d-none');
+    errBox.classList.add('d-none');
+    wrap.classList.add('d-none');
+    tbody.innerHTML = '';
+    giftAidHistoryModal.show();
+
+    try {
+      const res  = await fetch('/api/giftaid-claims');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Server error');
+
+      loading.classList.add('d-none');
+      if (!data.claims || data.claims.length === 0) {
+        empty.classList.remove('d-none');
+        return;
+      }
+
+      const fmtMoney = v => '£' + parseFloat(v).toLocaleString('en-GB', { minimumFractionDigits: 2 });
+      const fmtDateTime = s => {
+        const d = new Date(s);
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mi = String(d.getMinutes()).padStart(2, '0');
+        return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+      };
+
+      data.claims.forEach(c => {
+        const receivable = (parseFloat(c.total_amount) * 0.25).toFixed(2);
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + fmtDateTime(c.claimed_at) + '</td>' +
+          '<td>' + (c.claimed_by || '—') + '</td>' +
+          '<td class="text-center">' + c.record_count + '</td>' +
+          '<td class="text-end">' + fmtMoney(c.total_amount) + '</td>' +
+          '<td class="text-end">' + fmtMoney(receivable) + '</td>' +
+          '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="/api/giftaid-claims/' + c.id + '/csv"><i class="bi bi-download me-1"></i>CSV</a></td>';
+        tbody.appendChild(tr);
+      });
+      wrap.classList.remove('d-none');
+    } catch (err) {
+      loading.classList.add('d-none');
+      errBox.textContent = err.message || 'Could not load claim history.';
+      errBox.classList.remove('d-none');
     }
   });
 
