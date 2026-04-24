@@ -1,3 +1,6 @@
+# Claude Code local settings (machine-specific permission rules)
+.claude/
+
 # Logs
 logs
 *.log
