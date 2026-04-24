@@ -1,0 +1,114 @@
+<%- include("_publicHeader") -%>
+
+<div class="container mt-4" style="max-width: 800px;">
+
+  <% if (success) { %>
+    <div class="alert alert-success" role="alert">
+      <h4 class="alert-heading"><i class="bi bi-check-circle me-2"></i>Thank you!</h4>
+      <p class="mb-0">Your details have been updated. You can now close this page.</p>
+    </div>
+  <% } else if (reason === 'invalid') { %>
+    <div class="alert alert-danger" role="alert">
+      <h4 class="alert-heading">Invalid link</h4>
+      <p class="mb-0">This update link is not valid. If you believe this is a mistake, please contact your church.</p>
+    </div>
+  <% } else if (reason === 'used') { %>
+    <div class="alert alert-warning" role="alert">
+      <h4 class="alert-heading">Link already used</h4>
+      <p class="mb-0">This update link has already been used. If you need to make further changes, please ask your church to send you a new link.</p>
+    </div>
+  <% } else if (reason === 'expired') { %>
+    <div class="alert alert-warning" role="alert">
+      <h4 class="alert-heading">Link expired</h4>
+      <p class="mb-0">This update link has expired. Please ask your church to send you a new one.</p>
+    </div>
+  <% } else if (reason === 'error') { %>
+    <div class="alert alert-danger" role="alert">
+      <h4 class="alert-heading">Something went wrong</h4>
+      <p class="mb-0">We could not save your changes. Please try again in a moment.</p>
+    </div>
+  <% } %>
+
+  <% if (token && member) { %>
+    <h1 class="display-6 mb-2">Update Your Details</h1>
+    <p class="text-muted mb-4">Please check your details below and update anything that is incorrect. Once you've saved, this link cannot be used again.</p>
+
+    <form action="/update-details/<%= token %>" method="post">
+
+      <div class="pb-table-card mb-4">
+        <div class="pb-admin-section-header">Personal</div>
+        <div class="p-4">
+          <div class="row g-3">
+            <div class="col-sm-2">
+              <label class="form-label" for="title">Title</label>
+              <input type="text" class="form-control" name="title" id="title" value="<%= member.title || '' %>" maxlength="10">
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label" for="first_name">First Name</label>
+              <input type="text" class="form-control" name="first_name" id="first_name" value="<%= member.first_name || '' %>" required>
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label" for="surname">Surname</label>
+              <input type="text" class="form-control" name="surname" id="surname" value="<%= member.surname || '' %>" required>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pb-table-card mb-4">
+        <div class="pb-admin-section-header">Contact</div>
+        <div class="p-4">
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="form-label" for="email">Email</label>
+              <input type="email" class="form-control" name="email" id="email" value="<%= member.email || '' %>">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="phone_number">Phone</label>
+              <input type="text" class="form-control" name="phone_number" id="phone_number" value="<%= member.phone_number || '' %>">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pb-table-card mb-4">
+        <div class="pb-admin-section-header">Address</div>
+        <div class="p-4">
+          <div class="row g-3 mb-3">
+            <div class="col-sm-2">
+              <label class="form-label" for="house_number">House No.</label>
+              <input type="text" class="form-control" name="house_number" id="house_number" value="<%= member.house_number || '' %>">
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label" for="address_line_1">Address Line 1</label>
+              <input type="text" class="form-control" name="address_line_1" id="address_line_1" value="<%= member.address_line_1 || '' %>">
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label" for="address_line_2">Address Line 2</label>
+              <input type="text" class="form-control" name="address_line_2" id="address_line_2" value="<%= member.address_line_2 || '' %>">
+            </div>
+          </div>
+          <div class="row g-3">
+            <div class="col-sm-5">
+              <label class="form-label" for="city">City</label>
+              <input type="text" class="form-control" name="city" id="city" value="<%= member.city || '' %>">
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label" for="postcode">Postcode</label>
+              <input type="text" class="form-control" name="postcode" id="postcode" value="<%= member.postcode || '' %>">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end">
+        <button type="submit" class="btn btn-success btn-lg">
+          <i class="bi bi-check-lg me-1"></i>Save My Details
+        </button>
+      </div>
+    </form>
+  <% } %>
+
+</div>
+
+<%- include("_footer") -%>

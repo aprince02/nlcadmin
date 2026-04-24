@@ -1,4 +1,3 @@
-const e = require('connect-flash');
 const { log } = require('console');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
@@ -15,39 +14,136 @@ const emailConfig = {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  pool: true,              // keep a connection pool
-  rateLimit: true,         // enable built-in rate limiting
-  maxConnections: 1,       // only 1 active SMTP connection at a time
-  maxMessages: 5,          // max 5 messages per connection
-  connectionTimeout: 10000, // 10 s to establish connection
-  socketTimeout: 15000,     // 15 s of inactivity before giving up
+  pool: true,
+  rateLimit: true,
+  maxConnections: 1,
+  maxMessages: 5,
+  connectionTimeout: 10000,
+  socketTimeout: 15000,
 };
 
-const sender = `"${process.env.SMTP_FROM_NAME || 'ProBooks Accounting'}" <${process.env.SMTP_USER}>`;
-const receiver = process.env.NOTIFY_EMAIL;
-const emailFooter = "\n\n\n\nThank you for using our services!\n\nIf you have any doubts using our services, please reply to this email\n\n\n\n Probooks Accounting © - Alpha Media Productions Ltd."
+const sender       = `"${process.env.SMTP_FROM_NAME || 'ProBooks Accounting'}" <${process.env.SMTP_USER}>`;
+const receiver     = process.env.NOTIFY_EMAIL;
+const appUrl       = process.env.APP_URL || 'https://probooksaccounting.co.uk';
+const brandColor   = '#1f3b5b';
+const accentColor  = '#2a7fba';
 
-// Single shared transporter — pool:true only benefits if the same instance is reused
 const transporter = nodemailer.createTransport(emailConfig);
+
+/** HTML-escape for interpolation into email HTML. */
+function esc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * Render a branded HTML email.
+ *  heading    — h1 text at the top of the card
+ *  intro      — short paragraph under the heading (optional)
+ *  bodyHtml   — middle content (HTML, caller is responsible for escaping)
+ *  cta        — { label, url } to render a button (optional)
+ *  footerNote — small muted text under the body (optional)
+ */
+function renderEmailTemplate({ heading, intro, bodyHtml, cta, footerNote }) {
+  const ctaHtml = cta
+    ? `<tr><td align="center" style="padding: 8px 0 24px;">
+         <a href="${esc(cta.url)}" style="background:${accentColor};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;display:inline-block;">${esc(cta.label)}</a>
+       </td></tr>`
+    : '';
+  const introHtml = intro
+    ? `<tr><td style="padding: 0 0 16px; color:#333; font-size:15px; line-height:1.5;">${esc(intro)}</td></tr>`
+    : '';
+  const bodyRow = bodyHtml
+    ? `<tr><td style="padding: 0 0 8px; color:#333; font-size:15px; line-height:1.5;">${bodyHtml}</td></tr>`
+    : '';
+  const footerNoteHtml = footerNote
+    ? `<tr><td style="padding: 16px 0 0; color:#888; font-size:13px; line-height:1.4;">${esc(footerNote)}</td></tr>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${esc(heading)}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;color:#222;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+            <tr>
+              <td style="background:${brandColor};padding:20px 28px;color:#ffffff;">
+                <div style="font-size:20px;font-weight:700;letter-spacing:0.3px;">ProBooks Accounting</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                <h1 style="margin:0 0 12px;font-size:22px;color:${brandColor};">${esc(heading)}</h1>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  ${introHtml}
+                  ${bodyRow}
+                  ${ctaHtml}
+                  ${footerNoteHtml}
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#f4f6f9;padding:16px 28px;color:#888;font-size:12px;line-height:1.5;text-align:center;">
+                Thank you for using our services.<br>
+                If you have any questions, please reply to this email.<br>
+                &copy; ${new Date().getFullYear()} Alpha Media Productions Ltd.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+/** Plain-text fallback built from the same pieces (for clients that prefer text). */
+function renderEmailText({ heading, intro, bodyText, cta, footerNote }) {
+  const parts = [heading, ''];
+  if (intro) parts.push(intro, '');
+  if (bodyText) parts.push(bodyText, '');
+  if (cta) parts.push(cta.label + ': ' + cta.url, '');
+  if (footerNote) parts.push(footerNote, '');
+  parts.push('—');
+  parts.push('Thank you for using our services.');
+  parts.push('If you have any questions, please reply to this email.');
+  parts.push('© ' + new Date().getFullYear() + ' Alpha Media Productions Ltd.');
+  return parts.join('\n');
+}
+
+/** Build a common mail message with branded HTML + text. Always includes the inline logo. */
+function buildMail({ to, subject, heading, intro, bodyHtml, bodyText, cta, footerNote, attachments }) {
+  return {
+    from: sender,
+    to,
+    subject,
+    text: renderEmailText({ heading, intro, bodyText, cta, footerNote }),
+    html: renderEmailTemplate({ heading, intro, bodyHtml, cta, footerNote }),
+    attachments,
+  };
+}
 
 async function createAndEmail(fileType, subject, message) {
   const fileName = `${fileType}.csv`;
   const backupFilename = `${fileType}_backup.csv`;
-
   fs.copyFileSync(fileName, backupFilename);
 
-  const mailOptions = {
-    from: sender,
+  const mailOptions = buildMail({
     to: receiver,
-    subject: subject,
-    text: `Find attached the ${message}.` + emailFooter,
-    attachments: [
-      {
-        filename: backupFilename,
-        path: backupFilename,
-      },
-    ],
-  };
+    subject,
+    heading: subject,
+    intro: `Please find attached the ${message}.`,
+    bodyText: `Please find attached the ${message}.`,
+    attachments: [{ filename: backupFilename, path: backupFilename }],
+  });
 
   try {
     const info = await transporter.sendMail(mailOptions);
@@ -55,107 +151,98 @@ async function createAndEmail(fileType, subject, message) {
   } catch (error) {
     console.error('Error sending email: ', error);
   }
-
   fs.unlinkSync(backupFilename);
   fs.unlinkSync(fileName);
 }
 
 async function sendStatementByEmail(pdfPath, toEmail) {
-  const mailOptions = {
-    from: sender,
+  const mailOptions = buildMail({
     to: toEmail || receiver,
     subject: 'Statement of Donations',
-    text: 'Find attached the statement of donations.' + emailFooter,
-    attachments: [
-      {
-        filename: pdfPath,
-        path: `./${pdfPath}`,
-      },
-    ],
-  };
-
+    heading: 'Statement of Donations',
+    intro: 'Please find attached your statement of donations.',
+    bodyText: 'Please find attached your statement of donations.',
+    attachments: [{ filename: pdfPath, path: `./${pdfPath}` }],
+  });
   try {
     const info = await transporter.sendMail(mailOptions);
-    log("Statement sent: " + pdfPath + info.response);
+    log('Statement sent: ' + pdfPath + info.response);
     fs.unlinkSync(pdfPath);
   } catch (error) {
-    log("'Error sending email: " + error)
+    log("'Error sending email: " + error);
   }
 }
 
 async function sendDonorStatementBuffer(toEmail, pdfBuffer, donorName) {
-  const mailOptions = {
-    from: sender,
+  const mailOptions = buildMail({
     to: toEmail,
     subject: `Statement of Donations — ${donorName}`,
-    text: `Please find attached the statement of donations for ${donorName}.` + emailFooter,
+    heading: 'Statement of Donations',
+    intro: `Please find attached the statement of donations for ${donorName}.`,
+    bodyText: `Please find attached the statement of donations for ${donorName}.`,
     attachments: [
       { filename: `${donorName} - Statement of Donations.pdf`, content: pdfBuffer, contentType: 'application/pdf' },
     ],
-  };
+  });
   const info = await transporter.sendMail(mailOptions);
   log('Donor statement emailed to ' + toEmail + ': ' + info.response);
 }
 
 async function sendTransactionsEmail(pdfPath, receiverEmail) {
-  const mailOptions = {
-    from: sender,
+  const mailOptions = buildMail({
     to: receiverEmail,
     subject: 'Statement of Transactions',
-    text: 'As requested, please find attached the statement of transactions.' + emailFooter,
-    attachments: [
-      {
-        filename: pdfPath,
-        path: `./${pdfPath}`,
-      },
-    ],
-  };
+    heading: 'Statement of Transactions',
+    intro: 'As requested, please find attached the statement of transactions.',
+    bodyText: 'As requested, please find attached the statement of transactions.',
+    attachments: [{ filename: pdfPath, path: `./${pdfPath}` }],
+  });
   try {
     const info = await transporter.sendMail(mailOptions);
-    log("Transactions email sent: " + pdfPath + info.response);
+    log('Transactions email sent: ' + pdfPath + info.response);
     fs.unlinkSync(pdfPath);
   } catch (error) {
-    log("'Error sending email: " + error)
+    log("'Error sending email: " + error);
   }
 }
 
 async function createAndEmailDBBackup() {
   const dbFilename = 'db.sqlite';
-
   const backupFilename = 'db_backup.sqlite';
   fs.copyFileSync(dbFilename, backupFilename);
 
-  const mailOptions = {
-    from: sender,
-    to: 'albinm65@gmail.com',
+  const mailOptions = buildMail({
+    to: receiver,
     subject: 'ProBooks Accounting - Database Backup',
-    text: 'Find attached the database backup.' + emailFooter,
-    attachments: [
-      {
-        filename: backupFilename,
-        path: backupFilename,
-      },
-    ],
-  };
-
+    heading: 'Database Backup',
+    intro: 'Please find attached the database backup.',
+    bodyText: 'Please find attached the database backup.',
+    attachments: [{ filename: backupFilename, path: backupFilename }],
+  });
   try {
     const info = await transporter.sendMail(mailOptions);
     console.log('Email sent successfully!', info.response);
   } catch (error) {
     console.error('Error sending email:', error);
   }
-
   fs.unlinkSync(backupFilename);
 }
 
-async function emailMemberForUpdate (row, charityName) {
-  link = "https://probooksaccounting.co.uk/edit-member/"+row.id;
-  const mailOptions = {
-    from: sender,
+async function emailMemberForUpdate(row, charityName, token) {
+  const link  = `${appUrl}/update-details/${token}`;
+  const who   = charityName || 'your church';
+  const intro = `Dear ${row.first_name} ${row.surname},`;
+
+  const mailOptions = buildMail({
     to: row.email,
-    subject: 'ProBooks Accounting - Update Member Details',
-    text: 'Dear ' + row.first_name + ' ' + row.surname + ',\n\nPlease click on the link below to check your details stored by ' + (charityName || 'your church') + ', and update any details that are not correct.\n ' + link + emailFooter,
-  };
+    subject: 'Update your member details',
+    heading: 'Please check your details',
+    intro,
+    bodyHtml: `Please click the button below to check the details stored by <strong>${esc(who)}</strong>, and update anything that is not correct.`,
+    bodyText: `Please follow the link below to check the details stored by ${who}, and update anything that is not correct.`,
+    cta: { label: 'Update my details', url: link },
+    footerNote: 'This link expires in 14 days and can only be used once. If you did not expect this email, please ignore it.',
+  });
 
   try {
     const info = await transporter.sendMail(mailOptions);
@@ -166,102 +253,131 @@ async function emailMemberForUpdate (row, charityName) {
 }
 
 async function sendUpdateSuggestionEmail(suggestion, user, notifyEmail) {
-  const mailOptions = {
-    from: sender,
+  const mailOptions = buildMail({
     to: notifyEmail || receiver,
     subject: 'Update Suggestion from User',
-    text: user + ' Has suggested this update to the software: ' + suggestion + ". Please respond!" + emailFooter,
-  };
+    heading: 'Update Suggestion',
+    intro: `${user} has suggested an update to the software.`,
+    bodyHtml: `<blockquote style="margin:0;padding:12px 16px;border-left:4px solid ${accentColor};background:#f4f6f9;color:#333;">${esc(suggestion)}</blockquote>`,
+    bodyText: `Suggestion:\n\n${suggestion}`,
+    footerNote: 'Please respond to the user at your earliest convenience.',
+  });
   try {
     const info = await transporter.sendMail(mailOptions);
-    log("Update suggestion email sent by: " + user + ' ' + info.response);
+    log('Update suggestion email sent by: ' + user + ' ' + info.response);
   } catch (error) {
-    log("'Error sending email: " + error)
+    log("'Error sending email: " + error);
   }
 }
 
 async function sendNewUserAddedEmail(user, notifyEmail) {
-  const mailOptions = {
-    from: sender,
+  const mailOptions = buildMail({
     to: notifyEmail || receiver,
     subject: 'New User Added',
-    text: user + ' Has been added. ' + emailFooter,
-  };
+    heading: 'New User Added',
+    intro: `${user} has been added.`,
+    bodyText: `${user} has been added.`,
+  });
   try {
     const info = await transporter.sendMail(mailOptions);
-    log("New user email sent:" + ' ' + info.response);
+    log('New user email sent:' + ' ' + info.response);
   } catch (error) {
-    log("'Error sending email: " + error)
+    log("'Error sending email: " + error);
   }
 }
 
 async function sendDonationReceivedEmail(member, donation, charityName) {
-  const mailOptions = {
-    from: sender,
+  const who = charityName || 'your church';
+  const detailsRow = (label, value) => `
+    <tr>
+      <td style="padding:6px 12px;background:#f4f6f9;color:#555;font-size:13px;">${esc(label)}</td>
+      <td style="padding:6px 12px;font-size:14px;color:#222;">${esc(value)}</td>
+    </tr>`;
+  const detailsTable = `
+    <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 16px;width:100%;max-width:420px;">
+      ${detailsRow('Amount', '£' + donation.amount)}
+      ${detailsRow('Fund', donation.fund)}
+      ${detailsRow('Date', donation.date)}
+    </table>`;
+
+  const verse = '"Let each man give according as he has determined in his heart, not grudgingly or under compulsion, for God loves a cheerful giver." — 2 Corinthians 9:7';
+
+  const mailOptions = buildMail({
     to: member.email,
-    subject: 'Your Donation to ' + (charityName || 'your church'),
-    text: 'Dear ' + member.first_name + ' ' + member.surname + ',\n\nYour donation to ' + (charityName || 'your church') + ' has been acknowledged by the treasurer. Here are the details: \n\nDonation Amount: £' + donation.amount + '\nFund: ' + donation.fund + '\nDated: ' + donation.date + '\n\nLet each man give according as he has determined in his heart, not grudgingly or under compulsion, for God loves a cheerful giver. - 2 Corinthians 9:7' + emailFooter,
-  };
+    subject: 'Your donation to ' + who,
+    heading: 'Thank you for your donation',
+    intro: `Dear ${member.first_name} ${member.surname}, your donation to ${who} has been acknowledged by the treasurer.`,
+    bodyHtml: detailsTable + `<p style="margin:16px 0 0;font-style:italic;color:#555;">${esc(verse)}</p>`,
+    bodyText: `Amount: £${donation.amount}\nFund: ${donation.fund}\nDate: ${donation.date}\n\n${verse}`,
+  });
+
   try {
     const info = await transporter.sendMail(mailOptions);
-    log("New donation email sent to: " + member.email + ' ' + info.response);
+    log('New donation email sent to: ' + member.email + ' ' + info.response);
   } catch (error) {
-    log("'Error sending email: " + error)
+    log("'Error sending email: " + error);
   }
 }
 
 async function sendTransactionsPDFBuffer(to, pdfBuffer, pdfFilename) {
-  const mailOptions = {
-    from: sender,
+  const mailOptions = buildMail({
     to,
     subject: 'ProBooks Accounting - Transactions Export',
-    text: 'Please find attached the transactions export PDF.' + emailFooter,
+    heading: 'Transactions Export',
+    intro: 'Please find attached the transactions export PDF.',
+    bodyText: 'Please find attached the transactions export PDF.',
     attachments: [
       { filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' },
     ],
-  };
+  });
   const info = await transporter.sendMail(mailOptions);
   console.log('Transactions PDF email sent:', info.response);
 }
 
 async function sendDonationsPDFBuffer(to, pdfBuffer, pdfFilename) {
-  const mailOptions = {
-    from: sender,
+  const mailOptions = buildMail({
     to,
     subject: 'ProBooks Accounting - Donations Export',
-    text: 'Please find attached the donations export PDF.' + emailFooter,
+    heading: 'Donations Export',
+    intro: 'Please find attached the donations export PDF.',
+    bodyText: 'Please find attached the donations export PDF.',
     attachments: [
       { filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' },
     ],
-  };
+  });
   const info = await transporter.sendMail(mailOptions);
   console.log('Donations PDF email sent:', info.response);
 }
 
 async function sendTotalsExportEmail(to, csvBuffer, pdfBuffer, csvFilename, pdfFilename) {
-  const mailOptions = {
-    from: sender,
+  const mailOptions = buildMail({
     to,
     subject: 'ProBooks Accounting - Totals Export',
-    text: 'Please find attached the totals export as both a CSV and PDF file.' + emailFooter,
+    heading: 'Totals Export',
+    intro: 'Please find attached the totals export as both a CSV and a PDF file.',
+    bodyText: 'Please find attached the totals export as both a CSV and a PDF file.',
     attachments: [
       { filename: csvFilename, content: csvBuffer, contentType: 'text/csv' },
       { filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' },
     ],
-  };
+  });
   const info = await transporter.sendMail(mailOptions);
   console.log('Totals export email sent:', info.response);
 }
 
 async function sendInviteEmail(email, token, role, charityName) {
-  const inviteUrl = `${process.env.APP_URL || 'https://probooksaccounting.co.uk'}/invite/${token}`;
-  const mailOptions = {
-    from: sender,
+  const inviteUrl = `${appUrl}/invite/${token}`;
+  const mailOptions = buildMail({
     to: email,
     subject: `You've been invited to ProBooks Accounting`,
-    text: `You have been invited to join ${charityName} on ProBooks Accounting as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 48 hours.\n\nIf you did not expect this invitation, please ignore this email.${emailFooter}`,
-  };
-  // Use a dedicated one-shot transporter so the shared pool state doesn't block delivery
+    heading: 'You have been invited',
+    intro: `You have been invited to join ${charityName} on ProBooks Accounting as a ${role}.`,
+    bodyHtml: `Click the button below to accept your invitation.`,
+    bodyText: `You have been invited to join ${charityName} on ProBooks Accounting as a ${role}.`,
+    cta: { label: 'Accept invitation', url: inviteUrl },
+    footerNote: 'This link expires in 48 hours. If you did not expect this invitation, please ignore this email.',
+  });
+  // One-shot transporter so the shared pool state doesn't block delivery
   const oneShot = nodemailer.createTransport({
     host: emailConfig.host,
     port: emailConfig.port,
@@ -277,12 +393,16 @@ async function sendInviteEmail(email, token, role, charityName) {
 }
 
 async function sendOtpEmail(email, otp) {
-  const mailOptions = {
-    from: sender,
+  const otpBox = `<div style="font-size:28px;font-weight:700;letter-spacing:6px;background:#f4f6f9;color:${brandColor};padding:16px;text-align:center;border-radius:8px;margin:8px 0 16px;">${esc(otp)}</div>`;
+  const mailOptions = buildMail({
     to: email,
     subject: 'ProBooks Accounting — Email Verification Code',
-    text: `Your verification code is: ${otp}\n\nThis code expires in 10 minutes. Do not share it with anyone.\n\nIf you did not request this, please ignore this email.${emailFooter}`,
-  };
+    heading: 'Your verification code',
+    intro: 'Use the code below to verify your email address.',
+    bodyHtml: otpBox,
+    bodyText: `Your verification code is: ${otp}`,
+    footerNote: 'This code expires in 10 minutes. Do not share it with anyone. If you did not request this, please ignore this email.',
+  });
   const info = await transporter.sendMail(mailOptions);
   console.log('OTP email sent:', info.response);
 }

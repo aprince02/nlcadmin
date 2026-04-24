@@ -11,6 +11,7 @@ const saltRounds = 10;
 const csvWriter = require('csv-writer').createObjectCsvWriter;
 const pdfGenerator = require('./pdf-generator');
 const { exec } = require('child_process');
+const crypto = require('crypto');
 const dayjs = require('dayjs');
 const path = require('path');
 const multer = require('multer');
@@ -197,21 +198,27 @@ app.post("/edit/:id", requireLogin, injectCharityId, checkApprovedUser, async (r
     }
     });
 
-    app.get("/edit-member/:id", async (req, res) => {
+    app.get("/edit-member/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
+      const id = req.params.id;
       try {
-        const id = req.params.id;
-        const row = await dbHelper.getMemberWithId(id);
-        res.render("edit-member", {member: row});
+        const row = await dbHelper.getMemberWithId(id, req.charityId);
+        if (!row) {
+          req.flash('error', 'Member not found.');
+          return res.redirect('/claimants/1');
+        }
+        res.render("edit-member", { member: row });
       } catch (error) {
         console.error('Error rendering edit member page:', error);
-        log('Error rendering edit member page:' + error)
-        res.redirect(`/edit-member/${id}`);
-      }});
-  
-  app.post("/edit-member/:id", async (req, res) => {
+        log('Error rendering edit member page: ' + error.message);
+        req.flash('error', 'Could not load member details.');
+        res.redirect('/claimants/1');
+      }
+    });
+
+  app.post("/edit-member/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
       const id = req.params.id;
-      const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, formatPostcode(req.body.postcode), req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id];
-      const sql = "UPDATE members SET first_name = $1, surname = $2, banking_name = $3, date_of_birth = $4, sex = $5, email = $6, phone_number = $7, address_line_1 = $8, address_line_2 = $9, city = $10, postcode = $11, baptised = $12, baptised_date = $13, holy_spirit = $14, native_church = $15, children_details = $16, emergency_contact_1 = $17, emergency_contact_1_name = $18, emergency_contact_2 = $19, emergency_contact_2_name = $20, occupation_studies = $21, title = $22, house_number = $23, spouse_name = $24 WHERE id = $25";
+      const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, formatPostcode(req.body.postcode), req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id, req.charityId];
+      const sql = "UPDATE members SET first_name = $1, surname = $2, banking_name = $3, date_of_birth = $4, sex = $5, email = $6, phone_number = $7, address_line_1 = $8, address_line_2 = $9, city = $10, postcode = $11, baptised = $12, baptised_date = $13, holy_spirit = $14, native_church = $15, children_details = $16, emergency_contact_1 = $17, emergency_contact_1_name = $18, emergency_contact_2 = $19, emergency_contact_2_name = $20, occupation_studies = $21, title = $22, house_number = $23, spouse_name = $24 WHERE id = $25 AND charity_id = $26";
       try {
           await pool.query(sql, claimant);
           req.flash('success', 'Your details have been updated successfully.');
@@ -221,6 +228,7 @@ app.post("/edit/:id", requireLogin, injectCharityId, checkApprovedUser, async (r
       } catch (err) {
           console.error(err.message);
           log(err.message);
+          req.flash('error', 'Could not save changes.');
           res.redirect(`/edit-member/${id}`);
       }
       });
@@ -1308,29 +1316,116 @@ try {
     try {
       const row = await dbHelper.getMemberWithId(id, req.charityId);
       if (!row) return res.status(404).redirect("/claimants/1");
-      if (row && row.email) {
-        try {
-            const charity = await dbHelper.getCharityById(req.charityId);
-            emailMemberForUpdate(row, charity?.name);
-            console.log('Update details link sent via email for: ' + row.first_name + " " + row.surname);
-            log(loggedInName + ': Update details link sent via email for: ' + row.first_name + " " + row.surname)
-            req.flash('success', 'Email sent successfully.');
-            res.redirect("/edit/" + id);
-        } catch (error) {
-            console.error("Error sending update email")
-            req.flash('error', 'Error sending email to member, try again!.');
-            log(loggedInName + ": Error sending update email - " + error)
-            res.redirect("/edit/" + id);
-        }} else {
-        console.error("Email is blank or null. Cannot send update email for: " + row.first_name + " " + row.surname);
+      if (!row.email) {
         req.flash('error', 'Email is blank or null. Cannot send update email.');
-        log(loggedInName + ": Email is blank or null. Cannot send update email for: " + row.first_name + " " + row.surname)
+        log(loggedInName + ": Email is blank or null. Cannot send update email for: " + row.first_name + " " + row.surname);
+        return res.redirect("/edit/" + id);
+      }
+      try {
+        // Create a single-use, 14-day token
+        const token     = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+        await pool.query(
+          `INSERT INTO member_update_tokens (member_id, charity_id, token, expires_at) VALUES ($1, $2, $3, $4)`,
+          [id, req.charityId, token, expiresAt]
+        );
+        const charity = await dbHelper.getCharityById(req.charityId);
+        await emailMemberForUpdate(row, charity?.name, token);
+        console.log('Update details link sent via email for: ' + row.first_name + " " + row.surname);
+        log(loggedInName + ': Update details link sent via email for: ' + row.first_name + " " + row.surname);
+        req.flash('success', 'Email sent successfully.');
         res.redirect("/edit/" + id);
-    }} catch (error) {
+      } catch (error) {
+        console.error("Error sending update email", error);
+        req.flash('error', 'Error sending email to member, try again!.');
+        log(loggedInName + ": Error sending update email - " + error);
+        res.redirect("/edit/" + id);
+      }
+    } catch (error) {
       console.error(error.message);
-      log(loggedInName + ": Error retreiving member with ID: " + id + " Error: " + error)
-      return res.redirect("/claimants/:page")
-    }});
+      log(loggedInName + ": Error retreiving member with ID: " + id + " Error: " + error);
+      return res.redirect("/claimants/:page");
+    }
+  });
+
+// ── Public self-service: member updates their own details via emailed token ──
+async function consumeUpdateToken(token, client) {
+  const q = client || pool;
+  const result = await q.query(
+    `SELECT t.*, m.first_name, m.surname, m.title, m.email, m.phone_number,
+            m.house_number, m.address_line_1, m.address_line_2, m.city, m.postcode
+     FROM member_update_tokens t
+     INNER JOIN members m ON m.id = t.member_id
+     WHERE t.token = $1`,
+    [token]
+  );
+  if (result.rows.length === 0) return { error: 'invalid' };
+  const row = result.rows[0];
+  if (row.used_at) return { error: 'used' };
+  if (new Date(row.expires_at) < new Date()) return { error: 'expired' };
+  return { token: row };
+}
+
+app.get("/update-details/:token", async (req, res) => {
+  try {
+    const { token, error } = await consumeUpdateToken(req.params.token);
+    if (error) return res.render("update-details", { token: null, member: null, reason: error, success: false });
+    res.render("update-details", {
+      token: req.params.token,
+      member: {
+        title: token.title, first_name: token.first_name, surname: token.surname,
+        email: token.email, phone_number: token.phone_number,
+        house_number: token.house_number, address_line_1: token.address_line_1,
+        address_line_2: token.address_line_2, city: token.city, postcode: token.postcode,
+      },
+      reason: null,
+      success: false,
+    });
+  } catch (err) {
+    console.error('Update-details GET error:', err.message);
+    res.status(500).render("update-details", { token: null, member: null, reason: 'error', success: false });
+  }
+});
+
+app.post("/update-details/:token", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { token, error } = await consumeUpdateToken(req.params.token, client);
+    if (error) {
+      await client.query('ROLLBACK');
+      return res.render("update-details", { token: null, member: null, reason: error, success: false });
+    }
+
+    const b = req.body;
+    await client.query(
+      `UPDATE members
+       SET title=$1, first_name=$2, surname=$3, email=$4, phone_number=$5,
+           house_number=$6, address_line_1=$7, address_line_2=$8, city=$9, postcode=$10
+       WHERE id=$11 AND charity_id=$12`,
+      [
+        b.title || null, b.first_name || null, b.surname || null,
+        b.email || null, b.phone_number || null,
+        b.house_number || null, b.address_line_1 || null, b.address_line_2 || null,
+        b.city || null, formatPostcode(b.postcode) || null,
+        token.member_id, token.charity_id,
+      ]
+    );
+    await client.query(
+      `UPDATE member_update_tokens SET used_at = NOW() WHERE id = $1`,
+      [token.id]
+    );
+    await client.query('COMMIT');
+    log(`Member ${token.member_id} updated their own details via token`, token.charity_id);
+    res.render("update-details", { token: null, member: null, reason: null, success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Update-details POST error:', err.message);
+    res.status(500).render("update-details", { token: req.params.token, member: req.body, reason: 'error', success: false });
+  } finally {
+    client.release();
+  }
+});
 
 app.get("/update-users", requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;

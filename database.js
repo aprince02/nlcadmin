@@ -252,6 +252,18 @@ async function initDb() {
     await client.query(`ALTER TABLE members ALTER COLUMN house_number TYPE TEXT USING house_number::TEXT`);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS member_update_tokens (
+        id         SERIAL PRIMARY KEY,
+        member_id  INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        charity_id INTEGER NOT NULL REFERENCES charities(id),
+        token      TEXT UNIQUE NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at    TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS gift_aid_claims (
         id            SERIAL PRIMARY KEY,
         charity_id    INTEGER NOT NULL REFERENCES charities(id),
