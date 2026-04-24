@@ -1,92 +1,154 @@
 <%- include("_loggedInHeader") -%>
 
 <div class="pb-page">
-  <div class="pb-page-header">
+
+  <div class="pb-admin-layout">
+
+    <!-- ── Sidebar — help & resources ──────────────────────────── -->
+    <aside class="pb-admin-sidebar">
+      <div class="pb-admin-sidebar-brand">
+        <div class="icon"><i class="bi bi-life-preserver"></i></div>
+        <div>
+          <div class="title">Help &amp; Support</div>
+          <div class="subtitle">Resources and contact</div>
+        </div>
+      </div>
+
+      <a class="pb-admin-sidebar-item" href="/docs"><i class="bi bi-book"></i>Documentation</a>
+      <a class="pb-admin-sidebar-item" href="mailto:support@probooksaccounting.co.uk"><i class="bi bi-envelope"></i>Contact Support</a>
+    </aside>
+
+    <!-- ── Main content ────────────────────────────────────────── -->
     <div>
-      <h1 class="pb-page-title">Admin Console</h1>
-      <p class="pb-page-subtitle">System configuration and management</p>
-    </div>
-  </div>
 
-  <div class="pb-admin-grid">
-
-    <!-- Reports & exports including Gift Aid — the main monthly workflow -->
-    <div class="pb-admin-section">
-      <div class="pb-admin-section-header"><i class="bi bi-file-earmark-arrow-down me-2"></i>Reports &amp; Exports</div>
-      <div class="pb-admin-section-body">
-        <button type="button" class="pb-admin-btn" id="openTransactionModal">
-          <i class="bi bi-cash-coin pb-admin-btn-icon" aria-hidden="true"></i>Export Transactions
-        </button>
-        <button type="button" class="pb-admin-btn" id="openDonationsModal">
-          <i class="bi bi-gift pb-admin-btn-icon" aria-hidden="true"></i>Export Donations
-        </button>
-        <button type="button" class="pb-admin-btn" id="openTotalsModal">
-          <i class="bi bi-calculator pb-admin-btn-icon" aria-hidden="true"></i>Export Totals
-        </button>
-        <button type="button" class="pb-admin-btn" id="openGiftAidModal">
-          <i class="bi bi-cash-stack pb-admin-btn-icon" aria-hidden="true"></i>Claim Gift Aid
-        </button>
-        <button type="button" class="pb-admin-btn" id="openGiftAidHistoryModal">
-          <i class="bi bi-clock-history pb-admin-btn-icon" aria-hidden="true"></i>Gift Aid History
-        </button>
+      <div class="pb-admin-eyebrow mb-2">
+        <i class="bi bi-shield-check"></i>Administrative Suite
       </div>
-    </div>
+      <h1 class="pb-page-title mb-1">Admin Console</h1>
+      <p class="pb-page-subtitle mb-4">Manage system-wide configurations, financial reporting, and user permissions from a centralized control panel.</p>
 
-    <!-- Data + Users together — everything else admins touch regularly -->
-    <div class="pb-admin-section">
-      <div class="pb-admin-section-header"><i class="bi bi-people me-2"></i>Data &amp; Users</div>
-      <div class="pb-admin-section-body">
-        <a href="/import-transactions" class="pb-admin-btn">
-          <i class="bi bi-file-earmark-arrow-up pb-admin-btn-icon" aria-hidden="true"></i>Import Transactions
-        </a>
-        <button type="button" class="pb-admin-btn" id="openInviteModal">
-          <i class="bi bi-envelope-plus pb-admin-btn-icon" aria-hidden="true"></i>Invite User
-        </button>
-        <button type="button" class="pb-admin-btn" id="openResendInviteModal">
-          <i class="bi bi-envelope-arrow-up pb-admin-btn-icon" aria-hidden="true"></i>Resend Invite
-        </button>
-        <a href="/update-users" class="pb-admin-btn">
-          <i class="bi bi-people-fill pb-admin-btn-icon" aria-hidden="true"></i>Manage Users
-        </a>
-        <a href="/select-inactive" class="pb-admin-btn">
-          <i class="bi bi-person-dash pb-admin-btn-icon" aria-hidden="true"></i>Inactive Donors
-        </a>
+      <!-- ── Stat cards ────────────────────────────────────────── -->
+      <% if (stats) { %>
+        <div class="pb-stat-grid">
+          <div class="pb-stat-card">
+            <div class="pb-stat-label">Unclaimed Donations</div>
+            <div class="pb-stat-value"><%= stats.unclaimed.count %></div>
+            <div class="pb-stat-sub">£<%= parseFloat(stats.unclaimed.total).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> ready to claim</div>
+          </div>
+          <div class="pb-stat-card">
+            <div class="pb-stat-label">This Month's Donations</div>
+            <div class="pb-stat-value">£<%= parseFloat(stats.thisMonth.total).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></div>
+            <div class="pb-stat-sub"><%= stats.thisMonth.count %> donation<%= stats.thisMonth.count === 1 ? '' : 's' %> received</div>
+          </div>
+          <div class="pb-stat-card">
+            <div class="pb-stat-label">Last Gift Aid Claim</div>
+            <% if (stats.lastClaim) { %>
+              <div class="pb-stat-value">£<%= (parseFloat(stats.lastClaim.total_amount) * 0.25).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></div>
+              <div class="pb-stat-sub">Claimed <%= new Date(stats.lastClaim.claimed_at).toLocaleDateString('en-GB') %> · <%= stats.lastClaim.record_count %> record<%= stats.lastClaim.record_count === 1 ? '' : 's' %></div>
+            <% } else { %>
+              <div class="pb-stat-value text-muted">—</div>
+              <div class="pb-stat-sub">No claims yet</div>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
+
+      <!-- ── Action cards ──────────────────────────────────────── -->
+      <div class="pb-admin-grid">
+
+        <!-- Reports & Exports -->
+        <div class="pb-admin-card" id="reports">
+          <div class="pb-admin-card-head">
+            <div class="title"><i class="bi bi-bar-chart-fill"></i>Reports &amp; Exports</div>
+            <span class="count-pill">5 Actions</span>
+          </div>
+          <div class="pb-admin-card-body">
+            <button type="button" class="pb-admin-link" id="openTransactionModal">Export Transactions<i class="bi bi-chevron-right"></i></button>
+            <button type="button" class="pb-admin-link" id="openDonationsModal">Export Donations<i class="bi bi-chevron-right"></i></button>
+            <button type="button" class="pb-admin-link" id="openTotalsModal">Export Totals<i class="bi bi-chevron-right"></i></button>
+            <button type="button" class="pb-admin-link" id="openGiftAidModal">Claim Gift Aid<i class="bi bi-chevron-right"></i></button>
+            <button type="button" class="pb-admin-link" id="openGiftAidHistoryModal">Gift Aid History<i class="bi bi-chevron-right"></i></button>
+          </div>
+          <div class="pb-admin-card-foot">
+            <a href="/all-donations/1">View All Donations</a>
+          </div>
+        </div>
+
+        <!-- Data & Users -->
+        <div class="pb-admin-card" id="data">
+          <div class="pb-admin-card-head">
+            <div class="title"><i class="bi bi-people-fill"></i>Data &amp; Users</div>
+            <span class="count-pill">5 Actions</span>
+          </div>
+          <div class="pb-admin-card-body">
+            <a href="/import-transactions" class="pb-admin-link">Import Transactions<i class="bi bi-chevron-right"></i></a>
+            <button type="button" class="pb-admin-link" id="openInviteModal">Invite User<span class="badge-new">NEW</span><i class="bi bi-chevron-right ms-auto"></i></button>
+            <button type="button" class="pb-admin-link" id="openResendInviteModal">Resend Invite<i class="bi bi-chevron-right"></i></button>
+            <a href="/update-users" class="pb-admin-link">Manage Users<i class="bi bi-chevron-right"></i></a>
+            <a href="/select-inactive" class="pb-admin-link">Inactive Donors<i class="bi bi-chevron-right"></i></a>
+          </div>
+        </div>
+
+        <!-- Setup -->
+        <div class="pb-admin-card" id="setup">
+          <div class="pb-admin-card-head">
+            <div class="title"><i class="bi bi-gear-fill"></i>Setup</div>
+            <span class="count-pill">2 Actions</span>
+          </div>
+          <div class="pb-admin-card-body">
+            <a href="/addnewtransactiontype" class="pb-admin-link">Add Transaction Type<i class="bi bi-chevron-right"></i></a>
+            <a href="/addnewdonationtype" class="pb-admin-link">Add Donation Type<i class="bi bi-chevron-right"></i></a>
+            <div class="pb-admin-tip">
+              <i class="bi bi-lightbulb-fill"></i>
+              <div>
+                Need help setting up categories? Visit the <a href="/docs">Setup Guide</a> for detailed instructions.
+              </div>
+            </div>
+          </div>
+          <div class="pb-admin-card-foot">
+            <a href="/charity/settings">Charity Settings</a>
+          </div>
+        </div>
+
+        <!-- Billing -->
+        <div class="pb-admin-card" id="billing">
+          <div class="pb-admin-card-head">
+            <div class="title"><i class="bi bi-credit-card-fill"></i>Billing</div>
+            <span class="count-pill">1 Action</span>
+          </div>
+          <div class="pb-admin-card-body">
+            <a href="/charity/billing" class="pb-admin-link">Subscription &amp; Invoices<i class="bi bi-chevron-right"></i></a>
+          </div>
+          <div class="pb-admin-card-foot">
+            <a href="/charity/billing">Manage Billing</a>
+          </div>
+        </div>
+
+        <% if (isSuperAdmin) { %>
+          <!-- Super admin only -->
+          <div class="pb-admin-card" id="super">
+            <div class="pb-admin-card-head">
+              <div class="title"><i class="bi bi-shield-lock"></i>Super Admin</div>
+              <span class="count-pill">2 Actions</span>
+            </div>
+            <div class="pb-admin-card-body">
+              <button type="button" class="pb-admin-link" id="openCreateCharityModal">Create Charity<i class="bi bi-chevron-right"></i></button>
+              <a href="/db-backup" class="pb-admin-link">Database Backup<i class="bi bi-chevron-right"></i></a>
+            </div>
+          </div>
+        <% } %>
+
       </div>
-    </div>
 
-    <!-- Setup — one-off configuration -->
-    <div class="pb-admin-section">
-      <div class="pb-admin-section-header"><i class="bi bi-sliders me-2"></i>Setup</div>
-      <div class="pb-admin-section-body">
-        <a href="/addnewtransactiontype" class="pb-admin-btn">
-          <i class="bi bi-plus-circle pb-admin-btn-icon" aria-hidden="true"></i>Add Transaction Type
-        </a>
-        <a href="/addnewdonationtype" class="pb-admin-btn">
-          <i class="bi bi-plus-circle pb-admin-btn-icon" aria-hidden="true"></i>Add Donation Type
-        </a>
-      </div>
     </div>
-
-    <% if (isSuperAdmin) { %>
-    <!-- Super admin only -->
-    <div class="pb-admin-section">
-      <div class="pb-admin-section-header"><i class="bi bi-shield-lock me-2"></i>Super Admin</div>
-      <div class="pb-admin-section-body">
-        <button type="button" class="pb-admin-btn" id="openCreateCharityModal">
-          <i class="bi bi-building-add pb-admin-btn-icon" aria-hidden="true"></i>Create Charity
-        </button>
-        <a href="/db-backup" class="pb-admin-btn">
-          <i class="bi bi-database-down pb-admin-btn-icon" aria-hidden="true"></i>Database Backup
-        </a>
-        <a href="/software-logs/1" class="pb-admin-btn">
-          <i class="bi bi-code-slash pb-admin-btn-icon" aria-hidden="true"></i>System Logs
-        </a>
-      </div>
-    </div>
-    <% } %>
-
   </div>
 </div>
+
+<script>
+  // (sidebar is purely help/resources — no anchor toggling required)
+  (() => {
+  });
+</script>
 
 <!-- ── Export Totals Modal ─────────────────────────────────────── -->
 <div class="modal fade" id="totalsModal" tabindex="-1" aria-labelledby="totalsModalLabel" aria-hidden="true">

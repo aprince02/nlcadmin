@@ -1,0 +1,73 @@
+<%- include("../_loggedInHeader") -%>
+
+<div class="pb-page">
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Platform Dashboard</h1>
+      <p class="pb-page-subtitle">Platform-wide status at a glance</p>
+    </div>
+    <div class="pb-page-actions">
+      <a href="/platform" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>All charities
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6 col-lg-3">
+      <div class="pb-table-card p-4 h-100">
+        <div class="d-flex align-items-center text-primary mb-2">
+          <i class="bi bi-people-fill fs-4 me-2"></i>
+          <span class="fw-semibold">Active Users</span>
+        </div>
+        <div class="display-5 fw-bold"><%= activeUsers.toLocaleString('en-GB') %></div>
+        <div class="text-muted small">approved across all charities</div>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3">
+      <div class="pb-table-card p-4 h-100">
+        <div class="d-flex align-items-center text-primary mb-2">
+          <i class="bi bi-credit-card fs-4 me-2"></i>
+          <span class="fw-semibold">Subscriptions</span>
+        </div>
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><td class="text-muted small">Active</td><td class="text-end fw-semibold"><%= subs.active %></td></tr>
+            <tr><td class="text-muted small">Past due</td><td class="text-end fw-semibold text-warning"><%= subs.past_due %></td></tr>
+            <tr><td class="text-muted small">Cancelled</td><td class="text-end fw-semibold text-danger"><%= subs.cancelled %></td></tr>
+            <tr><td class="text-muted small">None</td><td class="text-end fw-semibold text-muted"><%= subs.none %></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3">
+      <div class="pb-table-card p-4 h-100">
+        <div class="d-flex align-items-center text-primary mb-2">
+          <i class="bi bi-bank fs-4 me-2"></i>
+          <span class="fw-semibold">Last Bank Sync</span>
+        </div>
+        <div class="fw-semibold">
+          <%= lastBankSync ? new Date(lastBankSync).toLocaleString('en-GB') : 'Never' %>
+        </div>
+        <div class="text-muted small">most recent across all connected charities</div>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3">
+      <div class="pb-table-card p-4 h-100">
+        <div class="d-flex align-items-center <%= recentErrors > 0 ? 'text-danger' : 'text-primary' %> mb-2">
+          <i class="bi bi-exclamation-triangle-fill fs-4 me-2"></i>
+          <span class="fw-semibold">Recent Errors</span>
+        </div>
+        <div class="display-5 fw-bold"><%= recentErrors %></div>
+        <div class="text-muted small">in the last 24 hours</div>
+        <a href="/software-logs/1" class="btn btn-sm btn-outline-secondary mt-2">View logs</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<%- include("../_footer") -%>

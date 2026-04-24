@@ -181,6 +181,11 @@ async function readCSVAndProcess(csvFilePath, req, res) {
 function injectCharityId(req, res, next) {
   const charityId = req.session.charityId;
   if (!charityId) {
+    // Platform admins with no charity context: send to platform picker, keep them logged in
+    if (req.session.role === 'platform_admin') {
+      req.flash('error', 'Select a charity to view first.');
+      return res.redirect('/platform');
+    }
     req.flash('error', 'Session error. Please log in again.');
     return res.redirect('/login');
   }
@@ -213,6 +218,15 @@ function checkAdmin(req, res, next) {
       req.flash('error', 'Only Admins are allowed to use this functionality.');
       res.redirect('/admin');
   }};
+
+  function checkPlatformAdmin(req, res, next) {
+    if (req.session.role === 'platform_admin') {
+      next();
+    } else {
+      req.flash('error', 'Platform admin access required.');
+      res.redirect('/');
+    }
+  }
 
   function checkApprovedUser(req, res, next) {
     if (req.session.approval === 'approved') {
@@ -275,6 +289,7 @@ module.exports = {
     checkSuperAdmin,
     checkAdmin,
     checkApprovedUser,
+    checkPlatformAdmin,
     formatPostcode
 }
 

@@ -1,0 +1,76 @@
+<%- include("../_loggedInHeader") -%>
+
+<div class="pb-page">
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Platform</h1>
+      <p class="pb-page-subtitle">All charities on ProBooks Accounting</p>
+    </div>
+    <div class="pb-page-actions">
+      <a href="/platform/dashboard" class="btn btn-outline-primary">
+        <i class="bi bi-bar-chart me-1"></i>Dashboard
+      </a>
+      <a href="/software-logs/1" class="btn btn-outline-secondary">
+        <i class="bi bi-code-slash me-1"></i>Logs
+      </a>
+    </div>
+  </div>
+
+  <div class="pb-table-card">
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>Charity</th>
+            <th>Subscription</th>
+            <th class="text-center">Users</th>
+            <th class="text-center">Members</th>
+            <th>Last donation</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% charities.forEach(c => { %>
+            <tr>
+              <td>
+                <div class="fw-semibold"><%= c.name %></div>
+                <div class="text-muted small"><%= c.slug %></div>
+              </td>
+              <td>
+                <% if (c.subscription_status === 'active') { %>
+                  <span class="badge bg-success">Active</span>
+                <% } else if (c.subscription_status === 'past_due') { %>
+                  <span class="badge bg-warning text-dark">Past due</span>
+                <% } else if (c.subscription_status === 'canceled' || c.subscription_status === 'unpaid') { %>
+                  <span class="badge bg-danger"><%= c.subscription_status === 'unpaid' ? 'Unpaid' : 'Cancelled' %></span>
+                <% } else { %>
+                  <span class="badge bg-secondary">None</span>
+                <% } %>
+                <% if (c.subscription_plan) { %>
+                  <small class="text-muted ms-1"><%= c.subscription_plan === 'yearly' ? 'Yearly' : 'Monthly' %></small>
+                <% } %>
+              </td>
+              <td class="text-center"><%= c.user_count %></td>
+              <td class="text-center"><%= c.member_count %></td>
+              <td class="text-muted small">
+                <%= c.last_donation_at ? new Date(c.last_donation_at).toLocaleDateString('en-GB') : '—' %>
+              </td>
+              <td class="text-end">
+                <form method="POST" action="/platform/act-as/<%= c.id %>" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-box-arrow-in-right me-1"></i>View as
+                  </button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+          <% if (charities.length === 0) { %>
+            <tr><td colspan="6" class="text-muted text-center py-4">No charities yet.</td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<%- include("../_footer") -%>

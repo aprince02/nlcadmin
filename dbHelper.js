@@ -180,10 +180,14 @@ async function getAllLogs(charityId) {
 }
 
 async function getLogsPaginated(startIndex, rowsPerPage, charityId, filters = {}) {
-  const conditions = ['charity_id = $1'];
-  const params = [charityId];
-  let i = 2;
+  const conditions = [];
+  const params = [];
+  let i = 1;
 
+  if (charityId != null) {
+    conditions.push(`charity_id = $${i++}`);
+    params.push(charityId);
+  }
   if (filters.level && filters.level !== 'all') {
     conditions.push(`level = $${i++}`);
     params.push(filters.level);
@@ -201,19 +205,23 @@ async function getLogsPaginated(startIndex, rowsPerPage, charityId, filters = {}
     params.push(`%${filters.search}%`);
   }
 
-  const where = conditions.join(' AND ');
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const result = await pool.query(
-    `SELECT * FROM console_logs WHERE ${where} ORDER BY id DESC LIMIT $${i++} OFFSET $${i++}`,
+    `SELECT * FROM console_logs ${where} ORDER BY id DESC LIMIT $${i++} OFFSET $${i++}`,
     [...params, rowsPerPage, startIndex]
   );
   return result.rows;
 }
 
 async function getLogsCount(charityId, filters = {}) {
-  const conditions = ['charity_id = $1'];
-  const params = [charityId];
-  let i = 2;
+  const conditions = [];
+  const params = [];
+  let i = 1;
 
+  if (charityId != null) {
+    conditions.push(`charity_id = $${i++}`);
+    params.push(charityId);
+  }
   if (filters.level && filters.level !== 'all') {
     conditions.push(`level = $${i++}`);
     params.push(filters.level);
@@ -231,9 +239,9 @@ async function getLogsCount(charityId, filters = {}) {
     params.push(`%${filters.search}%`);
   }
 
-  const where = conditions.join(' AND ');
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const result = await pool.query(
-    `SELECT COUNT(*) AS totalrows FROM console_logs WHERE ${where}`,
+    `SELECT COUNT(*) AS totalrows FROM console_logs ${where}`,
     params
   );
   return parseInt(result.rows[0].totalrows, 10);

@@ -254,6 +254,8 @@ async function initDb() {
     await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS subscription_plan TEXT`);
     await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMPTZ`);
     await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS last_payment_reminder_sent_at TIMESTAMPTZ`);
+    // Platform admins have no charity — allow NULL
+    await client.query(`ALTER TABLE users ALTER COLUMN charity_id DROP NOT NULL`);
 
     // Convert house_number from INTEGER to TEXT to support values like "152A"
     await client.query(`ALTER TABLE members ALTER COLUMN house_number TYPE TEXT USING house_number::TEXT`);

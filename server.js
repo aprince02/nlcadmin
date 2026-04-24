@@ -16,7 +16,7 @@ const dayjs = require('dayjs');
 const path = require('path');
 const multer = require('multer');
 const schedule = require('node-schedule');
-const { requireLogin, injectCharityId, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser, checkAdmin, formatPostcode } = require('./utils');
+const { requireLogin, injectCharityId, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser, checkAdmin, checkPlatformAdmin, formatPostcode } = require('./utils');
 const dbHelper = require('./dbHelper')
 const currentYear = new Date().getFullYear();
 const csvGenerator = require('./csvGenerator')
@@ -64,6 +64,8 @@ app.use(session({
 app.use(flash());
 app.use(function(req, res, next){
     res.locals.message = req.flash();
+    res.locals.platformActingAs = req.session?.platformActingAs || null;
+    res.locals.userRole = req.session?.role || null;
     const charityId = req.session?.charityId;
     if (charityId) {
       dbHelper.getDistinctYears(charityId).then(years => {
@@ -91,10 +93,12 @@ const SUBSCRIPTION_EXEMPT_PATHS = [
   /^\/login/,
   /^\/forgot-password/,
   /^\/membership/,
+  /^\/platform/,
 ];
 app.use(async function (req, res, next) {
   if (req.method === 'GET' || req.method === 'HEAD') return next();
   if (!req.session?.charityId) return next(); // unauthenticated — let auth middleware handle it
+  if (req.session?.role === 'platform_admin') return next(); // platform admins bypass the gate
   if (SUBSCRIPTION_EXEMPT_PATHS.some(rx => rx.test(req.path))) return next();
   try {
     const r = await pool.query('SELECT subscription_status FROM charities WHERE id = $1', [req.session.charityId]);
@@ -148,17 +152,44 @@ app.listen(8000, () => {
   console.log("Server running on port: %PORT%".replace("%PORT%",8000))
 });
 
+  app.get('/docs', requireLogin, (req, res) => {
+    res.render('docs', { loggedInName: req.session.name });
+  });
+
   app.get("/admin", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
     const loggedInName = req.session.name;
     try {
-      const [transactionTypes, donationTypes] = await Promise.all([
+      const [transactionTypes, donationTypes, unclaimed, thisMonth, lastClaim] = await Promise.all([
         dbHelper.getAllTransactionTypes(req.charityId),
         dbHelper.getAllDonationTypes(req.charityId),
+        pool.query(
+          `SELECT COUNT(*)::int AS count, COALESCE(SUM(amount::NUMERIC), 0)::float AS total
+           FROM donations WHERE gift_aid_status = 'Unclaimed' AND charity_id = $1`,
+          [req.charityId]
+        ),
+        pool.query(
+          `SELECT COUNT(*)::int AS count, COALESCE(SUM(amount::NUMERIC), 0)::float AS total
+           FROM donations
+           WHERE charity_id = $1
+             AND date >= date_trunc('month', CURRENT_DATE)
+             AND date <  date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'`,
+          [req.charityId]
+        ),
+        pool.query(
+          `SELECT claimed_at, record_count, total_amount
+           FROM gift_aid_claims WHERE charity_id = $1 ORDER BY claimed_at DESC LIMIT 1`,
+          [req.charityId]
+        ),
       ]);
-      res.render("admin", { loggedInName, transactionTypes, donationTypes, isSuperAdmin: req.session.role === 'super admin' });
+      const stats = {
+        unclaimed: unclaimed.rows[0],
+        thisMonth: thisMonth.rows[0],
+        lastClaim: lastClaim.rows[0] || null,
+      };
+      res.render("admin", { loggedInName, transactionTypes, donationTypes, stats, isSuperAdmin: req.session.role === 'super admin' });
     } catch (err) {
       console.error('Error loading admin page:', err.message);
-      res.render("admin", { loggedInName, transactionTypes: [], donationTypes: [], isSuperAdmin: req.session.role === 'super admin' });
+      res.render("admin", { loggedInName, transactionTypes: [], donationTypes: [], stats: null, isSuperAdmin: req.session.role === 'super admin' });
     }
   });
 
@@ -681,6 +712,9 @@ app.post("/login", async (req, res) => {
                 const fingerprintData = req.fingerprint;
                 console.log(`Logged in user device fingerprint: ${JSON.stringify(fingerprintData)}`);
                 log(req.session.name + ': ' + JSON.stringify(fingerprintData));
+                if (row.role === 'platform_admin') {
+                    return res.redirect('/platform');
+                }
                 res.redirect('claimants');
             } else {
                 req.flash('error', 'Invalid email or password.');
@@ -1072,6 +1106,80 @@ app.get('/api/giftaid-claims/:id/csv', requireLogin, injectCharityId, checkUserR
 
 // Keep GET redirect for any bookmarked links
 app.get('/export-giftaid-claims', (req, res) => res.redirect('/admin'));
+
+// ── Platform admin (cross-charity operator) ───────────────────────────────
+app.get('/platform', requireLogin, checkPlatformAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        c.id, c.name, c.slug, c.subscription_status, c.subscription_plan, c.current_period_end,
+        (SELECT COUNT(*) FROM users  WHERE charity_id = c.id AND approval = 'approved')::int AS user_count,
+        (SELECT COUNT(*) FROM members WHERE charity_id = c.id)::int AS member_count,
+        (SELECT MAX(date)::text FROM donations WHERE charity_id = c.id) AS last_donation_at
+      FROM charities c
+      ORDER BY c.name ASC
+    `);
+    res.render('platform/index', { loggedInName: req.session.name, charities: result.rows });
+  } catch (err) {
+    console.error('Platform index error:', err.message);
+    res.status(500).send('Error loading platform view.');
+  }
+});
+
+app.get('/platform/dashboard', requireLogin, checkPlatformAdmin, async (req, res) => {
+  try {
+    const [users, subs, lastSync, errors] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE approval = 'approved'`),
+      pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE subscription_status = 'active')::int      AS active,
+          COUNT(*) FILTER (WHERE subscription_status = 'past_due')::int   AS past_due,
+          COUNT(*) FILTER (WHERE subscription_status IN ('canceled','unpaid'))::int AS cancelled,
+          COUNT(*) FILTER (WHERE subscription_status IS NULL)::int        AS none
+        FROM charities
+      `),
+      pool.query(`SELECT MAX(last_synced_at)::text AS last_synced FROM bank_connections`).catch(() => ({ rows: [{ last_synced: null }] })),
+      pool.query(`SELECT COUNT(*)::int AS n FROM console_logs WHERE level = 'error' AND timestamp::timestamptz > NOW() - INTERVAL '24 hours'`),
+    ]);
+    res.render('platform/dashboard', {
+      loggedInName: req.session.name,
+      activeUsers: users.rows[0].n,
+      subs: subs.rows[0],
+      lastBankSync: lastSync.rows[0].last_synced,
+      recentErrors: errors.rows[0].n,
+    });
+  } catch (err) {
+    console.error('Platform dashboard error:', err.message);
+    res.status(500).send('Error loading platform dashboard.');
+  }
+});
+
+// "Act as" — platform admin scopes themselves to a specific charity
+app.post('/platform/act-as/:charityId', requireLogin, checkPlatformAdmin, async (req, res) => {
+  const charityId = parseInt(req.params.charityId, 10);
+  try {
+    const result = await pool.query('SELECT id, name FROM charities WHERE id = $1', [charityId]);
+    if (result.rows.length === 0) {
+      req.flash('error', 'Charity not found.');
+      return res.redirect('/platform');
+    }
+    req.session.charityId       = charityId;
+    req.session.platformActingAs = { id: charityId, name: result.rows[0].name };
+    req.session.approval        = 'approved'; // platform admins are implicitly approved when acting as
+    log(req.session.name + ': platform admin acting as charity ' + charityId);
+    res.redirect('/claimants/1');
+  } catch (err) {
+    console.error('Act-as error:', err.message);
+    req.flash('error', 'Could not switch to that charity.');
+    res.redirect('/platform');
+  }
+});
+
+app.get('/platform/exit-acting', requireLogin, checkPlatformAdmin, (req, res) => {
+  delete req.session.charityId;
+  delete req.session.platformActingAs;
+  res.redirect('/platform');
+});
 
 // ── Billing (Stripe) ───────────────────────────────────────────────────────
 app.get('/charity/billing', requireLogin, injectCharityId, checkAdmin, checkApprovedUser, async (req, res) => {
@@ -1595,7 +1703,7 @@ app.post("/update-users", requireLogin, injectCharityId, checkUserRole, checkApp
     res.redirect("/update-users");
   }});
 
-  app.get("/software-logs/:page", requireLogin, injectCharityId, checkSuperAdmin, checkApprovedUser, async (req, res) => {
+  app.get("/software-logs/:page", requireLogin, checkPlatformAdmin, async (req, res) => {
     const rowsPerPage = 50;
     let currentPage = parseInt(req.params.page) || 1;
     if (currentPage < 1) currentPage = 1;
