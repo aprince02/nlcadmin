@@ -251,6 +251,19 @@ async function initDb() {
     // Convert house_number from INTEGER to TEXT to support values like "152A"
     await client.query(`ALTER TABLE members ALTER COLUMN house_number TYPE TEXT USING house_number::TEXT`);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS gift_aid_claims (
+        id            SERIAL PRIMARY KEY,
+        charity_id    INTEGER NOT NULL REFERENCES charities(id),
+        claimed_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        claimed_by    TEXT,
+        record_count  INTEGER NOT NULL DEFAULT 0,
+        total_amount  NUMERIC(12,2) NOT NULL DEFAULT 0,
+        csv_content   TEXT NOT NULL
+      )
+    `);
+    await client.query(`ALTER TABLE donations ADD COLUMN IF NOT EXISTS gift_aid_claim_id INTEGER REFERENCES gift_aid_claims(id)`);
+
     console.log('Database schema initialised.');
   } catch (err) {
     console.error('Error initialising database schema:', err.message);
