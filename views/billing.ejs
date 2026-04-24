@@ -1,0 +1,289 @@
+<%- include("_loggedInHeader") -%>
+
+<div class="pb-page">
+  <div class="pb-page-header">
+    <div>
+      <h1 class="pb-page-title">Billing</h1>
+      <p class="pb-page-subtitle">Manage your ProBooks Accounting subscription</p>
+    </div>
+  </div>
+
+  <% const status = charity.subscription_status; %>
+  <% const hasActive = status === 'active' || status === 'trialing' || status === 'past_due'; %>
+
+  <div class="row g-4">
+
+    <!-- Subscription status card -->
+    <div class="col-lg-5">
+      <div class="pb-table-card p-4 h-100">
+        <div class="d-flex align-items-center mb-3">
+          <i class="bi bi-credit-card-2-front text-primary me-2 fs-4"></i>
+          <h5 class="mb-0">Subscription status</h5>
+        </div>
+
+        <table class="table table-sm table-borderless mb-3">
+          <tbody>
+            <tr>
+              <td class="text-muted" style="width: 45%;">Charity</td>
+              <td class="fw-semibold"><%= charity.name %></td>
+            </tr>
+            <tr>
+              <td class="text-muted">Status</td>
+              <td>
+                <% if (status === 'active') { %>
+                  <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                <% } else if (status === 'trialing') { %>
+                  <span class="badge bg-info">Trialing</span>
+                <% } else if (status === 'past_due') { %>
+                  <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Past due</span>
+                <% } else if (status === 'unpaid' || status === 'canceled') { %>
+                  <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i><%= status === 'unpaid' ? 'Unpaid' : 'Cancelled' %></span>
+                <% } else { %>
+                  <span class="badge bg-secondary">No subscription</span>
+                <% } %>
+              </td>
+            </tr>
+            <% if (charity.subscription_plan) { %>
+              <tr>
+                <td class="text-muted">Plan</td>
+                <td><%= charity.subscription_plan === 'yearly' ? 'Yearly' : 'Monthly' %></td>
+              </tr>
+            <% } %>
+            <% if (charity.current_period_end) { %>
+              <tr>
+                <td class="text-muted"><%= status === 'canceled' ? 'Access ends' : 'Renews on' %></td>
+                <td><%= new Date(charity.current_period_end).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) %></td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+
+        <% if (status === 'past_due') { %>
+          <div class="alert alert-warning mb-3">
+            <strong>Payment failed.</strong> Please update your payment method to avoid losing access.
+          </div>
+        <% } else if (status === 'unpaid' || status === 'canceled') { %>
+          <div class="alert alert-danger mb-3">
+            <strong>Access blocked.</strong> Your subscription is not active. Start or resume a subscription to continue.
+          </div>
+        <% } else if (!hasActive) { %>
+          <div class="alert alert-info mb-3">
+            You don't have an active subscription yet. Choose a plan to get started.
+          </div>
+        <% } %>
+
+        <% if (hasActive) { %>
+          <button type="button" class="btn btn-primary w-100" id="openPortalBtn">
+            <span id="portalSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+            <i class="bi bi-gear me-1"></i>Manage billing
+          </button>
+          <div class="form-text mt-2">Change your payment method, view invoices, or cancel in the Stripe billing portal.</div>
+        <% } %>
+
+        <div id="billingError" class="alert alert-danger d-none mt-3"></div>
+      </div>
+    </div>
+
+    <!-- What's included -->
+    <div class="col-lg-7">
+      <div class="pb-table-card p-4 h-100">
+        <div class="d-flex align-items-center mb-3">
+          <i class="bi bi-stars text-primary me-2 fs-4"></i>
+          <h5 class="mb-0">What's included</h5>
+        </div>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <div class="d-flex align-items-start">
+              <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+              <div>
+                <div class="fw-semibold">Unlimited members &amp; donations</div>
+                <div class="text-muted small">No caps on records or users per charity.</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="d-flex align-items-start">
+              <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+              <div>
+                <div class="fw-semibold">Gift Aid claim exports</div>
+                <div class="text-muted small">HMRC-ready CSVs with review &amp; fix flow.</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="d-flex align-items-start">
+              <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+              <div>
+                <div class="fw-semibold">PDF statements &amp; reports</div>
+                <div class="text-muted small">Donor statements, donation &amp; transaction exports.</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="d-flex align-items-start">
+              <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+              <div>
+                <div class="fw-semibold">Open Banking</div>
+                <div class="text-muted small">Auto-sync transactions from your bank via TrueLayer.</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="d-flex align-items-start">
+              <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+              <div>
+                <div class="fw-semibold">Branded donation receipts</div>
+                <div class="text-muted small">Automatic emails sent to donors after each gift.</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="d-flex align-items-start">
+              <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+              <div>
+                <div class="fw-semibold">Secure, multi-user access</div>
+                <div class="text-muted small">Role-based access with invite &amp; approval flow.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <% if (!hasActive) { %>
+      <!-- Plan picker -->
+      <div class="col-12">
+        <div class="pb-table-card p-4">
+          <div class="d-flex align-items-center mb-3">
+            <i class="bi bi-tags text-primary me-2 fs-4"></i>
+            <h5 class="mb-0">Choose a plan</h5>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="border rounded-3 p-4 h-100 d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div class="fw-bold fs-5">Monthly</div>
+                  <span class="badge bg-light text-dark border">Flexible</span>
+                </div>
+                <div class="my-2"><span class="display-5 fw-bold">£30</span><span class="text-muted">/month</span></div>
+                <div class="text-muted small mb-3">Billed every month. Cancel anytime.</div>
+                <ul class="list-unstyled text-muted small mb-4">
+                  <li class="mb-1"><i class="bi bi-check text-success me-1"></i>Full access to every feature</li>
+                  <li class="mb-1"><i class="bi bi-check text-success me-1"></i>Monthly billing — pause or cancel anytime</li>
+                  <li class="mb-1"><i class="bi bi-check text-success me-1"></i>Email support</li>
+                </ul>
+                <button type="button" class="btn btn-outline-primary mt-auto checkout-btn" data-plan="monthly">
+                  Start monthly
+                </button>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="border border-primary rounded-3 p-4 h-100 d-flex flex-column position-relative" style="background: linear-gradient(180deg, rgba(31,59,91,0.03), transparent);">
+                <div class="position-absolute top-0 start-50 translate-middle">
+                  <span class="badge bg-success px-3 py-2">Best value — save £60</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div class="fw-bold fs-5">Yearly</div>
+                  <span class="badge bg-primary">Most popular</span>
+                </div>
+                <div class="my-2"><span class="display-5 fw-bold">£300</span><span class="text-muted">/year</span></div>
+                <div class="text-muted small mb-3">Equivalent to £25/month. Billed once per year.</div>
+                <ul class="list-unstyled text-muted small mb-4">
+                  <li class="mb-1"><i class="bi bi-check text-success me-1"></i>Everything in monthly</li>
+                  <li class="mb-1"><i class="bi bi-check text-success me-1"></i>Two months free vs. monthly</li>
+                  <li class="mb-1"><i class="bi bi-check text-success me-1"></i>Priority email support</li>
+                </ul>
+                <button type="button" class="btn btn-primary mt-auto checkout-btn" data-plan="yearly">
+                  Start yearly
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="text-muted small mt-3 text-center">
+            <i class="bi bi-shield-lock me-1"></i>Payments are securely processed by Stripe. We never see your card details.
+          </div>
+        </div>
+      </div>
+    <% } %>
+
+    <!-- Help / FAQ -->
+    <div class="col-12">
+      <div class="pb-table-card p-4">
+        <div class="d-flex align-items-center mb-3">
+          <i class="bi bi-question-circle text-primary me-2 fs-4"></i>
+          <h5 class="mb-0">Frequently asked</h5>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="fw-semibold small mb-1">Can I switch plans later?</div>
+            <div class="text-muted small">Yes. You can change between monthly and yearly from the Stripe billing portal at any time. Prorated adjustments are calculated automatically.</div>
+          </div>
+          <div class="col-md-6">
+            <div class="fw-semibold small mb-1">What happens if my payment fails?</div>
+            <div class="text-muted small">You'll receive daily email reminders until it's resolved. If your subscription is cancelled, you'll keep read access but be unable to add or edit data until you restart.</div>
+          </div>
+          <div class="col-md-6">
+            <div class="fw-semibold small mb-1">Is my data safe?</div>
+            <div class="text-muted small">All data is stored in encrypted PostgreSQL and scoped per-charity. Payments are handled by Stripe — we never store card details on our servers.</div>
+          </div>
+          <div class="col-md-6">
+            <div class="fw-semibold small mb-1">Need help?</div>
+            <div class="text-muted small">Email <a href="mailto:support@probooksaccounting.co.uk">support@probooksaccounting.co.uk</a> — we usually reply within one working day.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const errBox = document.getElementById('billingError');
+
+  document.querySelectorAll('.checkout-btn').forEach(btn => {
+    btn.addEventListener('click', async function () {
+      errBox.classList.add('d-none');
+      this.disabled = true;
+      const origLabel = this.innerHTML;
+      this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Redirecting…';
+      try {
+        const res = await fetch('/api/billing/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: this.dataset.plan }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not start checkout.');
+        window.location.href = data.url;
+      } catch (err) {
+        errBox.textContent = err.message || 'Could not start checkout.';
+        errBox.classList.remove('d-none');
+        this.disabled = false;
+        this.innerHTML = origLabel;
+      }
+    });
+  });
+
+  const portalBtn = document.getElementById('openPortalBtn');
+  if (portalBtn) {
+    portalBtn.addEventListener('click', async function () {
+      errBox.classList.add('d-none');
+      const spinner = document.getElementById('portalSpinner');
+      spinner.classList.remove('d-none');
+      portalBtn.disabled = true;
+      try {
+        const res = await fetch('/api/billing/portal', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not open billing portal.');
+        window.location.href = data.url;
+      } catch (err) {
+        errBox.textContent = err.message || 'Could not open billing portal.';
+        errBox.classList.remove('d-none');
+        spinner.classList.add('d-none');
+        portalBtn.disabled = false;
+      }
+    });
+  }
+});
+</script>

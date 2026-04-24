@@ -28,6 +28,9 @@
         <div class="collapse navbar-collapse" id="mainNav">
           <ul class="navbar-nav me-auto">
             <li class="nav-item">
+              <a class="nav-link" href="/dashboard">Dashboard</a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link" href="/claimants/1">Members</a>
             </li>
             <li class="nav-item">
@@ -35,15 +38,19 @@
             </li>
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                Bank Transactions
+                Bank
               </a>
               <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="/admin/bank"><i class="bi bi-bank me-1"></i>Bank Connection</a></li>
                 <% if (availableYears && availableYears.length) { %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><h6 class="dropdown-header">Transactions by year</h6></li>
                   <% for (const year of availableYears) { %>
                     <li><a class="dropdown-item" href="/yearly-transactions/<%= year %>/1"><%= year %></a></li>
                   <% } %>
                 <% } else { %>
-                  <li><span class="dropdown-item text-muted">No data yet</span></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><span class="dropdown-item text-muted">No transactions yet</span></li>
                 <% } %>
               </ul>
             </li>
@@ -54,6 +61,7 @@
               <ul class="dropdown-menu">
                 <li><a class="dropdown-item" href="/admin">Admin Console</a></li>
                 <li><a class="dropdown-item" href="/charity/settings"><i class="bi bi-gear me-1"></i>Charity Settings</a></li>
+                <li><a class="dropdown-item" href="/charity/billing"><i class="bi bi-credit-card me-1"></i>Billing</a></li>
               </ul>
             </li>
           </ul>

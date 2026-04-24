@@ -247,6 +247,13 @@ async function initDb() {
     await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS treasurer_name TEXT`);
     await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS address TEXT`);
     await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS logo_path TEXT`);
+    // Stripe billing
+    await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT`);
+    await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT`);
+    await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS subscription_status TEXT`);
+    await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS subscription_plan TEXT`);
+    await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS last_payment_reminder_sent_at TIMESTAMPTZ`);
 
     // Convert house_number from INTEGER to TEXT to support values like "152A"
     await client.query(`ALTER TABLE members ALTER COLUMN house_number TYPE TEXT USING house_number::TEXT`);

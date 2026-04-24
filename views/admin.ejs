@@ -10,108 +10,80 @@
 
   <div class="pb-admin-grid">
 
+    <!-- Reports & exports including Gift Aid — the main monthly workflow -->
     <div class="pb-admin-section">
-      <div class="pb-admin-section-header">Configuration</div>
-      <div class="pb-admin-section-body">
-        <a href="/addnewtransactiontype" class="pb-admin-btn">
-          <i class="bi bi-plus-circle pb-admin-btn-icon" aria-hidden="true"></i>Add New Transaction Type
-        </a>
-        <a href="/addnewdonationtype" class="pb-admin-btn">
-          <i class="bi bi-plus-circle pb-admin-btn-icon" aria-hidden="true"></i>Add New Donation Type
-        </a>
-      </div>
-    </div>
-
-    <div class="pb-admin-section">
-      <div class="pb-admin-section-header">Export</div>
+      <div class="pb-admin-section-header"><i class="bi bi-file-earmark-arrow-down me-2"></i>Reports &amp; Exports</div>
       <div class="pb-admin-section-body">
         <button type="button" class="pb-admin-btn" id="openTransactionModal">
-          <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Transactions
+          <i class="bi bi-cash-coin pb-admin-btn-icon" aria-hidden="true"></i>Export Transactions
         </button>
         <button type="button" class="pb-admin-btn" id="openDonationsModal">
-          <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Donations
-        </button>
-        <button type="button" class="pb-admin-btn" id="openGiftAidModal">
-          <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Claim Gift Aid
-        </button>
-        <button type="button" class="pb-admin-btn" id="openGiftAidHistoryModal">
-          <i class="bi bi-clock-history pb-admin-btn-icon" aria-hidden="true"></i>Gift Aid Claim History
+          <i class="bi bi-gift pb-admin-btn-icon" aria-hidden="true"></i>Export Donations
         </button>
         <button type="button" class="pb-admin-btn" id="openTotalsModal">
-          <i class="bi bi-file-earmark-arrow-down-fill pb-admin-btn-icon" aria-hidden="true"></i>Export Totals
+          <i class="bi bi-calculator pb-admin-btn-icon" aria-hidden="true"></i>Export Totals
+        </button>
+        <button type="button" class="pb-admin-btn" id="openGiftAidModal">
+          <i class="bi bi-cash-stack pb-admin-btn-icon" aria-hidden="true"></i>Claim Gift Aid
+        </button>
+        <button type="button" class="pb-admin-btn" id="openGiftAidHistoryModal">
+          <i class="bi bi-clock-history pb-admin-btn-icon" aria-hidden="true"></i>Gift Aid History
         </button>
       </div>
     </div>
 
+    <!-- Data + Users together — everything else admins touch regularly -->
     <div class="pb-admin-section">
-      <div class="pb-admin-section-header">Import</div>
+      <div class="pb-admin-section-header"><i class="bi bi-people me-2"></i>Data &amp; Users</div>
       <div class="pb-admin-section-body">
         <a href="/import-transactions" class="pb-admin-btn">
-          <i class="bi bi-file-earmark-arrow-up-fill pb-admin-btn-icon" aria-hidden="true"></i>Import Transactions
+          <i class="bi bi-file-earmark-arrow-up pb-admin-btn-icon" aria-hidden="true"></i>Import Transactions
         </a>
-      </div>
-    </div>
-
-    <div class="pb-admin-section">
-      <div class="pb-admin-section-header">Open Banking</div>
-      <div class="pb-admin-section-body">
-        <a href="/admin/bank" class="pb-admin-btn">
-          <i class="bi bi-bank pb-admin-btn-icon" aria-hidden="true"></i>Bank Connection
-        </a>
-      </div>
-    </div>
-
-    <div class="pb-admin-section">
-      <div class="pb-admin-section-header">Charity</div>
-      <div class="pb-admin-section-body">
-        <a href="/charity/settings" class="pb-admin-btn">
-          <i class="bi bi-gear-fill pb-admin-btn-icon" aria-hidden="true"></i>Charity Settings
-        </a>
-      </div>
-    </div>
-
-    <div class="pb-admin-section">
-      <div class="pb-admin-section-header">System</div>
-      <div class="pb-admin-section-body">
-        <a href="/update-users" class="pb-admin-btn">
-          <i class="bi bi-people-fill pb-admin-btn-icon" aria-hidden="true"></i>Update Users
-        </a>
-        <a href="/select-inactive" class="pb-admin-btn">
-          <i class="bi bi-person-dash pb-admin-btn-icon" aria-hidden="true"></i>Select Inactive Donors
-        </a>
-        <% if (isSuperAdmin) { %>
-        <a href="/db-backup" class="pb-admin-btn">
-          <i class="bi bi-database-down pb-admin-btn-icon" aria-hidden="true"></i>Backup Database
-        </a>
-        <a href="/software-logs/1" class="pb-admin-btn">
-          <i class="bi bi-code-slash pb-admin-btn-icon" aria-hidden="true"></i>Logs
-        </a>
-        <% } %>
-        <a href="/suggest-update" class="pb-admin-btn">
-          <i class="bi bi-pencil-square pb-admin-btn-icon" aria-hidden="true"></i>Suggest Update
-        </a>
-        <a href="/dashboard" class="pb-admin-btn">
-          <i class="bi bi-bar-chart pb-admin-btn-icon" aria-hidden="true"></i>View Dashboard
-        </a>
-      </div>
-    </div>
-
-    <div class="pb-admin-section">
-      <div class="pb-admin-section-header">Organisation</div>
-      <div class="pb-admin-section-body">
         <button type="button" class="pb-admin-btn" id="openInviteModal">
           <i class="bi bi-envelope-plus pb-admin-btn-icon" aria-hidden="true"></i>Invite User
         </button>
         <button type="button" class="pb-admin-btn" id="openResendInviteModal">
           <i class="bi bi-envelope-arrow-up pb-admin-btn-icon" aria-hidden="true"></i>Resend Invite
         </button>
-        <% if (isSuperAdmin) { %>
+        <a href="/update-users" class="pb-admin-btn">
+          <i class="bi bi-people-fill pb-admin-btn-icon" aria-hidden="true"></i>Manage Users
+        </a>
+        <a href="/select-inactive" class="pb-admin-btn">
+          <i class="bi bi-person-dash pb-admin-btn-icon" aria-hidden="true"></i>Inactive Donors
+        </a>
+      </div>
+    </div>
+
+    <!-- Setup — one-off configuration -->
+    <div class="pb-admin-section">
+      <div class="pb-admin-section-header"><i class="bi bi-sliders me-2"></i>Setup</div>
+      <div class="pb-admin-section-body">
+        <a href="/addnewtransactiontype" class="pb-admin-btn">
+          <i class="bi bi-plus-circle pb-admin-btn-icon" aria-hidden="true"></i>Add Transaction Type
+        </a>
+        <a href="/addnewdonationtype" class="pb-admin-btn">
+          <i class="bi bi-plus-circle pb-admin-btn-icon" aria-hidden="true"></i>Add Donation Type
+        </a>
+      </div>
+    </div>
+
+    <% if (isSuperAdmin) { %>
+    <!-- Super admin only -->
+    <div class="pb-admin-section">
+      <div class="pb-admin-section-header"><i class="bi bi-shield-lock me-2"></i>Super Admin</div>
+      <div class="pb-admin-section-body">
         <button type="button" class="pb-admin-btn" id="openCreateCharityModal">
           <i class="bi bi-building-add pb-admin-btn-icon" aria-hidden="true"></i>Create Charity
         </button>
-        <% } %>
+        <a href="/db-backup" class="pb-admin-btn">
+          <i class="bi bi-database-down pb-admin-btn-icon" aria-hidden="true"></i>Database Backup
+        </a>
+        <a href="/software-logs/1" class="pb-admin-btn">
+          <i class="bi bi-code-slash pb-admin-btn-icon" aria-hidden="true"></i>System Logs
+        </a>
       </div>
     </div>
+    <% } %>
 
   </div>
 </div>

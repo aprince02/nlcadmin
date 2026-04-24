@@ -252,24 +252,6 @@ async function emailMemberForUpdate(row, charityName, token) {
   }
 }
 
-async function sendUpdateSuggestionEmail(suggestion, user, notifyEmail) {
-  const mailOptions = buildMail({
-    to: notifyEmail || receiver,
-    subject: 'Update Suggestion from User',
-    heading: 'Update Suggestion',
-    intro: `${user} has suggested an update to the software.`,
-    bodyHtml: `<blockquote style="margin:0;padding:12px 16px;border-left:4px solid ${accentColor};background:#f4f6f9;color:#333;">${esc(suggestion)}</blockquote>`,
-    bodyText: `Suggestion:\n\n${suggestion}`,
-    footerNote: 'Please respond to the user at your earliest convenience.',
-  });
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    log('Update suggestion email sent by: ' + user + ' ' + info.response);
-  } catch (error) {
-    log("'Error sending email: " + error);
-  }
-}
-
 async function sendNewUserAddedEmail(user, notifyEmail) {
   const mailOptions = buildMail({
     to: notifyEmail || receiver,
@@ -392,6 +374,21 @@ async function sendInviteEmail(email, token, role, charityName) {
   }
 }
 
+async function sendPaymentFailedEmail(to, charityName, billingUrl) {
+  const mailOptions = buildMail({
+    to,
+    subject: `Payment failed for ${charityName}`,
+    heading: 'Action needed: payment failed',
+    intro: `We were unable to process the latest subscription payment for ${charityName}.`,
+    bodyHtml: 'To keep your account active, please update your payment method in the billing portal. If the issue is not resolved, your subscription will be cancelled and access to ProBooks Accounting will be blocked.',
+    bodyText: 'To keep your account active, please update your payment method. If the issue is not resolved, your subscription will be cancelled and access will be blocked.',
+    cta: { label: 'Update payment method', url: billingUrl },
+    footerNote: 'You will continue to receive this reminder daily until the issue is resolved.',
+  });
+  const info = await transporter.sendMail(mailOptions);
+  console.log('Payment failed email sent to:', to, info.response);
+}
+
 async function sendOtpEmail(email, otp) {
   const otpBox = `<div style="font-size:28px;font-weight:700;letter-spacing:6px;background:#f4f6f9;color:${brandColor};padding:16px;text-align:center;border-radius:8px;margin:8px 0 16px;">${esc(otp)}</div>`;
   const mailOptions = buildMail({
@@ -414,7 +411,6 @@ module.exports = {
   createAndEmailDBBackup,
   emailMemberForUpdate,
   sendTransactionsEmail,
-  sendUpdateSuggestionEmail,
   sendNewUserAddedEmail,
   sendDonationReceivedEmail,
   sendTotalsExportEmail,
@@ -422,4 +418,5 @@ module.exports = {
   sendDonationsPDFBuffer,
   sendOtpEmail,
   sendInviteEmail,
+  sendPaymentFailedEmail,
 };

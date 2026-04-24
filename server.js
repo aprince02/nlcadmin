@@ -16,7 +16,7 @@ const dayjs = require('dayjs');
 const path = require('path');
 const multer = require('multer');
 const schedule = require('node-schedule');
-const { requireLogin, injectCharityId, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser, formatPostcode } = require('./utils');
+const { requireLogin, injectCharityId, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser, checkAdmin, formatPostcode } = require('./utils');
 const dbHelper = require('./dbHelper')
 const currentYear = new Date().getFullYear();
 const csvGenerator = require('./csvGenerator')
@@ -24,12 +24,32 @@ const bankRouter        = require('./routes/bank')
 const invitesRouter     = require('./routes/invites')
 const superAdminRouter  = require('./routes/superadmin')
 const tlSync            = require('./truelayer/sync')
-const { sendStatementByEmail, sendDonorStatementBuffer, createAndEmail, emailMemberForUpdate, sendUpdateSuggestionEmail, sendDonationReceivedEmail, sendTotalsExportEmail, sendTransactionsPDFBuffer, sendDonationsPDFBuffer } = require('./emailer');
+const { sendStatementByEmail, sendDonorStatementBuffer, createAndEmail, emailMemberForUpdate, sendDonationReceivedEmail, sendTotalsExportEmail, sendTransactionsPDFBuffer, sendDonationsPDFBuffer, sendPaymentFailedEmail } = require('./emailer');
 const fingerprint = require('express-fingerprint');
 app.use(fingerprint());
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
 app.use(express.static("public", { maxAge: "7d" }));
+
+// Stripe webhook — must be mounted BEFORE express.json() so the raw body is available for signature verification
+const billing = require('./billing');
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  let event;
+  try {
+    event = billing.constructEvent(req.body, req.headers['stripe-signature']);
+  } catch (err) {
+    console.error('Stripe webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+  try {
+    await billing.handleEvent(event);
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Stripe webhook handler error:', err.message);
+    res.status(500).json({ error: 'Webhook handler error' });
+  }
+});
+
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -58,6 +78,39 @@ app.use(function(req, res, next){
       next();
     }
 });
+// Global subscription gate for state-changing requests
+// Blocks writes when the charity's subscription is canceled/unpaid.
+// Exemptions: not-logged-in, webhook, billing routes, logout.
+const SUBSCRIPTION_EXEMPT_PATHS = [
+  /^\/webhooks\//,
+  /^\/charity\/billing/,
+  /^\/api\/billing\//,
+  /^\/logout/,
+  /^\/invite\//,
+  /^\/update-details\//,
+  /^\/login/,
+  /^\/forgot-password/,
+  /^\/membership/,
+];
+app.use(async function (req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD') return next();
+  if (!req.session?.charityId) return next(); // unauthenticated — let auth middleware handle it
+  if (SUBSCRIPTION_EXEMPT_PATHS.some(rx => rx.test(req.path))) return next();
+  try {
+    const r = await pool.query('SELECT subscription_status FROM charities WHERE id = $1', [req.session.charityId]);
+    const status = r.rows[0]?.subscription_status;
+    if (billing.isActive(status)) return next();
+    if (req.xhr || req.path.startsWith('/api/')) {
+      return res.status(402).json({ error: 'Your subscription is not active. Please update billing to continue.' });
+    }
+    req.flash('error', 'Your subscription is not active. Please update billing to continue.');
+    return res.redirect('/charity/billing');
+  } catch (err) {
+    console.error('Subscription gate error:', err.message);
+    next(); // fail-open on DB errors
+  }
+});
+
 app.use(bankRouter);
 app.use(invitesRouter);
 app.use(superAdminRouter);
@@ -1020,6 +1073,81 @@ app.get('/api/giftaid-claims/:id/csv', requireLogin, injectCharityId, checkUserR
 // Keep GET redirect for any bookmarked links
 app.get('/export-giftaid-claims', (req, res) => res.redirect('/admin'));
 
+// ── Billing (Stripe) ───────────────────────────────────────────────────────
+app.get('/charity/billing', requireLogin, injectCharityId, checkAdmin, checkApprovedUser, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, subscription_status, subscription_plan, current_period_end, stripe_subscription_id
+       FROM charities WHERE id = $1`, [req.charityId]
+    );
+    const charity = result.rows[0];
+    res.render('billing', { charity, loggedInName: req.session.name });
+  } catch (err) {
+    console.error('Billing page error:', err.message);
+    req.flash('error', 'Could not load billing page.');
+    res.redirect('/admin');
+  }
+});
+
+app.post('/api/billing/checkout', requireLogin, injectCharityId, checkAdmin, checkApprovedUser, async (req, res) => {
+  try {
+    const plan = req.body.plan;
+    const base = process.env.APP_URL || (`${req.protocol}://${req.get('host')}`);
+    const url = await billing.createCheckoutSession({
+      charityId:  req.charityId,
+      plan,
+      successUrl: `${base}/charity/billing?checkout=success`,
+      cancelUrl:  `${base}/charity/billing?checkout=cancelled`,
+    });
+    res.json({ url });
+  } catch (err) {
+    console.error('Checkout session error:', err.message);
+    res.status(500).json({ error: err.message || 'Could not create checkout session.' });
+  }
+});
+
+app.post('/api/billing/portal', requireLogin, injectCharityId, checkAdmin, checkApprovedUser, async (req, res) => {
+  try {
+    const base = process.env.APP_URL || (`${req.protocol}://${req.get('host')}`);
+    const url = await billing.createPortalSession({
+      charityId: req.charityId,
+      returnUrl: `${base}/charity/billing`,
+    });
+    res.json({ url });
+  } catch (err) {
+    console.error('Portal session error:', err.message);
+    res.status(500).json({ error: err.message || 'Could not open billing portal.' });
+  }
+});
+
+// Daily payment reminder for past_due / unpaid subscriptions
+schedule.scheduleJob('0 9 * * *', async () => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name FROM charities WHERE subscription_status IN ('past_due', 'unpaid')`
+    );
+    const base = process.env.APP_URL || 'https://probooksaccounting.co.uk';
+    for (const charity of result.rows) {
+      const admins = await pool.query(
+        `SELECT email FROM users
+         WHERE charity_id = $1 AND approval = 'approved' AND role IN ('admin', 'super admin')
+           AND email IS NOT NULL`,
+        [charity.id]
+      );
+      for (const u of admins.rows) {
+        try {
+          await sendPaymentFailedEmail(u.email, charity.name, `${base}/charity/billing`);
+        } catch (err) {
+          console.error('Payment reminder email failed for', u.email, ':', err.message);
+        }
+      }
+      await pool.query('UPDATE charities SET last_payment_reminder_sent_at = NOW() WHERE id = $1', [charity.id]);
+    }
+  } catch (err) {
+    console.error('Payment reminder cron error:', err.message);
+  }
+});
+
 app.get('/logout', (req, res) => {
     const loggedInName = req.session.name;
         console.log(loggedInName + " user logged out")
@@ -1557,11 +1685,6 @@ app.post('/api/donations/modal', requireLogin, injectCharityId, checkApprovedUse
   }
 });
 
-app.get("/suggest-update", requireLogin, injectCharityId, checkApprovedUser, (req, res) => {
-  const loggedInName = req.session.name;
-  res.render("suggest-update", { loggedInName });
-});
-
 app.get("/select-inactive", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
@@ -1672,21 +1795,6 @@ app.get('/dashboard', requireLogin, injectCharityId, checkApprovedUser, async (r
     res.status(500).send('Server error');
   }
 });
-
-app.post("/suggest-update", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
-  const loggedInName = req.session.name;
-  const suggestion = req.body.update_suggestion;
-  try {
-    const charity = await dbHelper.getCharityById(req.charityId);
-    sendUpdateSuggestionEmail(suggestion, loggedInName, charity?.email);
-    log(loggedInName + ': Update suggestion email sent by user')
-    req.flash('success', 'Email sent successfully.');
-    res.redirect("/admin");
-} catch (error) {
-    req.flash('error', 'Error sending email to administrator, try again!.');
-    log(loggedInName + ": Error sending update suggestion email - " + error)
-    res.redirect("/admin");
-}}); requireLogin,
 
 // Default response for any other request
 app.use(function(req, res){
