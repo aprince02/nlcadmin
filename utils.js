@@ -277,6 +277,34 @@ function formatPostcode(pc) {
   return stripped.slice(0, -3) + ' ' + stripped.slice(-3);
 }
 
+/**
+ * Detects obviously-fake/placeholder addresses.
+ * Returns true for missing input, malformed syntax, or any of the well-known fake values.
+ * Real-but-personal addresses (e.g. someone's actual gmail) will not match.
+ */
+const PLACEHOLDER_LOCAL_PARTS = new Set([
+  'admin', 'test', 'noemail', 'no-email', 'placeholder', 'example',
+  'mail', 'email', 'fake', 'none', 'na', 'n/a', 'unknown',
+]);
+const PLACEHOLDER_DOMAINS = new Set([
+  'mail.com', 'mai.com', 'email.com', 'admin.com', 'test.com', 'tests.com',
+  'example.com', 'example.org', 'example.net',
+  'placeholder.com', 'noemail.com', 'no-email.com',
+  'localhost', 'localhost.localdomain',
+]);
+
+function isLikelyPlaceholderEmail(email) {
+  if (!email) return true;
+  const trimmed = String(email).trim().toLowerCase();
+  if (!trimmed) return true;
+  // Must look like an email at all
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return true;
+  const [local, domain] = trimmed.split('@');
+  if (PLACEHOLDER_LOCAL_PARTS.has(local) && PLACEHOLDER_DOMAINS.has(domain)) return true;
+  if (PLACEHOLDER_DOMAINS.has(domain)) return true;
+  return false;
+}
+
 module.exports = {
     formatted_date,
     log,
@@ -290,6 +318,7 @@ module.exports = {
     checkAdmin,
     checkApprovedUser,
     checkPlatformAdmin,
-    formatPostcode
+    formatPostcode,
+    isLikelyPlaceholderEmail
 }
 

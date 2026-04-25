@@ -61,7 +61,12 @@
               <td>
                 <div class="pb-contact-info">
                   <% if (member.email) { %>
-                    <div><i class="bi bi-envelope pb-contact-icon"></i><%= member.email %></div>
+                    <div>
+                      <i class="bi bi-envelope pb-contact-icon"></i><%= member.email %>
+                      <% if (member.do_not_email) { %>
+                        <span class="badge bg-secondary ms-1" title="This member is marked do-not-email">No email</span>
+                      <% } %>
+                    </div>
                   <% } %>
                   <% if (member.phone_number) { %>
                     <div><i class="bi bi-telephone pb-contact-icon"></i><%= member.phone_number %></div>
@@ -317,6 +322,13 @@
                 <div class="col-6">
                   <label class="form-label">Email</label>
                   <input type="email" class="form-control" name="email" id="em_email">
+                  <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="em_do_not_email">
+                    <label class="form-check-label small" for="em_do_not_email">
+                      Do not email this member
+                      <span class="text-muted">(skip donation receipts and update requests)</span>
+                    </label>
+                  </div>
                 </div>
                 <div class="col-5">
                   <label class="form-label">Phone Number</label>
@@ -533,6 +545,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('em_dob').value           = m.date_of_birth ? new Date(m.date_of_birth).toISOString().slice(0,10) : '';
         document.getElementById('em_spouse').value        = m.spouse_name   || '';
         document.getElementById('em_email').value         = m.email         || '';
+        document.getElementById('em_do_not_email').checked= !!m.do_not_email;
         document.getElementById('em_phone').value         = m.phone_number  || '';
         document.getElementById('em_house_number').value  = m.house_number  || '';
         document.getElementById('em_address1').value      = m.address_line_1|| '';
@@ -566,6 +579,7 @@ document.addEventListener('DOMContentLoaded', function () {
       date_of_birth:  document.getElementById('em_dob').value || null,
       spouse_name:    document.getElementById('em_spouse').value.trim(),
       email:          document.getElementById('em_email').value.trim(),
+      do_not_email:   document.getElementById('em_do_not_email').checked,
       phone_number:   document.getElementById('em_phone').value.trim(),
       house_number:   document.getElementById('em_house_number').value.trim(),
       address_line_1: document.getElementById('em_address1').value.trim(),

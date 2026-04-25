@@ -37,7 +37,7 @@
   --pb-border:       #dee2e6;
   --pb-border-subtle:#e9ecef;
   --pb-text:         #212529;
-  --pb-text-muted:   #6c757d;
+  --pb-text-muted:   #595f66;
 
   /* Typography */
   --font-xs:   0.6875rem;
@@ -72,7 +72,12 @@
   --bs-primary-rgb: 59, 91, 219;
   --bs-link-color:  var(--pb-primary);
   --bs-link-hover-color: var(--pb-primary-dark);
+  --bs-secondary-color: var(--pb-text-muted);
 }
+
+/* WCAG AA: ensure muted/secondary text has sufficient contrast */
+.text-muted,
+.text-body-secondary { color: var(--pb-text-muted) !important; }
 
 
 /* ------------------------------------------------------------
@@ -221,10 +226,28 @@ a:hover {
   white-space: nowrap;
 }
 .navbar.pb-navbar .btn-logout {
-  font-size: var(--font-xs);
-  padding: 0.3rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--pb-danger);
+  background: transparent;
+  border: 0;
+  padding: 0.4rem 0.6rem;
   border-radius: var(--pb-radius);
-  font-weight: 500;
+  text-decoration: none;
+  transition: background var(--pb-transition-fast), color var(--pb-transition-fast);
+}
+.navbar.pb-navbar .btn-logout .bi {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.navbar.pb-navbar .btn-logout:hover,
+.navbar.pb-navbar .btn-logout:focus {
+  color: #a61e1e;
+  background: var(--pb-danger-light);
+  text-decoration: none;
 }
 .navbar.pb-navbar .navbar-toggler {
   border: 1px solid var(--pb-border);
@@ -366,7 +389,7 @@ a:hover {
   outline: none;
 }
 .form-control::placeholder {
-  color: var(--pb-gray-400);
+  color: var(--pb-gray-600);
   font-style: italic;
   font-size: var(--font-xs);
 }
@@ -727,7 +750,7 @@ a:hover {
 }
 .pb-admin-card-head .count-pill {
   background: var(--pb-primary-light);
-  color: var(--pb-primary);
+  color: var(--pb-primary-dark);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.08em;

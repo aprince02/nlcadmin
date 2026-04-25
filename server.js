@@ -16,7 +16,19 @@ const dayjs = require('dayjs');
 const path = require('path');
 const multer = require('multer');
 const schedule = require('node-schedule');
-const { requireLogin, injectCharityId, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser, checkAdmin, checkPlatformAdmin, formatPostcode } = require('./utils');
+
+// Only register cron jobs on the host that should actually run them (set RUN_CRONS=true on the production server).
+// This stops dev machines from racing the production server when they share the same database.
+const CRONS_ENABLED = process.env.RUN_CRONS === 'true';
+if (!CRONS_ENABLED) {
+  console.log('[cron] disabled — set RUN_CRONS=true in .env to enable scheduled jobs');
+}
+function scheduleJob(cronExpr, jobName, handler) {
+  if (!CRONS_ENABLED) return;
+  console.log('[cron] registering', jobName, '→', cronExpr);
+  schedule.scheduleJob(cronExpr, handler);
+}
+const { requireLogin, injectCharityId, checkUserRole, readCSVAndProcess, log, checkSuperAdmin, checkApprovedUser, checkAdmin, checkPlatformAdmin, formatPostcode, isLikelyPlaceholderEmail } = require('./utils');
 const dbHelper = require('./dbHelper')
 const currentYear = new Date().getFullYear();
 const csvGenerator = require('./csvGenerator')
@@ -267,8 +279,9 @@ app.get("/edit/:id", requireLogin, injectCharityId, checkApprovedUser, async (re
 
 app.post("/edit/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
     const id = req.params.id;
-    const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, id, req.charityId];
-    const sql = "UPDATE members SET first_name = $1, surname = $2, banking_name = $3, date_of_birth = $4, sex = $5, email = $6, phone_number = $7, address_line_1 = $8, address_line_2 = $9, city = $10, postcode = $11, baptised = $12, baptised_date = $13, holy_spirit = $14, native_church = $15, children_details = $16, emergency_contact_1 = $17, emergency_contact_1_name = $18, emergency_contact_2 = $19, emergency_contact_2_name = $20, occupation_studies = $21, title = $22, house_number = $23, spouse_name = $24 WHERE id = $25 AND charity_id = $26";
+    const doNotEmail = req.body.do_not_email === '1' || req.body.do_not_email === 'on' || req.body.do_not_email === true;
+    const claimant = [req.body.first_name, req.body.surname, req.body.banking_name, req.body.date_of_birth, req.body.sex, req.body.email, req.body.phone_number, req.body.address_line_1, req.body.address_line_2, req.body.city, req.body.postcode, req.body.baptised, req.body.baptised_date, req.body.holy_spirit, req.body.native_church, req.body.children_details, req.body.emergency_contact_1, req.body.emergency_contact_1_name, req.body.emergency_contact_2, req.body.emergency_contact_2_name, req.body.occupation_studies, req.body.title, req.body.house_number, req.body.spouse_name, doNotEmail, id, req.charityId];
+    const sql = "UPDATE members SET first_name = $1, surname = $2, banking_name = $3, date_of_birth = $4, sex = $5, email = $6, phone_number = $7, address_line_1 = $8, address_line_2 = $9, city = $10, postcode = $11, baptised = $12, baptised_date = $13, holy_spirit = $14, native_church = $15, children_details = $16, emergency_contact_1 = $17, emergency_contact_1_name = $18, emergency_contact_2 = $19, emergency_contact_2_name = $20, occupation_studies = $21, title = $22, house_number = $23, spouse_name = $24, do_not_email = $25 WHERE id = $26 AND charity_id = $27";
     try {
         await pool.query(sql, claimant);
         req.flash('success', 'Member details updated successfully.');
@@ -564,10 +577,11 @@ app.get("/api/member/:id", requireLogin, injectCharityId, checkApprovedUser, asy
 app.post("/api/member/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const id = req.params.id;
   const b = req.body;
-  const vals = [b.first_name, b.surname, b.banking_name, b.date_of_birth, b.sex, b.email, b.phone_number, b.address_line_1, b.address_line_2, b.city, formatPostcode(b.postcode), b.baptised, b.baptised_date, b.holy_spirit, b.native_church, b.children_details, b.emergency_contact_1, b.emergency_contact_1_name, b.emergency_contact_2, b.emergency_contact_2_name, b.occupation_studies, b.title, b.house_number, b.spouse_name, id, req.charityId];
+  const doNotEmail = b.do_not_email === true || b.do_not_email === '1' || b.do_not_email === 'on';
+  const vals = [b.first_name, b.surname, b.banking_name, b.date_of_birth, b.sex, b.email, b.phone_number, b.address_line_1, b.address_line_2, b.city, formatPostcode(b.postcode), b.baptised, b.baptised_date, b.holy_spirit, b.native_church, b.children_details, b.emergency_contact_1, b.emergency_contact_1_name, b.emergency_contact_2, b.emergency_contact_2_name, b.occupation_studies, b.title, b.house_number, b.spouse_name, doNotEmail, id, req.charityId];
   try {
     await pool.query(
-      `UPDATE members SET first_name=$1,surname=$2,banking_name=$3,date_of_birth=$4,sex=$5,email=$6,phone_number=$7,address_line_1=$8,address_line_2=$9,city=$10,postcode=$11,baptised=$12,baptised_date=$13,holy_spirit=$14,native_church=$15,children_details=$16,emergency_contact_1=$17,emergency_contact_1_name=$18,emergency_contact_2=$19,emergency_contact_2_name=$20,occupation_studies=$21,title=$22,house_number=$23,spouse_name=$24 WHERE id=$25 AND charity_id=$26`,
+      `UPDATE members SET first_name=$1,surname=$2,banking_name=$3,date_of_birth=$4,sex=$5,email=$6,phone_number=$7,address_line_1=$8,address_line_2=$9,city=$10,postcode=$11,baptised=$12,baptised_date=$13,holy_spirit=$14,native_church=$15,children_details=$16,emergency_contact_1=$17,emergency_contact_1_name=$18,emergency_contact_2=$19,emergency_contact_2_name=$20,occupation_studies=$21,title=$22,house_number=$23,spouse_name=$24,do_not_email=$25 WHERE id=$26 AND charity_id=$27`,
       vals
     );
     log(req.session.name + ': Updated member ' + id);
@@ -896,7 +910,7 @@ app.post('/export-donations', requireLogin, injectCharityId, checkUserRole, chec
   });
 
 // TrueLayer bank sync — runs every 6 hours for all active charities
-schedule.scheduleJob('0 */6 * * *', async () => {
+scheduleJob('0 */6 * * *', 'truelayer-sync', async () => {
   try {
     const pool = require('./database');
     const { rows: charities } = await pool.query(
@@ -1359,7 +1373,7 @@ app.post('/api/billing/portal', requireLogin, injectCharityId, checkAdmin, check
 });
 
 // Daily payment reminder for past_due / unpaid subscriptions
-schedule.scheduleJob('0 9 * * *', async () => {
+scheduleJob('0 9 * * *', 'payment-reminders', async () => {
   try {
     const result = await pool.query(
       `SELECT id, name FROM charities WHERE subscription_status IN ('past_due', 'unpaid')`
@@ -1687,6 +1701,15 @@ try {
         log(loggedInName + ": Email is blank or null. Cannot send update email for: " + row.first_name + " " + row.surname);
         return res.redirect("/edit/" + id);
       }
+      if (row.do_not_email) {
+        req.flash('error', 'This member is marked "do not email". Update the member to opt them in first.');
+        return res.redirect("/edit/" + id);
+      }
+      if (isLikelyPlaceholderEmail(row.email)) {
+        req.flash('error', 'Email looks like a placeholder (' + row.email + '). Update it to a real address before sending.');
+        log(loggedInName + ": Skipped update email — placeholder address for " + row.first_name + " " + row.surname + " (" + row.email + ")");
+        return res.redirect("/edit/" + id);
+      }
       try {
         // Create a single-use, 14-day token
         const token     = crypto.randomBytes(32).toString('hex');
@@ -1968,6 +1991,88 @@ app.post('/deactivate-donors', requireLogin, injectCharityId, async (req, res) =
   }
 });
 
+// ── Ladies Fund balance ─────────────────────────────────────
+const LADIES_FUND_NAME = 'Ladies Fund';
+
+async function getFundBalance(charityId, fundName) {
+  const opening = await pool.query(
+    `SELECT opening_date, opening_amount, updated_at, updated_by
+       FROM fund_opening_balances
+      WHERE charity_id = $1 AND fund_name = $2`,
+    [charityId, fundName]
+  );
+
+  const openingDate   = opening.rows[0]?.opening_date || null;
+  const openingAmount = opening.rows[0] ? Number(opening.rows[0].opening_amount) : 0;
+
+  const movements = await pool.query(
+    `SELECT
+       COALESCE(SUM(CASE WHEN paid_in  ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN paid_in::numeric  ELSE 0 END), 0) AS income,
+       COALESCE(SUM(CASE WHEN paid_out ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN paid_out::numeric ELSE 0 END), 0) AS expense
+     FROM transactions
+     WHERE charity_id = $1
+       AND (LOWER(TRIM(transaction_type)) = LOWER(TRIM($2))
+            OR LOWER(TRIM(type))             = LOWER(TRIM($2)))
+       AND ($3::date IS NULL OR date >= $3::date)`,
+    [charityId, fundName, openingDate]
+  );
+
+  const income  = Number(movements.rows[0].income);
+  const expense = Number(movements.rows[0].expense);
+  const balance = openingAmount + income - expense;
+
+  return {
+    fundName,
+    hasOpening: !!opening.rows[0],
+    openingDate,
+    openingAmount,
+    income,
+    expense,
+    balance,
+    updatedAt: opening.rows[0]?.updated_at || null,
+    updatedBy: opening.rows[0]?.updated_by || null
+  };
+}
+
+app.get('/api/fund-balance/ladies', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
+  try {
+    const data = await getFundBalance(req.charityId, LADIES_FUND_NAME);
+    res.json(data);
+  } catch (err) {
+    console.error('Fund balance error:', err);
+    res.status(500).json({ error: 'Could not load fund balance.' });
+  }
+});
+
+app.post('/api/fund-balance/ladies', requireLogin, injectCharityId, checkApprovedUser, checkAdmin, async (req, res) => {
+  const { opening_date, opening_amount } = req.body || {};
+  const amt = Number(opening_amount);
+  if (!opening_date || !/^\d{4}-\d{2}-\d{2}$/.test(opening_date)) {
+    return res.status(400).json({ error: 'Please provide a valid opening date.' });
+  }
+  if (!Number.isFinite(amt)) {
+    return res.status(400).json({ error: 'Please provide a valid opening amount.' });
+  }
+  try {
+    await pool.query(
+      `INSERT INTO fund_opening_balances (charity_id, fund_name, opening_date, opening_amount, updated_by)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (charity_id, fund_name)
+       DO UPDATE SET opening_date = EXCLUDED.opening_date,
+                     opening_amount = EXCLUDED.opening_amount,
+                     updated_at = NOW(),
+                     updated_by = EXCLUDED.updated_by`,
+      [req.charityId, LADIES_FUND_NAME, opening_date, amt, req.session.name || null]
+    );
+    log((req.session.name || '?') + ': set ' + LADIES_FUND_NAME + ' opening balance to £' + amt.toFixed(2) + ' as of ' + opening_date);
+    const data = await getFundBalance(req.charityId, LADIES_FUND_NAME);
+    res.json(data);
+  } catch (err) {
+    console.error('Save opening balance error:', err);
+    res.status(500).json({ error: 'Could not save opening balance.' });
+  }
+});
+
 app.get('/dashboard', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const loggedInName = req.session.name;
   try {
@@ -1989,7 +2094,8 @@ app.get('/dashboard', requireLogin, injectCharityId, checkApprovedUser, async (r
       currentMonthTotals, prevMonthTotals,
       ytdDonationTotal, monthlyDonationCount,
       activeMembers,
-      recentTransactions, recentDonations, topDonors
+      recentTransactions, recentDonations, topDonors,
+      ladiesFund
     ] = await Promise.all([
       dbHelper.getAllTransactionsForYear(currentYear, req.charityId),
       dbHelper.getAllDonationsForYear(currentYear, req.charityId),
@@ -2000,7 +2106,8 @@ app.get('/dashboard', requireLogin, injectCharityId, checkApprovedUser, async (r
       dbHelper.getMembersCount(req.charityId),
       dbHelper.getRecentTransactions(5, req.charityId),
       dbHelper.getRecentDonations(5, req.charityId),
-      dbHelper.getTopDonors(currentYear, 5, req.charityId)
+      dbHelper.getTopDonors(currentYear, 5, req.charityId),
+      getFundBalance(req.charityId, LADIES_FUND_NAME)
     ]);
 
     const pctChange = (curr, prev) => {
@@ -2025,6 +2132,8 @@ app.get('/dashboard', requireLogin, injectCharityId, checkApprovedUser, async (r
       recentTransactions,
       recentDonations,
       topDonors,
+      ladiesFund,
+      isAdmin: req.session.role === 'admin' || req.session.role === 'super admin',
       barChartData: JSON.stringify(monthlyData),
       pieChartData: JSON.stringify(fundBreakdown)
     });

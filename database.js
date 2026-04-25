@@ -290,6 +290,21 @@ async function initDb() {
     await client.query(`ALTER TABLE gift_aid_claims ADD COLUMN IF NOT EXISTS submission_stripe_charge_id TEXT`);
     await client.query(`ALTER TABLE gift_aid_claims ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ`);
 
+    await client.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS do_not_email BOOLEAN NOT NULL DEFAULT FALSE`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS fund_opening_balances (
+        id              SERIAL PRIMARY KEY,
+        charity_id      INTEGER NOT NULL REFERENCES charities(id),
+        fund_name       TEXT NOT NULL,
+        opening_date    DATE NOT NULL,
+        opening_amount  NUMERIC(12,2) NOT NULL,
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by      TEXT,
+        UNIQUE (charity_id, fund_name)
+      )
+    `);
+
     console.log('Database schema initialised.');
   } catch (err) {
     console.error('Error initialising database schema:', err.message);

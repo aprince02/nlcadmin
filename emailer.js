@@ -2,6 +2,31 @@ const { log } = require('console');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
 
+/**
+ * Detects obviously-fake/placeholder addresses so we don't bounce-loop SMTP.
+ * Defined locally to avoid a circular require with utils.js.
+ */
+const PLACEHOLDER_LOCAL_PARTS = new Set([
+  'admin', 'test', 'noemail', 'no-email', 'placeholder', 'example',
+  'mail', 'email', 'fake', 'none', 'na', 'unknown',
+]);
+const PLACEHOLDER_DOMAINS = new Set([
+  'mail.com', 'mai.com', 'email.com', 'admin.com', 'test.com', 'tests.com',
+  'example.com', 'example.org', 'example.net',
+  'placeholder.com', 'noemail.com', 'no-email.com',
+  'localhost', 'localhost.localdomain',
+]);
+function isLikelyPlaceholderEmail(email) {
+  if (!email) return true;
+  const trimmed = String(email).trim().toLowerCase();
+  if (!trimmed) return true;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return true;
+  const [local, domain] = trimmed.split('@');
+  if (PLACEHOLDER_LOCAL_PARTS.has(local) && PLACEHOLDER_DOMAINS.has(domain)) return true;
+  if (PLACEHOLDER_DOMAINS.has(domain)) return true;
+  return false;
+}
+
 if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
   throw new Error('Missing SMTP credentials. Set SMTP_USER and SMTP_PASS in .env');
 }
@@ -156,6 +181,11 @@ async function createAndEmail(fileType, subject, message) {
 }
 
 async function sendStatementByEmail(pdfPath, toEmail) {
+  if (toEmail && isLikelyPlaceholderEmail(toEmail)) {
+    console.log('Skipped statement email — placeholder address:', toEmail);
+    try { fs.unlinkSync(pdfPath); } catch (_) {}
+    return { skipped: true };
+  }
   const mailOptions = buildMail({
     to: toEmail || receiver,
     subject: 'Statement of Donations',
@@ -174,6 +204,10 @@ async function sendStatementByEmail(pdfPath, toEmail) {
 }
 
 async function sendDonorStatementBuffer(toEmail, pdfBuffer, donorName) {
+  if (isLikelyPlaceholderEmail(toEmail)) {
+    console.log('Skipped donor statement email — placeholder address:', toEmail);
+    return { skipped: true };
+  }
   const mailOptions = buildMail({
     to: toEmail,
     subject: `Statement of Donations — ${donorName}`,
@@ -229,6 +263,10 @@ async function createAndEmailDBBackup() {
 }
 
 async function emailMemberForUpdate(row, charityName, token) {
+  if (row?.do_not_email || isLikelyPlaceholderEmail(row?.email)) {
+    console.log('Skipped update-details email — placeholder or opted-out address:', row?.email);
+    return { skipped: true };
+  }
   const link  = `${appUrl}/update-details/${token}`;
   const who   = charityName || 'your church';
   const intro = `Dear ${row.first_name} ${row.surname},`;
@@ -269,6 +307,10 @@ async function sendNewUserAddedEmail(user, notifyEmail) {
 }
 
 async function sendDonationReceivedEmail(member, donation, charityName) {
+  if (member?.do_not_email || isLikelyPlaceholderEmail(member?.email)) {
+    console.log('Skipped donation-received email — placeholder or opted-out address:', member?.email);
+    return { skipped: true };
+  }
   const who = charityName || 'your church';
   const detailsRow = (label, value) => `
     <tr>
