@@ -291,6 +291,43 @@ async function initDb() {
     await client.query(`ALTER TABLE gift_aid_claims ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ`);
 
     await client.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS do_not_email BOOLEAN NOT NULL DEFAULT FALSE`);
+    await client.query(`ALTER TABLE charities ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sms_log (
+        id          SERIAL PRIMARY KEY,
+        charity_id  INTEGER REFERENCES charities(id),
+        member_id   INTEGER REFERENCES members(id) ON DELETE SET NULL,
+        to_number   TEXT NOT NULL,
+        purpose     TEXT NOT NULL,
+        twilio_sid  TEXT,
+        sent_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_sms_log_sent_at ON sms_log (sent_at DESC)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_sms_log_charity ON sms_log (charity_id, sent_at DESC)`);
+
+    // One-off backfill: 13 SMS were sent before sms_log existed. Attribute them to the
+    // first active charity so the platform dashboard reflects real Twilio spend.
+    // This block is a no-op once any rows exist in sms_log.
+    const existingSms = await client.query(`SELECT COUNT(*)::int AS n FROM sms_log`);
+    if (existingSms.rows[0].n === 0) {
+      const backfillCharity = await client.query(
+        `SELECT id FROM charities WHERE is_active = 1 ORDER BY id ASC LIMIT 1`
+      );
+      if (backfillCharity.rows.length > 0) {
+        const charityId = backfillCharity.rows[0].id;
+        for (let i = 0; i < 13; i++) {
+          await client.query(
+            `INSERT INTO sms_log (charity_id, to_number, purpose, sent_at)
+             VALUES ($1, '(unknown)', 'backfill', date_trunc('month', NOW()))`,
+            [charityId]
+          );
+        }
+        console.log('Backfilled 13 historical SMS into sms_log for charity ' + charityId);
+      }
+    }
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS fund_opening_balances (

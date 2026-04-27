@@ -177,8 +177,12 @@ async function readCSVAndProcess(csvFilePath, req, res) {
  * Reads charityId from the session and attaches it to req.charityId.
  * Must be used after requireLogin on all routes that access tenant data.
  * Never trusts charity_id from the request body/query — always from session.
+ *
+ * Also enforces that the charity is still active. If a charity is deactivated
+ * mid-session, the user is forcibly signed out on their next request.
+ * Platform admins are exempt (they should still be able to reactivate).
  */
-function injectCharityId(req, res, next) {
+async function injectCharityId(req, res, next) {
   const charityId = req.session.charityId;
   if (!charityId) {
     // Platform admins with no charity context: send to platform picker, keep them logged in
@@ -189,6 +193,27 @@ function injectCharityId(req, res, next) {
     req.flash('error', 'Session error. Please log in again.');
     return res.redirect('/login');
   }
+
+  // Platform admins acting-as a charity stay allowed even if it's deactivated —
+  // they need access to fix it. Everyone else is blocked.
+  if (req.session.role !== 'platform_admin') {
+    try {
+      const charityRes = await pool.query(
+        'SELECT is_active FROM charities WHERE id = $1',
+        [charityId]
+      );
+      if (charityRes.rows[0]?.is_active === 0) {
+        req.session.destroy(() => {
+          res.redirect('/login?deactivated=1');
+        });
+        return;
+      }
+    } catch (err) {
+      console.error('Charity active-state check failed:', err.message);
+      // Fail open: better than locking everyone out on a transient DB error
+    }
+  }
+
   req.charityId = charityId;
   next();
 }

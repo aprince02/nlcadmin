@@ -1540,6 +1540,171 @@ a:hover {
   .pb-kpi-value     { font-size: var(--font-2xl); }
 }
 
+/* ── Public "Update your details" page ─────────────────── */
+.pb-update {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+}
+@media (min-width: 768px) {
+  .pb-update {
+    padding: 2.5rem 1.5rem 4rem;
+  }
+}
+
+.pb-update-hero {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.25rem;
+  background: var(--pb-surface);
+  border: 1px solid var(--pb-border);
+  border-radius: var(--pb-radius-lg);
+  box-shadow: var(--pb-shadow-sm);
+  margin-bottom: 1rem;
+}
+.pb-update-hero-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--pb-gray-900);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.pb-update-hero-icon--logo {
+  background: var(--pb-surface);
+  border: 1px solid var(--pb-border);
+  padding: 6px;
+}
+.pb-update-hero-icon--logo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.pb-update-title {
+  color: var(--pb-gray-900);
+}
+.pb-update-subtitle {
+  color: var(--pb-gray-700);
+}
+.pb-update-subtitle strong {
+  color: var(--pb-gray-900);
+}
+.pb-update-title {
+  font-size: 1.55rem;
+  font-weight: 700;
+  margin: 0 0 0.15rem;
+  color: var(--pb-gray-900);
+  letter-spacing: -0.01em;
+}
+.pb-update-subtitle {
+  margin: 0;
+  color: var(--pb-text-muted);
+  font-size: var(--font-base);
+}
+
+.pb-update-info {
+  background: var(--pb-primary-light);
+  border: 1px solid rgba(59, 91, 219, 0.25);
+  border-radius: var(--pb-radius-lg);
+  padding: 0.95rem 1.1rem;
+  font-size: var(--font-sm);
+  color: var(--pb-gray-900);
+  margin-bottom: 1.5rem;
+  line-height: 1.55;
+}
+.pb-update-info .bi {
+  color: var(--pb-primary);
+}
+
+.pb-update-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.pb-update-card {
+  background: var(--pb-surface);
+  border: 1px solid var(--pb-border);
+  border-radius: var(--pb-radius-lg);
+  box-shadow: var(--pb-shadow-sm);
+  padding: 1.25rem 1.25rem 1rem;
+}
+.pb-update-card-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pb-text-muted);
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--pb-border-subtle);
+}
+.pb-update-field {
+  margin-bottom: 1rem;
+}
+.pb-update-field:last-child {
+  margin-bottom: 0;
+}
+.pb-update-field .form-label {
+  font-weight: 500;
+  font-size: var(--font-sm);
+  color: var(--pb-gray-700);
+  margin-bottom: 0.35rem;
+}
+.pb-update-field .form-control,
+.pb-update-field .form-select {
+  font-size: var(--font-base);
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.55rem;
+}
+
+/* Desktop: two-column field grid inside cards */
+@media (min-width: 768px) {
+  .pb-update-card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.25rem;
+  }
+  .pb-update-card-grid .pb-update-field--full {
+    grid-column: 1 / -1;
+  }
+  .pb-update-card { padding: 1.5rem 1.5rem 1.25rem; }
+  .pb-update-card-title { margin-bottom: 1.1rem; }
+}
+
+.pb-update-submit {
+  width: 100%;
+  padding: 0.95rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 0.65rem;
+  margin-top: 0.5rem;
+  letter-spacing: 0.01em;
+}
+
+.pb-update-fineprint {
+  text-align: center;
+  font-size: var(--font-xs);
+  color: var(--pb-text-muted);
+  margin: 1rem 0 0;
+}
+.pb-update-fineprint .bi {
+  color: var(--pb-accent);
+}
+
+@media (max-width: 575.98px) {
+  .pb-update { padding: 1rem 0.75rem 2.5rem; }
+  .pb-update-hero { padding: 0.25rem 0 1rem; }
+  .pb-update-title { font-size: 1.35rem; }
+  .pb-update-card { padding: 1rem; }
+}
+
 /* ── Member cards (mobile claimants page) ──────────────── */
 .pb-member-cards {
   display: flex;

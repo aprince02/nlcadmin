@@ -28,16 +28,33 @@
             <th>Subscription</th>
             <th class="text-center">Users</th>
             <th class="text-center">Members</th>
-            <th>Last donation</th>
+            <th>Last login</th>
             <th class="text-end"></th>
           </tr>
         </thead>
         <tbody>
           <% charities.forEach(c => { %>
-            <tr>
+            <% const isInactive = c.is_active === 0; %>
+            <% let daysUntilDeletion = null; %>
+            <% if (isInactive && c.deactivated_at) {
+                 const ms = Date.now() - new Date(c.deactivated_at).getTime();
+                 daysUntilDeletion = Math.max(0, 90 - Math.floor(ms / 86400000));
+               } %>
+            <tr<%= isInactive ? ' class="table-secondary"' : '' %>>
               <td>
-                <div class="fw-semibold"><%= c.name %></div>
+                <div class="fw-semibold">
+                  <%= c.name %>
+                  <% if (isInactive) { %>
+                    <span class="badge bg-dark ms-1">Deactivated</span>
+                  <% } %>
+                </div>
                 <div class="text-muted small"><%= c.slug %></div>
+                <% if (isInactive && daysUntilDeletion !== null) { %>
+                  <div class="text-danger small">
+                    <i class="bi bi-trash3 me-1"></i>
+                    Data deletion in <%= daysUntilDeletion %> day<%= daysUntilDeletion === 1 ? '' : 's' %>
+                  </div>
+                <% } %>
               </td>
               <td>
                 <% if (c.subscription_status === 'active') { %>
@@ -56,14 +73,38 @@
               <td class="text-center"><%= c.user_count %></td>
               <td class="text-center"><%= c.member_count %></td>
               <td class="text-muted small">
-                <%= c.last_donation_at ? new Date(c.last_donation_at).toLocaleDateString('en-GB') : '—' %>
+                <% if (c.last_login_at) { %>
+                  <% const loginDate = new Date(c.last_login_at); %>
+                  <% const days = Math.floor((Date.now() - loginDate.getTime()) / 86400000); %>
+                  <%= loginDate.toLocaleDateString('en-GB') %>
+                  <div class="text-muted" style="font-size:0.75rem;">
+                    <%= days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago' %>
+                  </div>
+                <% } else { %>
+                  —
+                <% } %>
               </td>
               <td class="text-end">
-                <form method="POST" action="/platform/act-as/<%= c.id %>" class="d-inline">
-                  <button type="submit" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-box-arrow-in-right me-1"></i>View as
-                  </button>
-                </form>
+                <% if (isInactive) { %>
+                  <form method="POST" action="/platform/charities/<%= c.id %>/reactivate" class="d-inline"
+                        onsubmit="return confirm('Reactivate <%= c.name.replace(/'/g, '&#39;') %>? This cancels the scheduled deletion.');">
+                    <button type="submit" class="btn btn-sm btn-success">
+                      <i class="bi bi-arrow-counterclockwise me-1"></i>Reactivate
+                    </button>
+                  </form>
+                <% } else { %>
+                  <form method="POST" action="/platform/act-as/<%= c.id %>" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-box-arrow-in-right me-1"></i>View as
+                    </button>
+                  </form>
+                  <form method="POST" action="/platform/charities/<%= c.id %>/deactivate" class="d-inline ms-1"
+                        onsubmit="return confirm('Deactivate <%= c.name.replace(/'/g, '&#39;') %>?\n\n• Stripe subscription will be set to cancel at period end\n• Bank connections will be disabled\n• Users can no longer sign in\n• ALL DATA WILL BE PERMANENTLY DELETED IN 90 DAYS\n\nYou can reactivate within that 90-day window to restore everything.');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                      <i class="bi bi-x-circle me-1"></i>Deactivate
+                    </button>
+                  </form>
+                <% } %>
               </td>
             </tr>
           <% }) %>

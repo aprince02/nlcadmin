@@ -660,6 +660,10 @@ app.post('/api/members/quick', requireLogin, injectCharityId, checkApprovedUser,
         const result  = await smsLib.sendUpdateDetailsSms(phoneNormalised, link, charity?.name);
         smsSent = true;
         smsTo   = result.to;
+        await pool.query(
+          `INSERT INTO sms_log (charity_id, member_id, to_number, purpose, twilio_sid) VALUES ($1, $2, $3, $4, $5)`,
+          [req.charityId, memberId, result.to, 'quick_add', result.sid]
+        ).catch(e => console.error('sms_log insert failed:', e.message));
         log(loggedInName + ': SMS update link sent to ' + smsTo + ' for new member ' + memberId);
       } catch (err) {
         smsError = err.message;
@@ -822,6 +826,9 @@ app.get("/release-notes", (req, res) =>  {
 });
     
 app.get("/login", (req, res) =>  {
+    if (req.query.deactivated === '1') {
+        req.flash('error', 'This account is no longer active. Please contact support@probooksaccounting.co.uk if this is unexpected.');
+    }
     res.render("login");
 });
 
@@ -835,6 +842,18 @@ app.post("/login", async (req, res) => {
             req.flash('error', 'Invalid email or password.');
             return res.redirect('/login');
         }
+        // Block sign-in for users belonging to a deactivated charity (platform_admin has no charity_id and is exempt)
+        if (row.charity_id) {
+            const charityRes = await pool.query(
+                'SELECT is_active FROM charities WHERE id = $1',
+                [row.charity_id]
+            );
+            if (charityRes.rows[0]?.is_active === 0) {
+                log('Login blocked — charity ' + row.charity_id + ' is deactivated (user: ' + email + ')');
+                req.flash('error', 'This account is no longer active. Please contact support@probooksaccounting.co.uk.');
+                return res.redirect('/login');
+            }
+        }
         bcrypt.compare(password, row.password, function(err, match) {
             if (err) {
                 console.error(err.message);
@@ -844,6 +863,8 @@ app.post("/login", async (req, res) => {
                 req.session.role      = row.role;
                 req.session.approval  = row.approval;
                 req.session.charityId = row.charity_id;
+                pool.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [row.id])
+                    .catch(e => console.error('last_login_at update failed:', e.message));
                 console.log("User " + req.session.name + " logged in");
                 const fingerprintData = req.fingerprint;
                 console.log(`Logged in user device fingerprint: ${JSON.stringify(fingerprintData)}`);
@@ -1030,6 +1051,53 @@ app.post('/export-donations', requireLogin, injectCharityId, checkUserRole, chec
       }
     }
   });
+
+// Hard-delete data for any charity that's been deactivated for 90+ days.
+// Runs once a day at 03:30 — well clear of the 9am payment-reminder cron.
+async function purgeExpiredCharities() {
+  const expired = await pool.query(
+    `SELECT id, name FROM charities
+     WHERE is_active = 0 AND deactivated_at IS NOT NULL
+       AND deactivated_at < NOW() - INTERVAL '90 days'`
+  );
+  if (expired.rows.length === 0) return;
+
+  for (const c of expired.rows) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Order matters — children first.
+      await client.query('DELETE FROM donations           WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM transactions        WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM gift_aid_claims     WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM member_update_tokens WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM members             WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM transaction_types   WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM donation_types      WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM bank_transactions   WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM bank_balances       WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM bank_sync_log       WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM bank_connections    WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM offering_claim      WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM invites             WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM terms_acceptance    WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM fund_opening_balances WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM sms_log             WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM console_logs        WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM users               WHERE charity_id = $1', [c.id]);
+      await client.query('DELETE FROM charities           WHERE id = $1',         [c.id]);
+      await client.query('COMMIT');
+      log('System: hard-deleted charity ' + c.id + ' (' + c.name + ') after 90-day grace period');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('Hard-delete failed for charity', c.id, err.message);
+      log('System: hard-delete FAILED for charity ' + c.id + ' — ' + err.message);
+    } finally {
+      client.release();
+    }
+  }
+}
+scheduleJob('30 3 * * *', 'purge-expired-charities', purgeExpiredCharities);
 
 // TrueLayer bank sync — runs every 6 hours for all active charities
 scheduleJob('0 */6 * * *', 'truelayer-sync', async () => {
@@ -1379,11 +1447,12 @@ app.get('/platform', requireLogin, checkPlatformAdmin, async (req, res) => {
     const result = await pool.query(`
       SELECT
         c.id, c.name, c.slug, c.subscription_status, c.subscription_plan, c.current_period_end,
+        c.is_active, c.deactivated_at,
         (SELECT COUNT(*) FROM users  WHERE charity_id = c.id AND approval = 'approved')::int AS user_count,
         (SELECT COUNT(*) FROM members WHERE charity_id = c.id)::int AS member_count,
-        (SELECT MAX(date)::text FROM donations WHERE charity_id = c.id) AS last_donation_at
+        (SELECT MAX(last_login_at) FROM users WHERE charity_id = c.id) AS last_login_at
       FROM charities c
-      ORDER BY c.name ASC
+      ORDER BY c.is_active DESC, c.name ASC
     `);
     res.render('platform/index', { loggedInName: req.session.name, charities: result.rows });
   } catch (err) {
@@ -1392,9 +1461,13 @@ app.get('/platform', requireLogin, checkPlatformAdmin, async (req, res) => {
   }
 });
 
+// SMS cost model
+const SMS_NUMBER_RENTAL_GBP = 1.90; // monthly Twilio number rental
+const SMS_PER_MESSAGE_GBP   = 0.05; // outbound message cost
+
 app.get('/platform/dashboard', requireLogin, checkPlatformAdmin, async (req, res) => {
   try {
-    const [users, subs, lastSync, errors] = await Promise.all([
+    const [users, subs, lastSync, errors, smsThisMonth, smsAllTime, smsByCharity] = await Promise.all([
       pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE approval = 'approved'`),
       pool.query(`
         SELECT
@@ -1406,17 +1479,134 @@ app.get('/platform/dashboard', requireLogin, checkPlatformAdmin, async (req, res
       `),
       pool.query(`SELECT MAX(last_synced_at)::text AS last_synced FROM bank_connections`).catch(() => ({ rows: [{ last_synced: null }] })),
       pool.query(`SELECT COUNT(*)::int AS n FROM console_logs WHERE level = 'error' AND timestamp::timestamptz > NOW() - INTERVAL '24 hours'`),
+      pool.query(`SELECT COUNT(*)::int AS n FROM sms_log WHERE sent_at >= date_trunc('month', NOW())`).catch(() => ({ rows: [{ n: 0 }] })),
+      pool.query(`SELECT COUNT(*)::int AS n FROM sms_log`).catch(() => ({ rows: [{ n: 0 }] })),
+      pool.query(`
+        SELECT c.id, c.name,
+               COUNT(s.id) FILTER (WHERE s.sent_at >= date_trunc('month', NOW()))::int AS count_month,
+               COUNT(s.id)::int AS count_all_time
+        FROM charities c
+        LEFT JOIN sms_log s ON s.charity_id = c.id
+        GROUP BY c.id, c.name
+        HAVING COUNT(s.id) > 0
+        ORDER BY count_month DESC, count_all_time DESC, c.name
+      `).catch(() => ({ rows: [] })),
     ]);
+
+    const smsCountThisMonth = smsThisMonth.rows[0].n;
+    const smsCostThisMonth  = SMS_NUMBER_RENTAL_GBP + (smsCountThisMonth * SMS_PER_MESSAGE_GBP);
+
+    const smsByCharityRows = smsByCharity.rows.map(r => ({
+      id:           r.id,
+      name:         r.name,
+      countMonth:   r.count_month,
+      countAllTime: r.count_all_time,
+      costMonth:    r.count_month * SMS_PER_MESSAGE_GBP,
+    }));
+
     res.render('platform/dashboard', {
       loggedInName: req.session.name,
-      activeUsers: users.rows[0].n,
-      subs: subs.rows[0],
+      activeUsers:  users.rows[0].n,
+      subs:         subs.rows[0],
       lastBankSync: lastSync.rows[0].last_synced,
       recentErrors: errors.rows[0].n,
+      sms: {
+        countThisMonth: smsCountThisMonth,
+        countAllTime:   smsAllTime.rows[0].n,
+        rentalGbp:      SMS_NUMBER_RENTAL_GBP,
+        perMessageGbp:  SMS_PER_MESSAGE_GBP,
+        costThisMonth:  smsCostThisMonth,
+        byCharity:      smsByCharityRows,
+      },
     });
   } catch (err) {
     console.error('Platform dashboard error:', err.message);
     res.status(500).send('Error loading platform dashboard.');
+  }
+});
+
+// Deactivate a charity — soft delete with Stripe + bank cleanup.
+// Hard deletion happens via cron 90 days after deactivated_at.
+app.post('/platform/charities/:id/deactivate', requireLogin, checkPlatformAdmin, async (req, res) => {
+  const charityId = parseInt(req.params.id, 10);
+  if (!charityId) {
+    req.flash('error', 'Invalid charity id.');
+    return res.redirect('/platform');
+  }
+  try {
+    const charityRes = await pool.query(
+      `SELECT id, name, stripe_subscription_id, is_active FROM charities WHERE id = $1`,
+      [charityId]
+    );
+    if (charityRes.rows.length === 0) {
+      req.flash('error', 'Charity not found.');
+      return res.redirect('/platform');
+    }
+    const charity = charityRes.rows[0];
+    if (charity.is_active === 0) {
+      req.flash('error', 'Charity is already deactivated.');
+      return res.redirect('/platform');
+    }
+
+    // Cancel Stripe subscription at period end (so they get the rest of what they paid for)
+    let stripeNote = '';
+    if (charity.stripe_subscription_id) {
+      try {
+        const stripeClient = require('stripe')(process.env.STRIPE_SECRET_KEY);
+        await stripeClient.subscriptions.update(charity.stripe_subscription_id, {
+          cancel_at_period_end: true,
+        });
+        stripeNote = '; Stripe subscription set to cancel at period end';
+      } catch (err) {
+        console.error('Stripe cancel-at-period-end failed:', err.message);
+        stripeNote = '; WARNING — Stripe cancel failed: ' + err.message;
+      }
+    }
+
+    // Mark bank connections inactive so the cron stops trying to refresh them
+    await pool.query(
+      `UPDATE bank_connections SET is_active = 0 WHERE charity_id = $1`,
+      [charityId]
+    ).catch(e => console.error('bank_connections deactivate failed:', e.message));
+
+    // Flag the charity itself
+    await pool.query(
+      `UPDATE charities SET is_active = 0, deactivated_at = NOW() WHERE id = $1`,
+      [charityId]
+    );
+
+    log(req.session.name + ': platform admin deactivated charity ' + charityId + ' (' + charity.name + ')' + stripeNote);
+    req.flash('success', 'Charity "' + charity.name + '" deactivated. Data will be permanently deleted in 90 days.');
+    res.redirect('/platform');
+  } catch (err) {
+    console.error('Deactivate charity error:', err);
+    req.flash('error', 'Could not deactivate charity: ' + err.message);
+    res.redirect('/platform');
+  }
+});
+
+app.post('/platform/charities/:id/reactivate', requireLogin, checkPlatformAdmin, async (req, res) => {
+  const charityId = parseInt(req.params.id, 10);
+  if (!charityId) {
+    req.flash('error', 'Invalid charity id.');
+    return res.redirect('/platform');
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE charities SET is_active = 1, deactivated_at = NULL WHERE id = $1 RETURNING name`,
+      [charityId]
+    );
+    if (result.rows.length === 0) {
+      req.flash('error', 'Charity not found.');
+      return res.redirect('/platform');
+    }
+    log(req.session.name + ': platform admin reactivated charity ' + charityId);
+    req.flash('success', 'Charity "' + result.rows[0].name + '" reactivated.');
+    res.redirect('/platform');
+  } catch (err) {
+    console.error('Reactivate charity error:', err);
+    req.flash('error', 'Could not reactivate charity: ' + err.message);
+    res.redirect('/platform');
   }
 });
 
@@ -1882,7 +2072,12 @@ app.post('/api/send-update-sms/:id', requireLogin, injectCharityId, checkUserRol
 
     const charity = await dbHelper.getCharityById(req.charityId);
     const link    = `${process.env.APP_URL || 'https://probooksaccounting.co.uk'}/update-details/${token}`;
-    await sms.sendUpdateDetailsSms(normalised, link, charity?.name);
+    const result  = await sms.sendUpdateDetailsSms(normalised, link, charity?.name);
+
+    await pool.query(
+      `INSERT INTO sms_log (charity_id, member_id, to_number, purpose, twilio_sid) VALUES ($1, $2, $3, $4, $5)`,
+      [req.charityId, id, result.to, 'update_request', result.sid]
+    ).catch(e => console.error('sms_log insert failed:', e.message));
 
     log(loggedInName + ': Update details link sent via SMS to ' + normalised + ' for: ' + row.first_name + ' ' + row.surname);
     res.json({ success: true, message: 'SMS sent to ' + normalised });
@@ -1900,7 +2095,7 @@ async function consumeUpdateToken(token, client) {
     `SELECT t.*, m.first_name, m.surname, m.title, m.sex, m.date_of_birth, m.spouse_name,
             m.email, m.phone_number,
             m.house_number, m.address_line_1, m.address_line_2, m.city, m.postcode,
-            c.name AS charity_name
+            c.name AS charity_name, c.logo_path AS charity_logo
      FROM member_update_tokens t
      INNER JOIN members m   ON m.id = t.member_id
      INNER JOIN charities c ON c.id = t.charity_id
@@ -1917,7 +2112,7 @@ async function consumeUpdateToken(token, client) {
 app.get("/update-details/:token", async (req, res) => {
   try {
     const { token, error } = await consumeUpdateToken(req.params.token);
-    if (error) return res.render("update-details", { token: null, member: null, charityName: null, reason: error, success: false });
+    if (error) return res.render("update-details", { token: null, member: null, charityName: null, charityLogo: null, reason: error, success: false });
     res.render("update-details", {
       token: req.params.token,
       member: {
@@ -1928,12 +2123,13 @@ app.get("/update-details/:token", async (req, res) => {
         address_line_2: token.address_line_2, city: token.city, postcode: token.postcode,
       },
       charityName: token.charity_name,
+      charityLogo: token.charity_logo,
       reason: null,
       success: false,
     });
   } catch (err) {
     console.error('Update-details GET error:', err.message);
-    res.status(500).render("update-details", { token: null, member: null, charityName: null, reason: 'error', success: false });
+    res.status(500).render("update-details", { token: null, member: null, charityName: null, charityLogo: null, reason: 'error', success: false });
   }
 });
 
@@ -1944,7 +2140,7 @@ app.post("/update-details/:token", async (req, res) => {
     const { token, error } = await consumeUpdateToken(req.params.token, client);
     if (error) {
       await client.query('ROLLBACK');
-      return res.render("update-details", { token: null, member: null, charityName: null, reason: error, success: false });
+      return res.render("update-details", { token: null, member: null, charityName: null, charityLogo: null, reason: error, success: false });
     }
 
     const b = req.body;
@@ -1970,11 +2166,11 @@ app.post("/update-details/:token", async (req, res) => {
     );
     await client.query('COMMIT');
     log(`Member ${token.member_id} updated their own details via token`, token.charity_id);
-    res.render("update-details", { token: null, member: null, charityName: token.charity_name, reason: null, success: true });
+    res.render("update-details", { token: null, member: null, charityName: token.charity_name, charityLogo: token.charity_logo, reason: null, success: true });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Update-details POST error:', err.message);
-    res.status(500).render("update-details", { token: req.params.token, member: req.body, charityName: null, reason: 'error', success: false });
+    res.status(500).render("update-details", { token: req.params.token, member: req.body, charityName: null, charityLogo: null, reason: 'error', success: false });
   } finally {
     client.release();
   }

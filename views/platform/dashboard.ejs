@@ -68,6 +68,73 @@
     </div>
   </div>
 
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      <div class="pb-table-card p-4 h-100">
+        <div class="d-flex align-items-center text-primary mb-3">
+          <i class="bi bi-chat-dots-fill fs-4 me-2"></i>
+          <span class="fw-semibold">SMS Costs (this month)</span>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="text-muted small text-uppercase fw-semibold">Total this month</div>
+            <div class="display-5 fw-bold">£<%= sms.costThisMonth.toFixed(2) %></div>
+            <table class="table table-sm mb-0 mt-2">
+              <tbody>
+                <tr>
+                  <td class="text-muted small">Number rental</td>
+                  <td class="text-end fw-semibold">£<%= sms.rentalGbp.toFixed(2) %></td>
+                </tr>
+                <tr>
+                  <td class="text-muted small"><%= sms.countThisMonth %> msg<%= sms.countThisMonth === 1 ? '' : 's' %> &times; <%= (sms.perMessageGbp * 100).toFixed(0) %>p</td>
+                  <td class="text-end fw-semibold">£<%= (sms.countThisMonth * sms.perMessageGbp).toFixed(2) %></td>
+                </tr>
+                <tr class="border-top">
+                  <td class="text-muted small">All-time messages</td>
+                  <td class="text-end fw-semibold"><%= sms.countAllTime %></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="col-md-8">
+            <div class="text-muted small text-uppercase fw-semibold mb-2">By charity</div>
+            <% if (sms.byCharity.length === 0) { %>
+              <div class="text-muted">No SMS sent yet.</div>
+            <% } else { %>
+              <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th>Charity</th>
+                      <th class="text-end">This month</th>
+                      <th class="text-end">Cost (msgs)</th>
+                      <th class="text-end">All time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% sms.byCharity.forEach(c => { %>
+                      <tr>
+                        <td><%= c.name %></td>
+                        <td class="text-end"><%= c.countMonth %></td>
+                        <td class="text-end fw-semibold">£<%= c.costMonth.toFixed(2) %></td>
+                        <td class="text-end text-muted"><%= c.countAllTime %></td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+              <p class="text-muted small mb-0 mt-2">
+                Cost shown is per-charity message volume only. The £<%= sms.rentalGbp.toFixed(2) %> number rental is shared across all charities.
+              </p>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <%- include("../_footer") -%>
