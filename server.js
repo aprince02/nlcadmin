@@ -1943,16 +1943,19 @@ app.post("/update-details/:token", async (req, res) => {
     }
 
     const b = req.body;
+    const blank = v => (v === '' || v == null) ? null : v;
     await client.query(
       `UPDATE members
-       SET title=$1, first_name=$2, surname=$3, email=$4, phone_number=$5,
-           house_number=$6, address_line_1=$7, address_line_2=$8, city=$9, postcode=$10
-       WHERE id=$11 AND charity_id=$12`,
+       SET title=$1, first_name=$2, surname=$3, sex=$4, date_of_birth=$5, spouse_name=$6,
+           email=$7, phone_number=$8,
+           house_number=$9, address_line_1=$10, address_line_2=$11, city=$12, postcode=$13
+       WHERE id=$14 AND charity_id=$15`,
       [
-        b.title || null, b.first_name || null, b.surname || null,
-        b.email || null, b.phone_number || null,
-        b.house_number || null, b.address_line_1 || null, b.address_line_2 || null,
-        b.city || null, formatPostcode(b.postcode) || null,
+        blank(b.title), blank(b.first_name), blank(b.surname),
+        blank(b.sex), blank(b.date_of_birth), blank(b.spouse_name),
+        blank(b.email), blank(b.phone_number),
+        blank(b.house_number), blank(b.address_line_1), blank(b.address_line_2),
+        blank(b.city), formatPostcode(b.postcode) || null,
         token.member_id, token.charity_id,
       ]
     );
