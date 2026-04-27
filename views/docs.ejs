@@ -4,15 +4,68 @@
   <div class="pb-page-header">
     <div>
       <h1 class="pb-page-title">Documentation</h1>
-      <p class="pb-page-subtitle">Guides and help for using ProBooks Accounting</p>
+      <p class="pb-page-subtitle">Guides for using ProBooks Accounting</p>
+    </div>
+    <div class="pb-page-actions">
+      <a href="mailto:support@probooksaccounting.co.uk" class="btn btn-outline-primary">
+        <i class="bi bi-envelope me-1"></i>Contact support
+      </a>
     </div>
   </div>
 
-  <div class="pb-table-card p-4">
-    <div class="text-center py-4">
-      <i class="bi bi-book display-4 text-muted"></i>
-      <h5 class="mt-3">Coming soon</h5>
-      <p class="text-muted mb-0">We're putting together guides for every feature. In the meantime, reach out at <a href="mailto:support@probooksaccounting.co.uk">support@probooksaccounting.co.uk</a>.</p>
+  <div class="pb-admin-layout">
+
+    <!-- Sidebar nav -->
+    <aside class="pb-admin-sidebar">
+      <div class="pb-admin-sidebar-brand">
+        <div class="icon"><i class="bi bi-book"></i></div>
+        <div>
+          <div class="title">User Guide</div>
+          <div class="subtitle">For charity admins</div>
+        </div>
+      </div>
+
+      <% topics.forEach(group => { %>
+        <div class="pb-docs-group-label"><%= group.group %></div>
+        <% group.items.forEach(item => { %>
+          <a class="pb-admin-sidebar-item <%= currentSlug === item.slug ? 'active' : '' %>"
+             href="/docs/<%= item.slug %>">
+            <i class="bi bi-file-earmark-text"></i><%= item.title %>
+          </a>
+        <% }) %>
+      <% }) %>
+    </aside>
+
+    <!-- Content -->
+    <div>
+      <% if (!currentSlug) { %>
+        <div class="pb-table-card p-4">
+          <h3 class="mb-3">Welcome</h3>
+          <p class="text-muted">Pick a topic from the left, or jump in below.</p>
+
+          <div class="pb-admin-grid mt-3">
+            <% topics.forEach(group => { %>
+              <div class="pb-admin-card">
+                <div class="pb-admin-card-head">
+                  <div class="title"><%= group.group %></div>
+                  <span class="count-pill"><%= group.items.length %> guides</span>
+                </div>
+                <div class="pb-admin-card-body">
+                  <% group.items.forEach(item => { %>
+                    <a href="/docs/<%= item.slug %>" class="pb-admin-link">
+                      <%= item.title %><i class="bi bi-chevron-right"></i>
+                    </a>
+                  <% }) %>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+      <% } else { %>
+        <article class="pb-table-card p-4 pb-docs-article">
+          <%- bodyHtml %>
+        </article>
+      <% } %>
     </div>
   </div>
 </div>

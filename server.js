@@ -164,8 +164,70 @@ app.listen(8000, () => {
   console.log("Server running on port: %PORT%".replace("%PORT%",8000))
 });
 
+  // ── Documentation (markdown-backed) ────────────────────────────
+  const { marked } = require('marked');
+
+  const DOC_TOPICS = [
+    { group: 'Getting started', items: [
+      { slug: 'getting-started',  title: 'Welcome & first-time setup' },
+      { slug: 'charity-settings', title: 'Charity details' },
+      { slug: 'users-and-roles',  title: 'Inviting users & permissions' },
+    ]},
+    { group: 'Daily use', items: [
+      { slug: 'members',       title: 'Managing members' },
+      { slug: 'donations',     title: 'Recording donations' },
+      { slug: 'bank',          title: 'Bank connection (Open Banking)' },
+      { slug: 'transactions',  title: 'Recording income & expenses' },
+      { slug: 'fund-balances', title: 'Fund balances on the Dashboard' },
+    ]},
+    { group: 'Reporting', items: [
+      { slug: 'reports',  title: 'Exports & PDFs' },
+      { slug: 'giftaid',  title: 'Claiming Gift Aid' },
+    ]},
+    { group: 'Account', items: [
+      { slug: 'billing',  title: 'Subscription & invoices' },
+      { slug: 'security', title: 'Security & data protection' },
+    ]},
+    { group: 'Reference', items: [
+      { slug: 'troubleshooting', title: 'Common issues' },
+      { slug: 'faq',             title: 'Frequently asked' },
+    ]},
+  ];
+  const DOC_INDEX = new Map(
+    DOC_TOPICS.flatMap(g => g.items.map(it => [it.slug, { ...it, group: g.group }]))
+  );
+
   app.get('/docs', requireLogin, (req, res) => {
-    res.render('docs', { loggedInName: req.session.name });
+    res.render('docs', {
+      loggedInName: req.session.name,
+      topics: DOC_TOPICS,
+      currentSlug: null,
+      bodyHtml:    null,
+      title:       null,
+    });
+  });
+
+  app.get('/docs/:slug', requireLogin, (req, res) => {
+    const slug = req.params.slug;
+    if (!/^[a-z0-9-]+$/.test(slug) || !DOC_INDEX.has(slug)) {
+      return res.redirect('/docs');
+    }
+    const filePath = path.join(__dirname, 'docs', slug + '.md');
+    let bodyHtml;
+    try {
+      const md = fs.readFileSync(filePath, 'utf8');
+      bodyHtml = marked.parse(md);
+    } catch (err) {
+      console.error('Doc read failed for', slug, err.message);
+      return res.redirect('/docs');
+    }
+    res.render('docs', {
+      loggedInName: req.session.name,
+      topics:      DOC_TOPICS,
+      currentSlug: slug,
+      bodyHtml,
+      title:       DOC_INDEX.get(slug).title,
+    });
   });
 
   app.get("/admin", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
@@ -232,7 +294,7 @@ app.listen(8000, () => {
 
 app.get("/yearly-transactions/:year/:page", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
   const year = req.params.year;
-  const rowsPerPage = 100;
+  const rowsPerPage = 50;
   let currentPage = parseInt(req.params.page) || 1;
   if (currentPage < 1) currentPage = 1;
   const startIndex = (currentPage - 1) * rowsPerPage;
@@ -553,6 +615,66 @@ app.post("/edit-donation/:id", requireLogin, injectCharityId, checkApprovedUser,
             return res.redirect("/select-giver");
         }
     });
+
+// ── Quick add: minimal member (title, name, phone) + optional SMS update link ──
+app.post('/api/members/quick', requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
+  const loggedInName = req.session.name;
+  const b = req.body || {};
+  const first_name   = (b.first_name || '').trim();
+  const surname      = (b.surname    || '').trim();
+  const title        = (b.title      || '').trim() || null;
+  const phone_number = (b.phone_number || '').trim();
+  const sendSms      = b.send_sms !== false;
+
+  if (!first_name || !surname) {
+    return res.status(400).json({ error: 'First name and surname are required.' });
+  }
+  const smsLib  = require('./sms');
+  const phoneNormalised = smsLib.normaliseUkMobile(phone_number);
+  if (!phoneNormalised) {
+    return res.status(400).json({ error: 'A valid UK mobile number is required.' });
+  }
+
+  try {
+    const ins = await pool.query(
+      `INSERT INTO members (title, first_name, surname, phone_number, charity_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [title, first_name, surname, phone_number, req.charityId]
+    );
+    const memberId = ins.rows[0].id;
+    log(loggedInName + ': Quick-added member ' + first_name + ' ' + surname + ' (id ' + memberId + ')');
+
+    let smsSent  = false;
+    let smsError = null;
+    let smsTo    = null;
+    if (sendSms) {
+      try {
+        const token     = crypto.randomBytes(12).toString('hex');
+        const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+        await pool.query(
+          `INSERT INTO member_update_tokens (member_id, charity_id, token, expires_at) VALUES ($1, $2, $3, $4)`,
+          [memberId, req.charityId, token, expiresAt]
+        );
+        const charity = await dbHelper.getCharityById(req.charityId);
+        const link    = `${process.env.APP_URL || 'https://probooksaccounting.co.uk'}/update-details/${token}`;
+        const result  = await smsLib.sendUpdateDetailsSms(phoneNormalised, link, charity?.name);
+        smsSent = true;
+        smsTo   = result.to;
+        log(loggedInName + ': SMS update link sent to ' + smsTo + ' for new member ' + memberId);
+      } catch (err) {
+        smsError = err.message;
+        console.error('Quick-add SMS failed:', err);
+        log(loggedInName + ': SMS failed for new member ' + memberId + ' — ' + err.message);
+      }
+    }
+
+    res.json({ success: true, id: memberId, smsSent, smsError, smsTo });
+  } catch (err) {
+    console.error('Quick-add member failed:', err);
+    log(loggedInName + ': Quick-add member failed — ' + err.message);
+    res.status(500).json({ error: err.message || 'Could not create member.' });
+  }
+});
 
 // ── Member API (used by claimants page modals) ──────────────────────────────
 app.get("/api/member/:id", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
@@ -1736,6 +1858,40 @@ try {
       return res.redirect("/claimants/:page");
     }
   });
+
+// ── SMS update request (called from the Edit Member modal) ──
+const sms = require('./sms');
+app.post('/api/send-update-sms/:id', requireLogin, injectCharityId, checkUserRole, checkApprovedUser, async (req, res) => {
+  const loggedInName = req.session.name;
+  const id = req.params.id;
+  try {
+    const row = await dbHelper.getMemberWithId(id, req.charityId);
+    if (!row) return res.status(404).json({ error: 'Member not found.' });
+
+    const normalised = sms.normaliseUkMobile(row.phone_number);
+    if (!normalised) {
+      return res.status(400).json({ error: 'Phone number is not a valid UK mobile.' });
+    }
+
+    const token     = crypto.randomBytes(12).toString('hex'); // 24 hex chars, 96 bits entropy
+    const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    await pool.query(
+      `INSERT INTO member_update_tokens (member_id, charity_id, token, expires_at) VALUES ($1, $2, $3, $4)`,
+      [id, req.charityId, token, expiresAt]
+    );
+
+    const charity = await dbHelper.getCharityById(req.charityId);
+    const link    = `${process.env.APP_URL || 'https://probooksaccounting.co.uk'}/update-details/${token}`;
+    await sms.sendUpdateDetailsSms(normalised, link, charity?.name);
+
+    log(loggedInName + ': Update details link sent via SMS to ' + normalised + ' for: ' + row.first_name + ' ' + row.surname);
+    res.json({ success: true, message: 'SMS sent to ' + normalised });
+  } catch (err) {
+    console.error('SMS send failed:', err);
+    log(loggedInName + ': SMS send failed for member ' + id + ' — ' + err.message);
+    res.status(500).json({ error: err.message || 'Could not send SMS.' });
+  }
+});
 
 // ── Public self-service: member updates their own details via emailed token ──
 async function consumeUpdateToken(token, client) {

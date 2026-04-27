@@ -6,9 +6,9 @@
       <h1 class="pb-page-title">Members</h1>
     </div>
     <div class="pb-page-actions d-print-none">
-      <a class="btn btn-primary btn-sm" href="/create">
+      <button type="button" class="btn btn-primary btn-sm" id="openQuickAddBtn">
         <i class="bi bi-person-plus-fill" aria-hidden="true"></i> Add Member
-      </a>
+      </button>
     </div>
   </div>
 
@@ -32,9 +32,10 @@
     </div>
   </form>
 
-  <div class="pb-table-card">
-    <div class="table-responsive-sm">
-      <table class="table pb-members-table">
+  <!-- Desktop / tablet: table layout -->
+  <div class="pb-table-card d-none d-md-block">
+    <div class="table-responsive">
+      <table class="table pb-members-table mb-0">
         <thead>
           <tr>
             <th>MEMBER</th>
@@ -46,7 +47,6 @@
         <tbody>
           <% for (const member of model) { %>
             <tr>
-              <!-- Member avatar + name + id -->
               <td>
                 <div class="pb-member-row">
                   <div class="pb-member-avatar"><%= (member.first_name || '?')[0].toUpperCase() %></div>
@@ -56,8 +56,6 @@
                   </div>
                 </div>
               </td>
-
-              <!-- Contact info -->
               <td>
                 <div class="pb-contact-info">
                   <% if (member.email) { %>
@@ -76,8 +74,6 @@
                   <% } %>
                 </div>
               </td>
-
-              <!-- Address -->
               <td>
                 <% const hasAddress = member.address_line_1 || member.city || member.postcode; %>
                 <% if (hasAddress) { %>
@@ -90,8 +86,6 @@
                   <span class="pb-no-data">No address provided</span>
                 <% } %>
               </td>
-
-              <!-- Actions -->
               <td class="d-print-none text-end">
                 <button class="btn btn-sm btn-info btn-view-giving" data-id="<%= member.id %>">
                   <i class="bi bi-wallet2 me-1"></i>View Giving
@@ -118,17 +112,76 @@
     </div>
   </div>
 
-  <nav aria-label="Page navigation" class="mt-3">
-    <ul class="pagination justify-content-center">
-      <% if (totalPages > 1) { %>
-        <% for (let i = 1; i <= totalPages; i++) { %>
-          <li class="page-item <%= currentPage === i ? 'active' : '' %>">
-            <a class="page-link" href="/claimants/<%= i %><%= search ? '?search=' + encodeURIComponent(search) : '' %>"><%= i %></a>
-          </li>
-        <% } %>
-      <% } %>
-    </ul>
-  </nav>
+  <!-- Mobile: card layout -->
+  <div class="d-md-none pb-member-cards">
+    <% if (model.length === 0) { %>
+      <div class="pb-table-card p-4 text-center text-muted">
+        No members found<% if (search) { %> matching "<%= search %>"<% } %>.
+      </div>
+    <% } %>
+
+    <% for (const member of model) { %>
+      <% const hasAddress = member.address_line_1 || member.city || member.postcode; %>
+      <div class="pb-member-card">
+        <div class="pb-member-card__head">
+          <div class="pb-member-avatar"><%= (member.first_name || '?')[0].toUpperCase() %></div>
+          <div class="flex-grow-1 min-w-0">
+            <div class="pb-member-name text-truncate"><%= member.first_name %> <%= member.surname %></div>
+            <div class="pb-member-id">ID: <%= member.id %></div>
+          </div>
+        </div>
+
+        <div class="pb-member-card__body">
+          <% if (member.email || member.phone_number) { %>
+            <% if (member.email) { %>
+              <div class="pb-member-card__line">
+                <i class="bi bi-envelope"></i>
+                <span class="text-break"><%= member.email %></span>
+                <% if (member.do_not_email) { %>
+                  <span class="badge bg-secondary">No email</span>
+                <% } %>
+              </div>
+            <% } %>
+            <% if (member.phone_number) { %>
+              <div class="pb-member-card__line">
+                <i class="bi bi-telephone"></i>
+                <a href="tel:<%= member.phone_number %>"><%= member.phone_number %></a>
+              </div>
+            <% } %>
+          <% } else { %>
+            <div class="pb-no-data">No contact info</div>
+          <% } %>
+
+          <% if (hasAddress) { %>
+            <div class="pb-member-card__line align-items-start">
+              <i class="bi bi-geo-alt mt-1"></i>
+              <div>
+                <% if (member.house_number || member.address_line_1) { %><div><%= [member.house_number, member.address_line_1].filter(Boolean).join(' ') %></div><% } %>
+                <% if (member.address_line_2) { %><div><%= member.address_line_2 %></div><% } %>
+                <% if (member.city || member.postcode) { %><div><%= [member.city, member.postcode].filter(Boolean).join(', ') %></div><% } %>
+              </div>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="pb-member-card__actions d-print-none">
+          <button class="btn btn-sm btn-info btn-view-giving" data-id="<%= member.id %>">
+            <i class="bi bi-wallet2 me-1"></i>Giving
+          </button>
+          <button class="btn btn-sm btn-warning btn-edit-member" data-id="<%= member.id %>">
+            <i class="bi bi-pencil me-1"></i>Edit
+          </button>
+          <button class="btn btn-sm btn-danger btn-delete-member" data-id="<%= member.id %>" data-name="<%= member.first_name %> <%= member.surname %>">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="mt-3">
+    <%- include('_pagination', { currentPage, totalPages, urlBase: '/claimants/{page}' + (search ? '?search=' + encodeURIComponent(search) : '') }) %>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════════
@@ -387,12 +440,84 @@
         <div id="em_error_load" class="alert alert-danger d-none"></div>
       </div>
       <div class="modal-footer">
+        <button type="button" class="btn btn-outline-primary me-auto" id="em_send_sms_btn" disabled title="Send an SMS link asking the member to update their details">
+          <span id="em_sms_spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+          <i class="bi bi-chat-dots me-1" id="em_sms_icon"></i>Send SMS update
+        </button>
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-warning" id="em_save_btn" disabled>
           <span id="em_spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
           <i class="bi bi-floppy me-1" id="em_save_icon"></i>Save Changes
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     QUICK ADD MEMBER MODAL
+═══════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="quickAddModal" tabindex="-1" aria-labelledby="quickAddModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header pb-modal-header">
+        <h5 class="modal-title" id="quickAddModalLabel"><i class="bi bi-person-plus-fill me-2"></i>Add Member</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="quickAddForm" novalidate>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            Add a member with just the basics. They'll receive an SMS asking them to fill in the rest themselves.
+          </p>
+          <div class="row g-3">
+            <div class="col-sm-3">
+              <label class="form-label" for="qa_title">Title</label>
+              <select class="form-select" id="qa_title" name="title">
+                <option value=""></option>
+                <option value="Mr">Mr</option>
+                <option value="Mrs">Mrs</option>
+                <option value="Miss">Miss</option>
+                <option value="Ms">Ms</option>
+                <option value="Dr">Dr</option>
+                <option value="Rev">Rev</option>
+              </select>
+            </div>
+            <div class="col-sm-9">
+              <label class="form-label" for="qa_first_name">First Name</label>
+              <input required type="text" class="form-control" id="qa_first_name" name="first_name" autocomplete="off">
+              <div class="invalid-feedback">First name is required.</div>
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label" for="qa_surname">Surname</label>
+            <input required type="text" class="form-control" id="qa_surname" name="surname" autocomplete="off">
+            <div class="invalid-feedback">Surname is required.</div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label" for="qa_phone">Phone Number <small class="text-muted">(UK mobile)</small></label>
+            <input required type="tel" class="form-control" id="qa_phone" name="phone_number" placeholder="07xxxxxxxxx" autocomplete="off">
+            <div class="invalid-feedback">A valid UK mobile is required so we can SMS them an update link.</div>
+          </div>
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" id="qa_send_sms" checked>
+            <label class="form-check-label small" for="qa_send_sms">
+              Send SMS update link straight after saving
+            </label>
+          </div>
+          <div class="alert alert-danger d-none mt-3" id="qa_error" role="alert"></div>
+          <div class="alert alert-success d-none mt-3" id="qa_success" role="alert"></div>
+          <p class="text-muted small mt-3 mb-0">
+            Need to enter full details (address, Gift Aid, etc.) right now? <a href="/create">Use the full form</a>.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="qa_save_btn">
+            <span id="qa_spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+            <i class="bi bi-check-lg me-1" id="qa_save_icon"></i>Save &amp; SMS
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -518,6 +643,9 @@ document.addEventListener('DOMContentLoaded', function () {
   const emSaveBtn = document.getElementById('em_save_btn');
   const emSpinner = document.getElementById('em_spinner');
   const emSaveIcon= document.getElementById('em_save_icon');
+  const emSmsBtn  = document.getElementById('em_send_sms_btn');
+  const emSmsSpin = document.getElementById('em_sms_spinner');
+  const emSmsIcon = document.getElementById('em_sms_icon');
 
   document.querySelectorAll('.btn-edit-member').forEach(btn => {
     btn.addEventListener('click', async function () {
@@ -527,6 +655,7 @@ document.addEventListener('DOMContentLoaded', function () {
       emErrorLoad.classList.add('d-none');
       emError.classList.add('d-none');
       emSaveBtn.disabled = true;
+      emSmsBtn.disabled = true;
       document.getElementById('em_subtitle').textContent = '';
       emModal.show();
 
@@ -557,12 +686,124 @@ document.addEventListener('DOMContentLoaded', function () {
         emLoading.classList.add('d-none');
         emForm.classList.remove('d-none');
         emSaveBtn.disabled = false;
+        emSmsBtn.disabled = !m.phone_number;
+        emSmsBtn.title = m.phone_number
+          ? 'Send an SMS link asking the member to update their details'
+          : 'No phone number on file';
+        emSmsBtn.dataset.memberId = m.id;
       } catch (err) {
         emLoading.classList.add('d-none');
         emErrorLoad.textContent = err.message;
         emErrorLoad.classList.remove('d-none');
       }
     });
+  });
+
+  // ── Send SMS update request ─────────────────────────────
+  emSmsBtn.addEventListener('click', async function () {
+    const id = this.dataset.memberId;
+    if (!id) return;
+    if (!confirm('Send an SMS update link to this member? It will be valid for 14 days and can only be used once.')) return;
+
+    emSmsSpin.classList.remove('d-none');
+    emSmsIcon.classList.add('d-none');
+    emSmsBtn.disabled = true;
+    emError.classList.add('d-none');
+
+    try {
+      const res = await fetch('/api/send-update-sms/' + id, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'SMS send failed.');
+      showToast(data.message || 'SMS sent.');
+    } catch (err) {
+      emError.textContent = err.message || 'SMS send failed.';
+      emError.classList.remove('d-none');
+    } finally {
+      emSmsSpin.classList.add('d-none');
+      emSmsIcon.classList.remove('d-none');
+      emSmsBtn.disabled = false;
+    }
+  });
+
+  // ════════════════════════════════════════
+  // QUICK ADD MODAL
+  // ════════════════════════════════════════
+  const qaModal   = new bootstrap.Modal(document.getElementById('quickAddModal'));
+  const qaForm    = document.getElementById('quickAddForm');
+  const qaError   = document.getElementById('qa_error');
+  const qaSuccess = document.getElementById('qa_success');
+  const qaSaveBtn = document.getElementById('qa_save_btn');
+  const qaSpin    = document.getElementById('qa_spinner');
+  const qaIcon    = document.getElementById('qa_save_icon');
+  const qaSendSms = document.getElementById('qa_send_sms');
+
+  document.getElementById('openQuickAddBtn').addEventListener('click', () => {
+    qaForm.reset();
+    qaForm.classList.remove('was-validated');
+    qaError.classList.add('d-none');
+    qaSuccess.classList.add('d-none');
+    document.getElementById('qa_send_sms').checked = true;
+    qaModal.show();
+    setTimeout(() => document.getElementById('qa_first_name').focus(), 250);
+  });
+
+  // Update the save button label to reflect whether SMS will fire
+  qaSendSms.addEventListener('change', () => {
+    qaSaveBtn.innerHTML = qaSendSms.checked
+      ? '<span id="qa_spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span><i class="bi bi-check-lg me-1" id="qa_save_icon"></i>Save & SMS'
+      : '<span id="qa_spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span><i class="bi bi-check-lg me-1" id="qa_save_icon"></i>Save';
+  });
+
+  qaForm.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    qaForm.classList.add('was-validated');
+    if (!qaForm.checkValidity()) return;
+
+    const payload = {
+      title:        document.getElementById('qa_title').value,
+      first_name:   document.getElementById('qa_first_name').value.trim(),
+      surname:      document.getElementById('qa_surname').value.trim(),
+      phone_number: document.getElementById('qa_phone').value.trim(),
+      send_sms:     qaSendSms.checked,
+    };
+
+    const spin = document.getElementById('qa_spinner');
+    const icon = document.getElementById('qa_save_icon');
+    spin.classList.remove('d-none');
+    icon.classList.add('d-none');
+    qaSaveBtn.disabled = true;
+    qaError.classList.add('d-none');
+    qaSuccess.classList.add('d-none');
+
+    try {
+      const res  = await fetch('/api/members/quick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed.');
+
+      const msg = data.smsSent
+        ? `Member added. SMS sent to ${data.smsTo || payload.phone_number}.`
+        : data.smsError
+          ? `Member added, but SMS failed: ${data.smsError}`
+          : 'Member added.';
+
+      qaSuccess.textContent = msg;
+      qaSuccess.classList.remove('d-none');
+      qaForm.reset();
+      qaForm.classList.remove('was-validated');
+      // Reload after a short delay so the new member appears in the list
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (err) {
+      qaError.textContent = err.message || 'Save failed.';
+      qaError.classList.remove('d-none');
+    } finally {
+      spin.classList.add('d-none');
+      icon.classList.remove('d-none');
+      qaSaveBtn.disabled = false;
+    }
   });
 
   emSaveBtn.addEventListener('click', async function () {

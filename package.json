@@ -29,13 +29,15 @@
     "googleapis": "^123.0.0",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.5.29",
+    "marked": "^4.3.0",
     "multer": "^1.4.5-lts.1",
     "node-schedule": "^2.1.1",
     "nodemailer": "^6.9.4",
     "pg": "^8.20.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
-    "stripe": "^22.1.0"
+    "stripe": "^22.1.0",
+    "twilio": "^6.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

@@ -1,0 +1,51 @@
+<%
+  // Windowed pagination
+  // Inputs: currentPage, totalPages, urlBase (string with `{page}` placeholder)
+  // Shows: first | … | window around current | … | last
+  function pageHref(p) { return urlBase.replace('{page}', p); }
+
+  const window = 1; // pages on either side of current
+  const pages = [];
+  const add = p => { if (!pages.includes(p)) pages.push(p); };
+
+  add(1);
+  for (let i = currentPage - window; i <= currentPage + window; i++) {
+    if (i >= 1 && i <= totalPages) add(i);
+  }
+  add(totalPages);
+  pages.sort((a, b) => a - b);
+
+  // Insert ellipsis markers (-1) where there's a gap
+  const withGaps = [];
+  for (let i = 0; i < pages.length; i++) {
+    withGaps.push(pages[i]);
+    if (i < pages.length - 1 && pages[i + 1] - pages[i] > 1) {
+      withGaps.push(-1);
+    }
+  }
+%>
+<% if (totalPages > 1) { %>
+  <nav aria-label="Page navigation">
+    <ul class="pagination justify-content-center mb-0">
+      <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+        <a class="page-link" href="<%= currentPage === 1 ? '#' : pageHref(currentPage - 1) %>" aria-label="Previous">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+      </li>
+      <% withGaps.forEach(p => { %>
+        <% if (p === -1) { %>
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+        <% } else { %>
+          <li class="page-item <%= currentPage === p ? 'active' : '' %>">
+            <a class="page-link" href="<%= pageHref(p) %>"><%= p %></a>
+          </li>
+        <% } %>
+      <% }) %>
+      <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+        <a class="page-link" href="<%= currentPage === totalPages ? '#' : pageHref(currentPage + 1) %>" aria-label="Next">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      </li>
+    </ul>
+  </nav>
+<% } %>
