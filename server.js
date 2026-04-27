@@ -1897,10 +1897,13 @@ app.post('/api/send-update-sms/:id', requireLogin, injectCharityId, checkUserRol
 async function consumeUpdateToken(token, client) {
   const q = client || pool;
   const result = await q.query(
-    `SELECT t.*, m.first_name, m.surname, m.title, m.email, m.phone_number,
-            m.house_number, m.address_line_1, m.address_line_2, m.city, m.postcode
+    `SELECT t.*, m.first_name, m.surname, m.title, m.sex, m.date_of_birth, m.spouse_name,
+            m.email, m.phone_number,
+            m.house_number, m.address_line_1, m.address_line_2, m.city, m.postcode,
+            c.name AS charity_name
      FROM member_update_tokens t
-     INNER JOIN members m ON m.id = t.member_id
+     INNER JOIN members m   ON m.id = t.member_id
+     INNER JOIN charities c ON c.id = t.charity_id
      WHERE t.token = $1`,
     [token]
   );
@@ -1914,21 +1917,23 @@ async function consumeUpdateToken(token, client) {
 app.get("/update-details/:token", async (req, res) => {
   try {
     const { token, error } = await consumeUpdateToken(req.params.token);
-    if (error) return res.render("update-details", { token: null, member: null, reason: error, success: false });
+    if (error) return res.render("update-details", { token: null, member: null, charityName: null, reason: error, success: false });
     res.render("update-details", {
       token: req.params.token,
       member: {
         title: token.title, first_name: token.first_name, surname: token.surname,
+        sex: token.sex, date_of_birth: token.date_of_birth, spouse_name: token.spouse_name,
         email: token.email, phone_number: token.phone_number,
         house_number: token.house_number, address_line_1: token.address_line_1,
         address_line_2: token.address_line_2, city: token.city, postcode: token.postcode,
       },
+      charityName: token.charity_name,
       reason: null,
       success: false,
     });
   } catch (err) {
     console.error('Update-details GET error:', err.message);
-    res.status(500).render("update-details", { token: null, member: null, reason: 'error', success: false });
+    res.status(500).render("update-details", { token: null, member: null, charityName: null, reason: 'error', success: false });
   }
 });
 
@@ -1939,7 +1944,7 @@ app.post("/update-details/:token", async (req, res) => {
     const { token, error } = await consumeUpdateToken(req.params.token, client);
     if (error) {
       await client.query('ROLLBACK');
-      return res.render("update-details", { token: null, member: null, reason: error, success: false });
+      return res.render("update-details", { token: null, member: null, charityName: null, reason: error, success: false });
     }
 
     const b = req.body;
@@ -1965,11 +1970,11 @@ app.post("/update-details/:token", async (req, res) => {
     );
     await client.query('COMMIT');
     log(`Member ${token.member_id} updated their own details via token`, token.charity_id);
-    res.render("update-details", { token: null, member: null, reason: null, success: true });
+    res.render("update-details", { token: null, member: null, charityName: token.charity_name, reason: null, success: true });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Update-details POST error:', err.message);
-    res.status(500).render("update-details", { token: req.params.token, member: req.body, reason: 'error', success: false });
+    res.status(500).render("update-details", { token: req.params.token, member: req.body, charityName: null, reason: 'error', success: false });
   } finally {
     client.release();
   }

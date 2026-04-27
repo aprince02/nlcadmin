@@ -5,7 +5,10 @@
   <% if (success) { %>
     <div class="alert alert-success" role="alert">
       <h4 class="alert-heading"><i class="bi bi-check-circle me-2"></i>Thank you!</h4>
-      <p class="mb-0">Your details have been updated. You can now close this page.</p>
+      <p class="mb-0">
+        Your details have been updated<% if (charityName) { %> and shared with <strong><%= charityName %></strong><% } %>.
+        You can now close this page.
+      </p>
     </div>
   <% } else if (reason === 'invalid') { %>
     <div class="alert alert-danger" role="alert">
@@ -31,6 +34,12 @@
 
   <% if (token && member) { %>
     <h1 class="display-6 mb-2">Update Your Details</h1>
+    <% if (charityName) { %>
+      <p class="lead mb-1">
+        <i class="bi bi-building me-1 text-primary"></i>
+        Requested by <strong><%= charityName %></strong>
+      </p>
+    <% } %>
     <p class="text-muted mb-4">Please check your details below and update anything that is incorrect. Once you've saved, this link cannot be used again.</p>
 
     <form action="/update-details/<%= token %>" method="post">
