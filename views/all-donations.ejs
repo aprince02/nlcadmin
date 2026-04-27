@@ -24,6 +24,10 @@
     </div>
   </div>
 
+  <div class="mb-3">
+    <%- include('_pagination', { currentPage, totalPages, urlBase: '/all-donations/{page}' }) %>
+  </div>
+
   <div class="pb-table-card">
 
     <!-- Desktop table -->
@@ -97,17 +101,9 @@
 
   </div>
 
-  <nav aria-label="Page navigation" class="mt-3">
-    <ul class="pagination justify-content-center flex-wrap">
-      <% if (totalPages > 1) { %>
-        <% for (let i = 1; i <= totalPages; i++) { %>
-          <li class="page-item <%= currentPage === i ? 'active' : '' %>">
-            <a class="page-link" href="/all-donations/<%= i %>"><%= i %></a>
-          </li>
-        <% } %>
-      <% } %>
-    </ul>
-  </nav>
+  <div class="mt-3">
+    <%- include('_pagination', { currentPage, totalPages, urlBase: '/all-donations/{page}' }) %>
+  </div>
 </div>
 
 <!-- ── Add Donation Modal ──────────────────────────────────────── -->

@@ -439,7 +439,7 @@ app.post("/delete/:id", requireLogin, injectCharityId, checkUserRole, checkAppro
     });
 
     app.get("/all-donations/:page", requireLogin, injectCharityId, checkApprovedUser, async (req, res) => {
-      const donationsPerPage = 100;
+      const donationsPerPage = 50;
         const loggedInName = req.session.name;
         const currentPage = parseInt(req.params.page) || 1;
         const startIndex = (currentPage - 1) * donationsPerPage;
